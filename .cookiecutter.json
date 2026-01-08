@@ -1,0 +1,25 @@
+{
+  "_commit": "1b94f545381a9ce08e205e7451d7a4f07eaef142",
+  "_copy_without_render": [
+    "*.rst_t"
+  ],
+  "_jinja2_env_vars": {
+    "lstrip_blocks": true,
+    "trim_blocks": true
+  },
+  "_template": "https://github.com/statisticsnorway/ssb-pypitemplate.git",
+  "author": "Team Fellesfunksjoner",
+  "code_quality_level": "Medium",
+  "copyright_owner": "Statistics Norway",
+  "copyright_year": "2026",
+  "department_number": "724",
+  "dependency_manager_tool": "poetry",
+  "development_status": "Development Status :: 4 - Beta",
+  "email": "osn@ssb.no",
+  "friendly_name": "SSB Parquedit",
+  "github_organization": "statisticsnorway",
+  "license": "MIT",
+  "package_name": "ssb_parquedit",
+  "project_name": "ssb-parquedit",
+  "version": "0.0.0"
+}
