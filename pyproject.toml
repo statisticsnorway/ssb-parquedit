@@ -1,6 +1,6 @@
 [project]
 name = "ssb-parquedit"
-version = "0.0.0"
+version = "0.0.1"
 description = "SSB Parquedit"
 authors = [{ name = "Team Fellesfunksjoner", email = "osn@ssb.no" }]
 maintainers = [{ name = "Statistics Norway, Data enablement Department (724)" }]
