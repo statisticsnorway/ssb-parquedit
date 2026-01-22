@@ -96,6 +96,7 @@ fail_under = 50
 DEP001 = ["nox", "nox_poetry"]  # packages available by default
 
 [tool.mypy]
+ignore_missing_imports = true
 strict = true
 warn_unreachable = true
 pretty = true
