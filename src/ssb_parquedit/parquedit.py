@@ -35,7 +35,8 @@ class ParquEdit:
             self._conn.sql(f"INSTALL {ext}")
             self._conn.sql(f"LOAD {ext}")
         # Attach catalog
-        self._conn.sql(f"""
+        self._conn.sql(
+            f"""
             ATTACH 'ducklake:postgres:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
@@ -43,7 +44,8 @@ class ParquEdit:
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
              METADATA_SCHEMA {db_config["metadata_schema"]});
-        """)
+        """
+        )
         self._conn.sql(f"USE {db_config['catalog_name']}")
 
     def __enter__(self) -> "ParquEdit":
@@ -134,10 +136,12 @@ class ParquEdit:
             table_name: Name of the table to create.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
-        self._conn.execute(f"""
+        self._conn.execute(
+            f"""
             CREATE TABLE {table_name} AS
             SELECT * FROM read_parquet('{parquet_path}') WHERE 1=2;
-            """)
+            """
+        )
 
     def _create_from_schema(self, table_name: str, schema: dict[str, Any]) -> None:
         """Create a table from a JSON Schema specification.
@@ -182,10 +186,12 @@ class ParquEdit:
             table_name: Name of the table to populate.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
-        self._conn.sql(f"""
+        self._conn.sql(
+            f"""
             INSERT INTO {table_name}
             SELECT * FROM read_parquet('{parquet_path}');
-            """)
+            """
+        )
 
     @staticmethod
     def translate(prop: dict[str, Any]) -> str:
