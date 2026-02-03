@@ -193,6 +193,62 @@ class ParquEdit:
             """
         )
 
+    def view_table(
+        self,
+        table_name: str,
+        limit: int | None = 10,
+        offset: int = 0,
+        columns: list[str] | None = None,
+        where: str | None = None,
+        order_by: str | None = None,
+    ) -> pd.DataFrame:
+        """View contents of a table in the DuckLake catalog.
+        
+        Args:
+            table_name: Name of the table to view.
+            limit: Maximum number of rows to return. None returns all rows. Defaults to 10.
+            offset: Number of rows to skip. Defaults to 0.
+            columns: List of column names to select. None selects all columns. Defaults to None.
+            where: WHERE clause condition (without the WHERE keyword). Defaults to None.
+            order_by: ORDER BY clause (without the ORDER BY keyword). Defaults to None.
+        
+        Returns:
+            pd.DataFrame: DataFrame containing the query results.
+        
+        Example:
+            >>> editor.view_table("my_table", limit=5)
+            >>> editor.view_table("my_table", columns=["id", "name"], where="age > 25")
+            >>> editor.view_table("my_table", order_by="created_at DESC", limit=100)
+        """
+        self._validate_table_name(table_name)
+        
+        # Build SELECT clause
+        if columns:
+            select_clause = ", ".join(columns)
+        else:
+            select_clause = "*"
+        
+        # Build query
+        query = f"SELECT {select_clause} FROM {table_name}"
+        
+        # Add WHERE clause
+        if where:
+            query += f" WHERE {where}"
+        
+        # Add ORDER BY clause
+        if order_by:
+            query += f" ORDER BY {order_by}"
+        
+        # Add LIMIT and OFFSET
+        if limit is not None:
+            query += f" LIMIT {limit}"
+        if offset > 0:
+            query += f" OFFSET {offset}"
+        
+        # Execute and return as DataFrame
+        return self._conn.execute(query).df()
+  
+
     @staticmethod
     def translate(prop: dict[str, Any]) -> str:
         """Translate a JSON Schema property to a DuckDB column type.
