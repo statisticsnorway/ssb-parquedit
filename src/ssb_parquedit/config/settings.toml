@@ -38,3 +38,4 @@ temporary_run = true
 [gsbuckets]
 kildedata_root_dir = "@format gs://ssb-{this.dapla_team}-data-kilde-prod/{this.short_name}"
 product_root_dir = "@format gs://ssb-{this.dapla_team}-data-produkt-prod/{this.short_name}"
+
