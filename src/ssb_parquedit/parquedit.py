@@ -1,19 +1,44 @@
-import re
+"""ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
+
 from types import TracebackType
 from typing import Any
-
 import duckdb
-import gcsfs
 import pandas as pd
+
+from connection import DuckDBConnection
+from ddl import DDLOperations
+from dml import DMLOperations
+from query import QueryOperations
 
 
 class ParquEdit:
     """A class for managing DuckDB tables with DuckLake catalog integration.
 
-    This class provides an interface for creating and managing tables in DuckDB
-    with support for Google Cloud Storage, PostgreSQL metadata, and DuckLake catalogs.
-
-
+    This facade provides a unified interface to DDL, DML, and Query operations.
+    
+    For detailed documentation of each method, see the respective operations classes:
+    - DDL operations: ddl.DDLOperations (create_table, drop_table, alter_table)
+    - DML operations: dml.DMLOperations (insert, update, delete, fill_table)
+    - Query operations: query.QueryOperations (view_table, select, count)
+    
+    Example:
+        >>> db_config = {
+        ...     "dbname": "mydb",
+        ...     "dbuser": "user",
+        ...     "catalog_name": "my_catalog",
+        ...     "data_path": "gs://my-bucket/data",
+        ...     "metadata_schema": "public"
+        ... }
+        >>> 
+        >>> with ParquEdit(db_config) as editor:
+        ...     # Create and populate a table
+        ...     editor.create_table("users", df, "User data", fill=True)
+        ...     
+        ...     # Query the table
+        ...     result = editor.view_table("users", limit=10, where="age > 25")
+        ...     
+        ...     # Update data
+        ...     editor.update("users", {"status": "active"}, where="id = 1")
     """
 
     def __init__(
@@ -21,39 +46,22 @@ class ParquEdit:
     ) -> None:
         """Initialize ParquEdit.
 
-        Instance Attributes:
-            _owns_conn (bool): Whether this instance owns the DuckDB connection.
-            _conn (duckdb.DuckDBPyConnection): The active DuckDB connection.
-
+        Args:
+            db_config: Database configuration dict with keys:
+                - dbname: PostgreSQL database name
+                - dbuser: PostgreSQL user
+                - catalog_name: Name of the DuckLake catalog
+                - data_path: Path to data storage (e.g., gs://bucket/path)
+                - metadata_schema: PostgreSQL schema for metadata
+            conn: Optional existing DuckDB connection to reuse.
         """
-        self._owns_conn: bool = conn is None
-        self._conn: duckdb.DuckDBPyConnection = conn or duckdb.connect()
-        fs = gcsfs.GCSFileSystem()
-        self._conn.register_filesystem(fs)
-        # Load extensions
-        for ext in ("ducklake", "postgres"):
-            self._conn.sql(f"INSTALL {ext}")
-            self._conn.sql(f"LOAD {ext}")
-        # Attach catalog
-        self._conn.sql(
-            f"""
-            ATTACH 'ducklake:postgres:
-                dbname={db_config["dbname"]}
-                user={db_config["dbuser"]}
-                host=localhost
-            ' AS {db_config["catalog_name"]}
-            (DATA_PATH '{db_config["data_path"]}',
-             METADATA_SCHEMA {db_config["metadata_schema"]});
-        """
-        )
-        self._conn.sql(f"USE {db_config['catalog_name']}")
+        self._connection = DuckDBConnection(db_config, conn)
+        self._ddl = DDLOperations(self._connection)
+        self._dml = DMLOperations(self._connection)
+        self._query = QueryOperations(self._connection)
 
     def __enter__(self) -> "ParquEdit":
-        """Context manager entry.
-
-        Returns:
-            ParquEdit: This instance for use in with statements.
-        """
+        """Context manager entry."""
         return self
 
     def __exit__(
@@ -62,21 +70,16 @@ class ParquEdit:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        """Context manager exit, closes connection if owned.
-
-        Args:
-            exc_type: Exception type if an exception occurred.
-            exc: Exception instance if an exception occurred.
-            tb: Traceback if an exception occurred.
-        """
-        if self._owns_conn:
-            self._conn.close()
+        """Context manager exit, closes connection if owned."""
+        self.close()
 
     def close(self) -> None:
-        """Manually close the connection if this instance owns it."""
-        if self._owns_conn:
-            self._conn.close()
-
+        """Close the database connection if this instance owns it."""
+        self._connection.close()
+    
+    # ============ DDL Operations ============
+    # Delegate to DDLOperations - see ddl.py for full documentation
+    
     def create_table(
         self,
         table_name: str,
@@ -85,114 +88,43 @@ class ParquEdit:
         part_columns: list[str] | None = None,
         fill: bool = False,
     ) -> None:
-        """Create a new table in the DuckLake catalog.
-
-        Args:
-            table_name: Name of the table to create.
-            source: Source for table schema. Can be:
-                - pd.DataFrame: Uses DataFrame schema
-                - dict: JSON Schema specification
-                - str: Path to Parquet file (gs:// format)
-            table_description: Description/comment for the table.
-            part_columns: List of column names to partition by. Defaults to [].
-            fill: Whether to populate the table with data from source. Defaults to False.
-
-        Raises:
-            TypeError: If source is not a DataFrame, dict, or string.
-        """
-        self._validate_table_name(table_name)
-        if isinstance(source, pd.DataFrame):
-            self._create_from_dataframe(table_name, source)
-        elif isinstance(source, dict):
-            self._create_from_schema(table_name, source)
-        elif isinstance(source, str):
-            self._create_from_parquet(table_name, source)
-        else:
-            raise TypeError(
-                "source must be a DataFrame, JSON Schema dict, or gs:// Parquet path"
-            )
-        if part_columns is None:
-            part_columns = []
-        if len(part_columns) > 0:
-            self._add_table_partition(table_name, part_columns)
+        """Create a new table. See DDLOperations.create_table for details."""
+        self._ddl.create_table(table_name, source, table_description, part_columns, fill=False)
         if fill:
-            self.fill_table(table_name, source)
-        self._add_table_description(table_name, table_description)
-
-    def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
-        """Create an empty table from a DataFrame schema.
-
-        Args:
-            table_name: Name of the table to create.
-            data: DataFrame whose schema will be used.
-        """
-        self._conn.register("data", data)
-        self._conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2")
-
-    def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
-        """Create an empty table from a Parquet file schema.
-
-        Args:
-            table_name: Name of the table to create.
-            parquet_path: Path to the Parquet file (supports gs:// URIs).
-        """
-        self._conn.execute(
-            f"""
-            CREATE TABLE {table_name} AS
-            SELECT * FROM read_parquet('{parquet_path}') WHERE 1=2;
-            """
-        )
-
-    def _create_from_schema(self, table_name: str, schema: dict[str, Any]) -> None:
-        """Create a table from a JSON Schema specification.
-
-        Args:
-            table_name: Name of the table to create.
-            schema: JSON Schema dictionary defining the table structure.
-        """
-        ddl = ParquEdit.jsonschema_to_duckdb(schema, table_name)
-        self._conn.execute(ddl)
-
+            self._dml.fill_table(table_name, source)
+    
+    def drop_table(self, table_name: str) -> None:
+        """Drop a table. See DDLOperations.drop_table for details."""
+        return self._ddl.drop_table(table_name)
+    
+    def alter_table(self, table_name: str, changes: dict[str, Any]) -> None:
+        """Alter table structure. See DDLOperations.alter_table for details."""
+        return self._ddl.alter_table(table_name, changes)
+    
+    # ============ DML Operations ============
+    # Delegate to DMLOperations - see dml.py for full documentation
+    
     def fill_table(
         self, table_name: str, source: pd.DataFrame | dict[str, Any] | str
     ) -> None:
-        """Populate an existing table with data.
-
-        Args:
-            table_name: Name of the table to fill.
-            source: Data source. Can be:
-                - pd.DataFrame: Insert DataFrame rows
-                - str: Path to Parquet file (gs:// format)
-        """
-        if isinstance(source, pd.DataFrame):
-            self._fill_from_dataframe(table_name, data=source)
-        elif isinstance(source, str):
-            self._fill_from_parquet(table_name, parquet_path=source)
-
-    def _fill_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
-        """Insert data from a DataFrame into a table.
-
-        Args:
-            table_name: Name of the table to populate.
-            data: DataFrame containing the data to insert.
-        """
-        self._conn.register("data", data)
-        self._conn.execute(f"INSERT INTO {table_name} SELECT * FROM data")
-
-    def _fill_from_parquet(self, table_name: str, parquet_path: str) -> None:
-        """Insert data from a Parquet file into a table.
-
-        Args:
-            table_name: Name of the table to populate.
-            parquet_path: Path to the Parquet file (supports gs:// URIs).
-        """
-        self._conn.sql(
-            f"""
-            INSERT INTO {table_name}
-            SELECT * FROM read_parquet('{parquet_path}');
-            """
-        )
-
+        """Populate table with data. See DMLOperations.fill_table for details."""
+        return self._dml.fill_table(table_name, source)
+    
+    def insert(self, table_name: str, data: pd.DataFrame) -> None:
+        """Insert data into table. See DMLOperations.insert for details."""
+        return self._dml.insert(table_name, data)
+    
+    def update(self, table_name: str, updates: dict[str, Any], where: str) -> None:
+        """Update table rows. See DMLOperations.update for details."""
+        return self._dml.update(table_name, updates, where)
+    
+    def delete(self, table_name: str, where: str) -> None:
+        """Delete table rows. See DMLOperations.delete for details."""
+        return self._dml.delete(table_name, where)
+    
+    # ============ Query Operations ============
+    # Delegate to QueryOperations - see query.py for full documentation
+    
     def view_table(
         self,
         table_name: str,
@@ -202,138 +134,23 @@ class ParquEdit:
         where: str | None = None,
         order_by: str | None = None,
     ) -> pd.DataFrame:
-        """View contents of a table in the DuckLake catalog.
-        
-        Args:
-            table_name: Name of the table to view.
-            limit: Maximum number of rows to return. None returns all rows. Defaults to 10.
-            offset: Number of rows to skip. Defaults to 0.
-            columns: List of column names to select. None selects all columns. Defaults to None.
-            where: WHERE clause condition (without the WHERE keyword). Defaults to None.
-            order_by: ORDER BY clause (without the ORDER BY keyword). Defaults to None.
-        
-        Returns:
-            pd.DataFrame: DataFrame containing the query results.
-        
-        Example:
-            >>> editor.view_table("my_table", limit=5)
-            >>> editor.view_table("my_table", columns=["id", "name"], where="age > 25")
-            >>> editor.view_table("my_table", order_by="created_at DESC", limit=100)
-        """
-        self._validate_table_name(table_name)
-        
-        # Build SELECT clause
-        if columns:
-            select_clause = ", ".join(columns)
-        else:
-            select_clause = "*"
-        
-        # Build query
-        query = f"SELECT {select_clause} FROM {table_name}"
-        
-        # Add WHERE clause
-        if where:
-            query += f" WHERE {where}"
-        
-        # Add ORDER BY clause
-        if order_by:
-            query += f" ORDER BY {order_by}"
-        
-        # Add LIMIT and OFFSET
-        if limit is not None:
-            query += f" LIMIT {limit}"
-        if offset > 0:
-            query += f" OFFSET {offset}"
-        
-        # Execute and return as DataFrame
-        return self._conn.execute(query).df()
-  
-
-    @staticmethod
-    def translate(prop: dict[str, Any]) -> str:
-        """Translate a JSON Schema property to a DuckDB column type.
-
-        Args:
-            prop: JSON Schema property definition dictionary.
-
-        Returns:
-            str: DuckDB column type specification.
-        """
-        t = prop.get("type")
-        if isinstance(t, list):
-            # Remove 'null' from union type
-            t = next(x for x in t if x != "null")
-        if t == "string":
-            fmt = prop.get("format")
-            if fmt == "date-time":
-                return "TIMESTAMP"
-            if fmt == "date":
-                return "DATE"
-            return "VARCHAR"
-        if t == "integer":
-            return "BIGINT"
-        if t == "number":
-            return "DOUBLE"
-        if t == "boolean":
-            return "BOOLEAN"
-        if t == "array":
-            return f"LIST<{ParquEdit.translate(prop['items'])}>"
-        if t == "object":
-            props = prop.get("properties")
-            if not props:
-                return "JSON"
-            fields = [f"{k} {ParquEdit.translate(v)}" for k, v in props.items()]
-            return f"STRUCT({', '.join(fields)})"
-        return "JSON"
-
-    @staticmethod
-    def jsonschema_to_duckdb(schema: dict[str, Any], table_name: str) -> str:
-        """Convert a JSON Schema to a DuckDB CREATE TABLE statement.
-
-        Args:
-            schema: JSON Schema dictionary with 'properties' and optional 'required' fields.
-            table_name: Name for the table in the CREATE statement.
-
-        Returns:
-            str: DuckDB CREATE TABLE DDL statement.
-        """
-        required = set(schema.get("required", []))
-        cols = []
-        for name, prop in schema["properties"].items():
-            col = f"{name} {ParquEdit.translate(prop)}"
-            if name in required:
-                col += " NOT NULL"
-            cols.append(col)
-        return f"CREATE TABLE {table_name} (\n  " + ",\n  ".join(cols) + "\n);"
-
-    @staticmethod
-    def _validate_table_name(table_name: str) -> None:
-        """Validate that a table name follows DuckDB naming conventions.
-
-        Args:
-            table_name: The table name to validate.
-
-        Raises:
-            ValueError: If the table name contains invalid characters.
-        """
-        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table_name):
-            raise ValueError(f"Invalid table name: {table_name}")
-
-    def _add_table_description(self, table_name: str, description: str) -> None:
-        """Add a comment/description to a table.
-
-        Args:
-            table_name: Name of the table.
-            description: Description text to add as a comment.
-        """
-        self._conn.execute(f"COMMENT ON TABLE {table_name} IS '{description}';")
-
-    def _add_table_partition(self, table_name: str, part_columns: list[str]) -> None:
-        """Configure partitioning for a table.
-
-        Args:
-            table_name: Name of the table to partition.
-            part_columns: List of column names to partition by.
-        """
-        cols = ",".join(part_columns)
-        self._conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols});")
+        """View table contents. See QueryOperations.view_table for details."""
+        return self._query.view_table(table_name, limit, offset, columns, where, order_by)
+    
+    def select(
+        self,
+        table_name: str,
+        columns: list[str] | None = None,
+        where: str | None = None,
+        limit: int | None = None,
+    ) -> pd.DataFrame:
+        """Select data from table. See QueryOperations.select for details."""
+        return self._query.select(table_name, columns, where, limit)
+    
+    def count(self, table_name: str, where: str | None = None) -> int:
+        """Count table rows. See QueryOperations.count for details."""
+        return self._query.count(table_name, where)
+    
+    def exists(self, table_name: str) -> bool:
+        """Check if table exists. See QueryOperations.table_exists for details."""
+        return self._query.table_exists(table_name)
