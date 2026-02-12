@@ -1,6 +1,7 @@
 """Utility functions for schema translation and validation."""
 
 import re
+import pandas as pd
 from typing import Any
 
 
@@ -74,6 +75,10 @@ class SchemaUtils:
         """
         required = set(schema.get("required", []))
         cols = []
+
+        # Stable UUID primary key
+        cols.append("_id VARCHAR")    
+            
         for name, prop in schema["properties"].items():
             col = f"{name} {SchemaUtils.translate(prop)}"
             if name in required:
@@ -101,3 +106,22 @@ class SchemaUtils:
                 "Table names must start with a letter or underscore, "
                 "and contain only letters, numbers, and underscores."
             )
+
+    @staticmethod
+    def pandas_to_duckdb(dtype) -> str:
+        """Map a pandas dtype to a DuckDB column type."""
+
+        PANDAS_DUCKDB_TYPE_MAP = [
+            (lambda d: pd.api.types.is_integer_dtype(d), "BIGINT"),
+            (lambda d: pd.api.types.is_float_dtype(d), "DOUBLE"),
+            (lambda d: pd.api.types.is_bool_dtype(d), "BOOLEAN"),
+            (lambda d: pd.api.types.is_datetime64_any_dtype(d), "TIMESTAMP"),
+            (lambda d: pd.api.types.is_string_dtype(d), "VARCHAR"),
+            (lambda d: pd.api.types.is_object_dtype(d), "VARCHAR"),
+        ]
+
+        for predicate, duck_type in PANDAS_DUCKDB_TYPE_MAP:
+            if predicate(dtype):
+                return duck_type
+
+        return "VARCHAR" 

@@ -89,7 +89,7 @@ class ParquEdit:
         fill: bool = False,
     ) -> None:
         """Create a new table. See DDLOperations.create_table for details."""
-        self._ddl.create_table(table_name, source, table_description, part_columns, fill=False)
+        self._ddl.create_table(table_name, source, table_description, part_columns)
         if fill:
             self._dml.fill_table(table_name, source)
     

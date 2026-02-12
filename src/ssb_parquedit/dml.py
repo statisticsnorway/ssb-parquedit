@@ -2,6 +2,7 @@
 
 from typing import Any
 import pandas as pd
+import uuid
 
 
 class DMLOperations:
@@ -130,8 +131,17 @@ class DMLOperations:
             table_name: Name of the table to populate.
             data: DataFrame containing the data to insert.
         """
-        self.conn.register("data", data)
-        self.conn.execute(f"INSERT INTO {table_name} SELECT * FROM data")
+
+        df_copy = data.copy()
+
+        # Insert _id as first column with string UUIDs
+        df_copy.insert(0, "_id", [str(uuid.uuid4()) for _ in range(len(df_copy))])
+
+        # Register the dataframe with DuckDB
+        self.conn.register("data", df_copy)
+
+        # Insert into table
+        self.conn.execute(f"INSERT INTO {table_name} SELECT * FROM data")         
     
     def _fill_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Insert data from a Parquet file into a table.
@@ -140,9 +150,12 @@ class DMLOperations:
             table_name: Name of the table to populate.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
-        self.conn.sql(
+        self.conn.execute(
             f"""
             INSERT INTO {table_name}
-            SELECT * FROM read_parquet('{parquet_path}');
+            SELECT
+                uuid()::VARCHAR AS _id,
+                *
+            FROM read_parquet('{parquet_path}');
             """
-        )
+        ) 

@@ -29,7 +29,6 @@ class DDLOperations:
         source: pd.DataFrame | dict[str, Any] | str,
         table_description: str,
         part_columns: list[str] | None = None,
-        fill: bool = False,
     ) -> None:
         """Create a new table in the DuckLake catalog.
 
@@ -123,8 +122,22 @@ class DDLOperations:
             table_name: Name of the table to create.
             data: DataFrame whose schema will be used.
         """
-        self.conn.register("data", data)
-        self.conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2")
+        cols = []
+
+        # Stable UUID primary key
+        cols.append("_id VARCHAR")
+
+        for col, dtype in data.dtypes.items():
+            duck_type = SchemaUtils.pandas_to_duckdb(dtype)
+            cols.append(f"{col} {duck_type}")
+
+        ddl = f"""
+        CREATE TABLE {table_name} (
+            {', '.join(cols)}
+        );
+        """
+
+        self.conn.execute(ddl)
     
     def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Create an empty table from a Parquet file schema.
@@ -133,12 +146,16 @@ class DDLOperations:
             table_name: Name of the table to create.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
-        self.conn.execute(
-            f"""
-            CREATE TABLE {table_name} AS
-            SELECT * FROM read_parquet('{parquet_path}') WHERE 1=2;
-            """
-        )
+        ddl = f"""
+        CREATE TABLE {table_name} AS
+        SELECT
+            CAST(NULL AS VARCHAR) AS _id,
+            *
+        FROM read_parquet('{parquet_path}')
+        WHERE 1 = 2
+        """
+
+        self.conn.execute(ddl) 
     
     def _create_from_schema(self, table_name: str, schema: dict[str, Any]) -> None:
         """Create a table from a JSON Schema specification.
