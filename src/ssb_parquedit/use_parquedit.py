@@ -28,7 +28,7 @@ db_config.update({'dbuser': os.getenv("DAPLA_GROUP_CONTEXT")+"@dapla-group-sa-t-
 
 # %%
 # Kilde for en tabell kan være en enkel dataframe
-data = pd.DataFrame({
+old_data = pd.DataFrame({
     'name': ['Alice', 'Bob', 'Charlie'],
     'age': [25, 30, 35],
     'city': ['New York', 'London', 'Tokyo'],
@@ -53,7 +53,7 @@ data.to_parquet(parquetfile)
 # lager en Parquedit-instanse
 with ParquEdit(db_config) as editor:
     # oppretter tabeller fra ulike kilder
-    #editor.create_table('unbasic_table_1', data, 'very nice table', ['year'], fill=True)    
+    #editor.create_table('vst_table_23', old_data, 'very nice table', ['year'], fill=True)    
     #editor.create_table('basic_table_1b', data, 'very nice table', part_columns=[], fill_table=True)    
     #editor.create_table('basic_table_1c', data, 'very nice table', part_columns=[])    
     #editor.create_table('basic_table_2', schema, 'not so nice table')
@@ -74,8 +74,9 @@ with ParquEdit(db_config) as editor:
     #print(editor.view_table("unbasic_table_4",limit=100000, where="var_1 = 724", 
     #                            order_by='id', offset=100, columns=["id", "var_10", "var_2"]))
 
-    print(editor.view_table("unbasic_table_4", where="id='ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf'"))
+    print(editor.view_table("vst_table_23"))
 
+    #print(editor.count("vst_table_23"))
 
 
 # %%
@@ -102,4 +103,35 @@ with ParquEdit(db_config) as editor:
     
     print(f"Kjøretid: {(end - start)*1000:.2f} ms")
     print(result)
+# %%
+
+new_data2 = pd.DataFrame({
+    'name': ['R', 'V', 'J'],
+    'age': [23, 32, 37],
+    'city': ['New York', 'London', 'Tokyo'],
+    'year': [2021,2021,2022],
+    'month': [4,2,11],
+    'week': [1,2,3],
+    'day': [10,20,20],
+})
+
+
+# %%
+new_data2.to_parquet("gs://ssb-dapla-ffunk-data-hns-test/temp/new_data.parquet")
+
+#print(new_data)
+
+# %%
+with ParquEdit(db_config) as editor:
+    # oppretter tabeller fra ulike kilder
+    editor.insert('vst_table_23', new_data)  
+
+# %%
+parquetfile = "gs://ssb-dapla-ffunk-data-hns-test/temp/freshdata.parquet"
+
+with ParquEdit(db_config) as editor:
+    # oppretter tabeller fra ulike kilder
+    #editor.fill_table('vst_table_23', new_data2) 
+    print(editor.view_table("vst_table_23",limit=40))
+
 # %%

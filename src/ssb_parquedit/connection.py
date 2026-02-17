@@ -2,7 +2,7 @@
 
 import duckdb
 import gcsfs
-
+import pandas as pd
 
 class DuckDBConnection:
     """Manages DuckDB connection with DuckLake catalog integration.
@@ -84,7 +84,7 @@ class DuckDBConnection:
         Args:
             name: Name for the virtual table.
             obj: Python object (typically a DataFrame) to register.
-        """
+        """    
         self._conn.register(name, obj)
     
     def close(self) -> None:

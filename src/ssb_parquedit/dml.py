@@ -4,7 +4,6 @@ from typing import Any
 import pandas as pd
 import uuid
 
-
 class DMLOperations:
     """DML operations for inserting, updating, and deleting table data.
     
@@ -137,7 +136,14 @@ class DMLOperations:
         # Insert _id as first column with string UUIDs
         df_copy.insert(0, "_id", [str(uuid.uuid4()) for _ in range(len(df_copy))])
 
-        # Register the dataframe with DuckDB
+        # Convert StringDtype columns to object dtype for broader compatibility
+        if isinstance(df_copy, pd.DataFrame):
+            df_copy = df_copy.astype({
+                col: object
+                for col, dtype in df_copy.dtypes.items()
+                if isinstance(dtype, pd.StringDtype)
+            })
+        
         self.conn.register("data", df_copy)
 
         # Insert into table
