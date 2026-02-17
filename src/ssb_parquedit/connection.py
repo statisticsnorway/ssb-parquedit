@@ -2,7 +2,6 @@
 
 import duckdb
 import gcsfs
-import pandas as pd
 
 class DuckDBConnection:
     """Manages DuckDB connection with DuckLake catalog integration.
