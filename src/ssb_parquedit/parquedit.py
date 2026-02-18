@@ -110,7 +110,8 @@ class ParquEdit:
         """Populate table with data. See DMLOperations.fill_table for details."""
         return self._dml.fill_table(table_name, source)
     
-    def insert(self, table_name: str, data: pd.DataFrame) -> None:
+    #def insert(self, table_name: str, data: pd.DataFrame) -> None:
+    def insert(self, table_name: str, data: pd.DataFrame | dict[str, Any] | str) -> None:
         """Insert data into table. See DMLOperations.insert for details."""
         return self._dml.insert(table_name, data)
     

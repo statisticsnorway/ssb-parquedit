@@ -50,7 +50,8 @@ class DMLOperations:
         else:
             raise TypeError("source must be a DataFrame or gs:// Parquet path")
     
-    def insert(self, table_name: str, data: pd.DataFrame) -> None:
+    #def insert(self, table_name: str, data: pd.DataFrame) -> None:
+    def insert(self, table_name: str, data: pd.DataFrame | dict[str, Any] | str) -> None:
         """Insert data into a table.
         
         Args:
@@ -61,7 +62,8 @@ class DMLOperations:
             >>> df = pd.DataFrame({"id": [3, 4], "name": ["Charlie", "Diana"]})
             >>> dml.insert("users", df)
         """
-        self._fill_from_dataframe(table_name, data)
+        self.fill_table(table_name, data)
+        #self._fill_from_dataframe(table_name, data)
     
     def insert_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Insert data from a Parquet file into a table.

@@ -132,6 +132,8 @@ parquetfile = "gs://ssb-dapla-ffunk-data-hns-test/temp/freshdata.parquet"
 with ParquEdit(db_config) as editor:
     # oppretter tabeller fra ulike kilder
     #editor.fill_table('vst_table_23', new_data2) 
-    print(editor.view_table("vst_table_23",limit=40))
+    #editor.insert('vst_table_23', new_data2) 
+    editor.insert('vst_table_23', parquetfile) 
+    #print(editor.view_table("vst_table_23",limit=40))
 
 # %%
