@@ -1,6 +1,18 @@
 """Query operations for DuckDB tables."""
 
+from typing import Literal, Any
 import pandas as pd
+
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
+
 from utils import SchemaUtils
 
 
@@ -29,7 +41,8 @@ class QueryOperations:
         columns: list[str] | None = None,
         where: str | None = None,
         order_by: str | None = None,
-    ) -> pd.DataFrame:
+        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+    ) -> Any:
         """View contents of a table in the DuckLake catalog.
         
         Args:
@@ -41,12 +54,16 @@ class QueryOperations:
                 Example: "age > 25" or "status = 'active'"
             order_by: ORDER BY clause (without the ORDER BY keyword).
                 Example: "created_at DESC" or "name ASC, age DESC"
+            output_format: Format for the returned data. Options are:
+                - "pandas" (default): Returns pd.DataFrame
+                - "polars": Returns pl.DataFrame (requires polars library)
+                - "pyarrow": Returns pa.Table (requires pyarrow library)
         
         Returns:
-            pd.DataFrame: DataFrame containing the query results.
+            Data in the specified format (pandas DataFrame, polars DataFrame, or pyarrow Table).
         
         Example:
-            >>> # Simple view - first 5 rows
+            >>> # Simple view - first 5 rows as pandas DataFrame
             >>> query.view_table("users", limit=5)
             
             >>> # Select specific columns
@@ -63,6 +80,12 @@ class QueryOperations:
             
             >>> # Get all rows (no limit)
             >>> query.view_table("users", limit=None)
+            
+            >>> # Return as polars DataFrame
+            >>> query.view_table("users", limit=10, output_format="polars")
+            
+            >>> # Return as pyarrow Table
+            >>> query.view_table("users", limit=10, output_format="pyarrow")
         """
         SchemaUtils.validate_table_name(table_name)
         
@@ -89,8 +112,21 @@ class QueryOperations:
         if offset > 0:
             query += f" OFFSET {offset}"
         
-        # Execute and return as DataFrame
-        return self.conn.execute(query).df()
+        # Execute and return in the requested format
+        result = self.conn.execute(query)
+        
+        if output_format == "pandas":
+            return result.df()
+        elif output_format == "polars":
+            if pl is None:
+                raise ImportError("polars is not installed. Install it with: pip install polars")
+            return result.pl()
+        elif output_format == "pyarrow":
+            if pa is None:
+                raise ImportError("pyarrow is not installed. Install it with: pip install pyarrow")
+            return result.arrow()
+        else:
+            raise ValueError(f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.")
     
     def select(
         self,
@@ -98,7 +134,8 @@ class QueryOperations:
         columns: list[str] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> pd.DataFrame:
+        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+    ) -> Any:
         """Select data from a table (simplified query interface).
         
         This is a simpler alternative to view_table for basic queries.
@@ -108,9 +145,13 @@ class QueryOperations:
             columns: List of column names to select. None selects all columns.
             where: WHERE clause condition (without the WHERE keyword).
             limit: Maximum number of rows to return. None returns all rows.
+            output_format: Format for the returned data. Options are:
+                - "pandas" (default): Returns pd.DataFrame
+                - "polars": Returns pl.DataFrame (requires polars library)
+                - "pyarrow": Returns pa.Table (requires pyarrow library)
         
         Returns:
-            pd.DataFrame: Query results.
+            Data in the specified format (pandas DataFrame, polars DataFrame, or pyarrow Table).
         
         Example:
             >>> # Select all columns
@@ -121,12 +162,16 @@ class QueryOperations:
             
             >>> # Limit results
             >>> query.select("users", limit=10)
+            
+            >>> # Return as polars DataFrame
+            >>> query.select("users", limit=10, output_format="polars")
         """
         return self.view_table(
             table_name=table_name,
             columns=columns,
             where=where,
-            limit=limit
+            limit=limit,
+            output_format=output_format
         )
     
     def count(self, table_name: str, where: str | None = None) -> int:

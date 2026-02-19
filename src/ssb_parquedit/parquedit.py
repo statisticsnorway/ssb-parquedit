@@ -1,7 +1,7 @@
 """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
 from types import TracebackType
-from typing import Any
+from typing import Any, Literal
 import duckdb
 import pandas as pd
 
@@ -134,9 +134,10 @@ class ParquEdit:
         columns: list[str] | None = None,
         where: str | None = None,
         order_by: str | None = None,
-    ) -> pd.DataFrame:
+        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+    ) -> Any:
         """View table contents. See QueryOperations.view_table for details."""
-        return self._query.view_table(table_name, limit, offset, columns, where, order_by)
+        return self._query.view_table(table_name, limit, offset, columns, where, order_by, output_format)
     
     def select(
         self,
@@ -144,9 +145,10 @@ class ParquEdit:
         columns: list[str] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> pd.DataFrame:
+        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+    ) -> Any:
         """Select data from table. See QueryOperations.select for details."""
-        return self._query.select(table_name, columns, where, limit)
+        return self._query.select(table_name, columns, where, limit, output_format)
     
     def count(self, table_name: str, where: str | None = None) -> int:
         """Count table rows. See QueryOperations.count for details."""
