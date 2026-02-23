@@ -126,7 +126,8 @@ class ParquEdit:
     # ============ Query Operations ============
     # Delegate to QueryOperations - see query.py for full documentation
     
-    def view_table(
+#    def view_table(
+    def select(
         self,
         table_name: str,
         limit: int | None = 10,
@@ -137,18 +138,18 @@ class ParquEdit:
         output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
     ) -> Any:
         """View table contents. See QueryOperations.view_table for details."""
-        return self._query.view_table(table_name, limit, offset, columns, where, order_by, output_format)
+        return self._query.select(table_name, limit, offset, columns, where, order_by, output_format)
     
-    def select(
-        self,
-        table_name: str,
-        columns: list[str] | None = None,
-        where: str | None = None,
-        limit: int | None = None,
-        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
-    ) -> Any:
-        """Select data from table. See QueryOperations.select for details."""
-        return self._query.select(table_name, columns, where, limit, output_format)
+    # def select(
+    #     self,
+    #     table_name: str,
+    #     columns: list[str] | None = None,
+    #     where: str | None = None,
+    #     limit: int | None = None,
+    #     output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+    # ) -> Any:
+    #     """Select data from table. See QueryOperations.select for details."""
+    #     return self._query.select(table_name, columns, where, limit, output_format)
     
     def count(self, table_name: str, where: str | None = None) -> int:
         """Count table rows. See QueryOperations.count for details."""

@@ -74,7 +74,7 @@ with ParquEdit(db_config) as editor:
     #print(editor.view_table("unbasic_table_4",limit=100000, where="var_1 = 724", 
     #                            order_by='id', offset=100, columns=["id", "var_10", "var_2"]))
 
-    print(editor.view_table("vst_table_23"))
+    print(editor.select("vst_table_23"))
 
     #print(editor.count("vst_table_23"))
 
