@@ -27,7 +27,6 @@ class DDLOperations:
         self,
         table_name: str,
         source: pd.DataFrame | dict[str, Any] | str,
-        table_description: str,
         part_columns: list[str] | None = None,
     ) -> None:
         """Create a new table in the DuckLake catalog.
@@ -39,8 +38,6 @@ class DDLOperations:
                 - pd.DataFrame: Uses DataFrame schema to create table structure
                 - dict: JSON Schema specification defining the table structure
                 - str: Path to Parquet file (gs:// format) to infer schema from
-            table_description: Description/comment for the table. This will be stored
-                as a SQL COMMENT on the table.
             part_columns: List of column names to partition by. Defaults to None (no partitioning).
                 When specified, the table will be partitioned by these columns for better query performance.
             fill: Whether to populate the table with data from source. Defaults to False.
@@ -87,34 +84,7 @@ class DDLOperations:
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
         
-        self._add_table_description(table_name, table_description)
-    
-    def drop_table(self, table_name: str) -> None:
-        """Drop a table from the catalog.
-        
-        Args:
-            table_name: Name of the table to drop.
-            
-        Example:
-            >>> ddl.drop_table("old_users")
-        """
-        SchemaUtils.validate_table_name(table_name)
-        self.conn.execute(f"DROP TABLE {table_name}")
-    
-    def alter_table(self, table_name: str, changes: dict[str, Any]) -> None:
-        """Alter table structure.
-        
-        Args:
-            table_name: Name of the table to alter.
-            changes: Dictionary of changes to apply.
-            
-        Note:
-            Implementation depends on specific alteration requirements.
-        """
-        SchemaUtils.validate_table_name(table_name)
-        # Implementation would depend on specific alteration needs
-        raise NotImplementedError("alter_table not yet implemented")
-    
+   
     def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
         """Create an empty table from a DataFrame schema.
         
@@ -165,18 +135,8 @@ class DDLOperations:
             schema: JSON Schema dictionary defining the table structure.
         """
         ddl = SchemaUtils.jsonschema_to_duckdb(schema, table_name)
-        self.conn.execute(ddl)
-    
-    def _add_table_description(self, table_name: str, description: str) -> None:
-        """Add a comment/description to a table.
-        
-        Args:
-            table_name: Name of the table.
-            description: Description text to add as a comment.
-        """
-        # Escape single quotes in description
-        escaped_description = description.replace("'", "''")
-        self.conn.execute(f"COMMENT ON TABLE {table_name} IS '{escaped_description}';")
+        self.conn.execute(ddl)    
+
     
     def _add_table_partition(self, table_name: str, part_columns: list[str]) -> None:
         """Configure partitioning for a table.

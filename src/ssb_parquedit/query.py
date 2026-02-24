@@ -33,7 +33,6 @@ class QueryOperations:
         """
         self.conn = connection
     
-#    def view_table(
     def select(
         self,
         table_name: str,
@@ -129,51 +128,6 @@ class QueryOperations:
         else:
             raise ValueError(f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.")
     
-    # def select(
-    #     self,
-    #     table_name: str,
-    #     columns: list[str] | None = None,
-    #     where: str | None = None,
-    #     limit: int | None = None,
-    #     output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
-    # ) -> Any:
-    #     """Select data from a table (simplified query interface).
-        
-    #     This is a simpler alternative to view_table for basic queries.
-        
-    #     Args:
-    #         table_name: Name of the table.
-    #         columns: List of column names to select. None selects all columns.
-    #         where: WHERE clause condition (without the WHERE keyword).
-    #         limit: Maximum number of rows to return. None returns all rows.
-    #         output_format: Format for the returned data. Options are:
-    #             - "pandas" (default): Returns pd.DataFrame
-    #             - "polars": Returns pl.DataFrame (requires polars library)
-    #             - "pyarrow": Returns pa.Table (requires pyarrow library)
-        
-    #     Returns:
-    #         Data in the specified format (pandas DataFrame, polars DataFrame, or pyarrow Table).
-        
-    #     Example:
-    #         >>> # Select all columns
-    #         >>> query.select("users")
-            
-    #         >>> # Select specific columns with filter
-    #         >>> query.select("users", columns=["id", "name"], where="age > 25")
-            
-    #         >>> # Limit results
-    #         >>> query.select("users", limit=10)
-            
-    #         >>> # Return as polars DataFrame
-    #         >>> query.select("users", limit=10, output_format="polars")
-    #     """
-    #     return self.view_table(
-    #         table_name=table_name,
-    #         columns=columns,
-    #         where=where,
-    #         limit=limit,
-    #         output_format=output_format
-    #     )
     
     def count(self, table_name: str, where: str | None = None) -> int:
         """Count rows in a table.

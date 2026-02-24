@@ -84,49 +84,28 @@ class ParquEdit:
         self,
         table_name: str,
         source: pd.DataFrame | dict[str, Any] | str,
-        table_description: str,
         part_columns: list[str] | None = None,
         fill: bool = False,
     ) -> None:
         """Create a new table. See DDLOperations.create_table for details."""
-        self._ddl.create_table(table_name, source, table_description, part_columns)
+        self._ddl.create_table(table_name, source, part_columns)
         if fill:
-            self._dml.fill_table(table_name, source)
+            self._dml.insert_data(table_name, source)
     
-    def drop_table(self, table_name: str) -> None:
-        """Drop a table. See DDLOperations.drop_table for details."""
-        return self._ddl.drop_table(table_name)
-    
-    def alter_table(self, table_name: str, changes: dict[str, Any]) -> None:
-        """Alter table structure. See DDLOperations.alter_table for details."""
-        return self._ddl.alter_table(table_name, changes)
     
     # ============ DML Operations ============
     # Delegate to DMLOperations - see dml.py for full documentation
     
-    def fill_table(
+    def insert_data(
         self, table_name: str, source: pd.DataFrame | dict[str, Any] | str
     ) -> None:
         """Populate table with data. See DMLOperations.fill_table for details."""
-        return self._dml.fill_table(table_name, source)
-    
-    #def insert(self, table_name: str, data: pd.DataFrame) -> None:
-    def insert(self, table_name: str, data: pd.DataFrame | dict[str, Any] | str) -> None:
-        """Insert data into table. See DMLOperations.insert for details."""
-        return self._dml.insert(table_name, data)
-    
-    def update(self, table_name: str, updates: dict[str, Any], where: str) -> None:
-        """Update table rows. See DMLOperations.update for details."""
-        return self._dml.update(table_name, updates, where)
-    
-    def delete(self, table_name: str, where: str) -> None:
-        """Delete table rows. See DMLOperations.delete for details."""
-        return self._dml.delete(table_name, where)
+        return self._dml.insert_data(table_name, source)
+   
     
     # ============ Query Operations ============
     # Delegate to QueryOperations - see query.py for full documentation
     
-#    def view_table(
     def select(
         self,
         table_name: str,
@@ -140,16 +119,6 @@ class ParquEdit:
         """View table contents. See QueryOperations.view_table for details."""
         return self._query.select(table_name, limit, offset, columns, where, order_by, output_format)
     
-    # def select(
-    #     self,
-    #     table_name: str,
-    #     columns: list[str] | None = None,
-    #     where: str | None = None,
-    #     limit: int | None = None,
-    #     output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
-    # ) -> Any:
-    #     """Select data from table. See QueryOperations.select for details."""
-    #     return self._query.select(table_name, columns, where, limit, output_format)
     
     def count(self, table_name: str, where: str | None = None) -> int:
         """Count table rows. See QueryOperations.count for details."""

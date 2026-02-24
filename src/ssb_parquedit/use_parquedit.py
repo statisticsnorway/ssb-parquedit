@@ -122,18 +122,28 @@ new_data2.to_parquet("gs://ssb-dapla-ffunk-data-hns-test/temp/new_data.parquet")
 #print(new_data)
 
 # %%
-with ParquEdit(db_config) as editor:
-    # oppretter tabeller fra ulike kilder
-    editor.insert('vst_table_23', new_data)  
-
-# %%
 parquetfile = "gs://ssb-dapla-ffunk-data-hns-test/temp/freshdata.parquet"
 
 with ParquEdit(db_config) as editor:
     # oppretter tabeller fra ulike kilder
-    #editor.fill_table('vst_table_23', new_data2) 
-    #editor.insert('vst_table_23', new_data2) 
-    editor.insert('vst_table_23', parquetfile) 
-    #print(editor.view_table("vst_table_23",limit=40))
+    # opprette tom tabell fra dataframe
+    #editor.create_table(table_name="urb_tab_empty",source=new_data2)
+    #print(editor.select("urb_tab_empty",limit=40))
+    # insert til ny tabell med data fra dataframe
+    #editor.insert_data(table_name="urb_tab_empty", source=new_data2)
+    #print(editor.select("urb_tab_empty",limit=40))
+    # insert til ny tabell med data fra parquet-fil
+    #editor.insert_data(table_name="urb_tab_empty", source=parquetfile)    
+    #print(editor.select("urb_tab_empty",limit=40))
+    # opprette tabell og fylle den
+    #editor.create_table(table_name="urb_tab_not_empty",source=new_data2, fill=True)
+    # insert til ny tabell med data fra dataframe
+    #editor.insert_data(table_name="urb_tab_not_empty", source=new_data2)
+    #print(editor.select("urb_tab_empty",limit=40))
+    #insert til ny tabell med data fra parquet-fil    
+    #editor.insert_data(table_name="urb_tab_not_empty", source=parquetfile)
+    #print(editor.select("urb_tab_not_empty",limit=40))
+    # ny tabell med partisjon
+    editor.create_table(table_name="urb_tab_part",source=new_data2, fill=True, part_columns=["year", "month"])
 
 # %%
