@@ -40,6 +40,7 @@ class QueryOperations:
         offset: int = 0,
         columns: list[str] | None = None,
         where: str | None = None,
+        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
     ) -> Any:
@@ -51,9 +52,14 @@ class QueryOperations:
             offset: Number of rows to skip. Defaults to 0. Useful for pagination.
             columns: List of column names to select. None selects all columns (*).
             where: WHERE clause condition (without the WHERE keyword). 
+                DEPRECATED: Use filters parameter for better security.
                 Example: "age > 25" or "status = 'active'"
-                Values in this clause should be literals; for parameterized queries,
-                consider passing structured data separately.
+            filters: Structured filter conditions (preferred over where). Can be:
+                - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
+                - Dict with 'and'/'or': {"and": [condition1, condition2]}
+                - Single dict condition: {"column": "age", "operator": ">", "value": 25}
+                Operators supported: =, !=, <>, <, >, <=, >=, LIKE, IN, NOT IN, 
+                BETWEEN, IS NULL, IS NOT NULL
             order_by: ORDER BY clause (without the ORDER BY keyword).
                 Example: "created_at DESC" or "name ASC, age DESC"
                 Only column names and ASC/DESC keywords are allowed.
@@ -72,8 +78,31 @@ class QueryOperations:
             >>> # Select specific columns
             >>> query.select("users", columns=["id", "name"], limit=10)
             
-            >>> # Filter with WHERE clause
-            >>> query.select("users", where="age > 25", limit=100)
+            >>> # Filter with structured filters (RECOMMENDED)
+            >>> query.select("users", filters={"column": "age", "operator": ">", "value": 25})
+            
+            >>> # Multiple conditions with AND
+            >>> query.select("users", filters=[
+            ...     {"column": "age", "operator": ">", "value": 25},
+            ...     {"column": "status", "operator": "=", "value": "active"}
+            ... ])
+            
+            >>> # Multiple conditions with OR
+            >>> query.select("users", filters={
+            ...     "or": [
+            ...         {"column": "status", "operator": "=", "value": "admin"},
+            ...         {"column": "status", "operator": "=", "value": "moderator"}
+            ...     ]
+            ... })
+            
+            >>> # Filter with LIKE operator
+            >>> query.select("users", filters={"column": "name", "operator": "LIKE", "value": "%john%"})
+            
+            >>> # Filter with IN operator
+            >>> query.select("users", filters={"column": "id", "operator": "IN", "value": [1, 2, 3]})
+            
+            >>> # Filter with BETWEEN
+            >>> query.select("users", filters={"column": "age", "operator": "BETWEEN", "value": [18, 65]})
             
             >>> # Sort results
             >>> query.select("users", order_by="created_at DESC", limit=10)
@@ -93,10 +122,16 @@ class QueryOperations:
         SchemaUtils.validate_table_name(table_name)
         
         # Validate and sanitize SQL clauses to prevent injection
-        SQLSanitizer.validate_where_clause(where)
         SQLSanitizer.validate_order_by_clause(order_by)
         if columns:
             SQLSanitizer.validate_column_list(columns)
+        
+        # Use filters if provided (recommended), otherwise use where clause
+        if filters is not None:
+            where_parameterized, where_params = SQLSanitizer.build_where_from_filters(filters)
+        else:
+            # Fall back to where clause (for backward compatibility)
+            where_parameterized, where_params = SQLSanitizer.parameterize_where_clause(where)
         
         # Build SELECT clause
         if columns:
@@ -108,9 +143,10 @@ class QueryOperations:
         query = f"SELECT {select_clause} FROM {table_name}"
         params: list[Any] = []
         
-        # Add WHERE clause
-        if where:
-            query += f" WHERE {where}"
+        # Add WHERE clause (now parameterized)
+        if where_parameterized:
+            query += f" WHERE {where_parameterized}"
+            params.extend(where_params)
         
         # Add ORDER BY clause
         if order_by:
@@ -145,12 +181,17 @@ class QueryOperations:
             raise ValueError(f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.")
     
     
-    def count(self, table_name: str, where: str | None = None) -> int:
+    def count(self, table_name: str, where: str | None = None, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:
         """Count rows in a table.
         
         Args:
             table_name: Name of the table.
             where: Optional WHERE clause condition (without the WHERE keyword).
+                   DEPRECATED: Use filters parameter for better security.
+            filters: Structured filter conditions (preferred over where). Can be:
+                - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
+                - Dict with 'and'/'or': {"and": [condition1, condition2]}
+                - Single dict condition: {"column": "age", "operator": ">", "value": 25}
         
         Returns:
             int: Number of rows matching the condition.
@@ -159,22 +200,28 @@ class QueryOperations:
             >>> # Count all rows
             >>> total = query.count("users")
             
-            >>> # Count with filter
-            >>> active = query.count("users", where="status = 'active'")
+            >>> # Count with structured filters (RECOMMENDED)
+            >>> active = query.count("users", filters={"column": "status", "operator": "=", "value": "active"})
             
-            >>> # Count with complex condition
-            >>> recent = query.count("users", where="created_at > '2024-01-01' AND age > 18")
+            >>> # Count with complex filters
+            >>> recent = query.count("users", filters=[
+            ...     {"column": "created_at", "operator": ">", "value": "2024-01-01"},
+            ...     {"column": "age", "operator": ">", "value": 18}
+            ... ])
         """
         SchemaUtils.validate_table_name(table_name)
         
-        # Validate WHERE clause to prevent injection
-        SQLSanitizer.validate_where_clause(where)
+        # Use filters if provided (recommended), otherwise use where clause
+        if filters is not None:
+            where_parameterized, where_params = SQLSanitizer.build_where_from_filters(filters)
+        else:
+            where_parameterized, where_params = SQLSanitizer.parameterize_where_clause(where)
         
         query = f"SELECT COUNT(*) as count FROM {table_name}"
-        if where:
-            query += f" WHERE {where}"
+        if where_parameterized:
+            query += f" WHERE {where_parameterized}"
         
-        result = self.conn.execute(query).df()
+        result = self.conn.execute(query, where_params).df() if where_params else self.conn.execute(query).df()
         return int(result['count'].iloc[0])
     
     def table_exists(self, table_name: str) -> bool:

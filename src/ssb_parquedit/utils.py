@@ -116,6 +116,206 @@ class SQLSanitizer:
                     "and contain only alphanumeric characters and underscores."
                 )
         return columns
+    
+    @staticmethod
+    def parameterize_where_clause(where: str | None) -> tuple[str, list[Any]]:
+        """Extract and parameterize values from WHERE clause.
+        
+        Converts WHERE clauses with string literals to parameterized form:
+        Example:
+            Input:  "name = 'John' AND age > 25"
+            Output: ("name = ? AND age > ?", ["John", "25"])
+        
+        Args:
+            where: WHERE clause condition string. String and numeric literals
+                  should be unquoted or single-quoted.
+                  Example: "age > 25 AND status = 'active'"
+            
+        Returns:
+            Tuple of (parameterized_query, parameters_list)
+            
+        Raises:
+            SQLInjectionError: If WHERE clause contains dangerous patterns.
+            
+        Note:
+            - Single-quoted string literals are extracted and parameterized
+            - Unquoted numeric literals can be parameterized
+            - Operators supported: =, <, >, <=, >=, <>, !=, LIKE, IN (limited),
+              BETWEEN, AND, OR, NOT, IS NULL, IS NOT NULL
+        """
+        if where is None:
+            return None, []
+        
+        # First validate for dangerous patterns
+        SQLSanitizer.validate_where_clause(where)
+        
+        params: list[Any] = []
+        parameterized = where
+        
+        # Pattern: single-quoted strings like 'value'
+        string_literal_pattern = r"'([^']*)'"
+        string_matches = list(re.finditer(string_literal_pattern, where))
+        
+        # Replace string literals with ? (in reverse order to maintain offsets)
+        for match in reversed(string_matches):
+            params.insert(0, match.group(1))  # Extract the value without quotes
+            parameterized = parameterized[:match.start()] + "?" + parameterized[match.end():]
+        
+        # Pattern: unquoted numeric literals in common comparison operators
+        # For example: age > 25, id = 123, count < 5.5
+        # This pattern looks for operators followed by optional whitespace and numbers/decimals
+        numeric_pattern = r'(=|<|>|<=|>=|!=|<>)\s*([+-]?\d+\.?\d*)\b'
+        
+        # Find numeric literals (but avoid those already replaced)
+        numeric_matches = list(re.finditer(numeric_pattern, parameterized))
+        
+        # Replace numeric literals in reverse order
+        for match in reversed(numeric_matches):
+            operator = match.group(1)
+            value = match.group(2)
+            
+            # Determine if it's an int or float
+            try:
+                if '.' in value:
+                    numeric_value = float(value)
+                else:
+                    numeric_value = int(value)
+            except ValueError:
+                continue
+            
+            params.insert(0, numeric_value)
+            parameterized = parameterized[:match.start(2)] + "?" + parameterized[match.end(2):]
+        
+        return parameterized, params
+    
+    @staticmethod
+    def build_where_from_filters(filters: dict[str, Any] | list[dict[str, Any]] | None) -> tuple[str | None, list[Any]]:
+        """Build a parameterized WHERE clause from structured filter conditions.
+        
+        Converts structured filter dictionaries into parameterized SQL WHERE clauses.
+        
+        Args:
+            filters: Filter conditions as either:
+                - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
+                  Conditions in a list are combined with AND
+                - Dict with 'and'/'or' keys: 
+                  {"and": [condition1, condition2]} or {"or": [condition1, condition2]}
+                - None: Returns (None, [])
+            
+            Each condition dict must have:
+                - "column": Column name (alphanumeric + underscore)
+                - "operator": One of =, !=, <>, <, >, <=, >=, LIKE, IN, NOT IN, BETWEEN,
+                             IS NULL, IS NOT NULL
+                - "value": The value to compare (None for IS NULL/NOT NULL, list for IN)
+            
+        Returns:
+            Tuple of (where_clause_sql, parameters_list)
+            
+        Raises:
+            SQLInjectionError: If column names are invalid or conditions are malformed
+            ValueError: If operators or structure is invalid
+            
+        Example:
+            >>> filters = [
+            ...     {"column": "age", "operator": ">", "value": 25},
+            ...     {"column": "status", "operator": "=", "value": "active"}
+            ... ]
+            >>> where, params = SQLSanitizer.build_where_from_filters(filters)
+            >>> # where = "age > ? AND status = ?"
+            >>> # params = [25, "active"]
+        """
+        if filters is None:
+            return None, []
+        
+        conditions = []
+        params: list[Any] = []
+        
+        # Determine if input is a list of conditions or a dict with and/or
+        if isinstance(filters, list):
+            condition_list = filters
+            logic = "AND"
+        elif isinstance(filters, dict):
+            # Check for explicit AND/OR logic
+            if "and" in filters:
+                condition_list = filters["and"]
+                logic = "AND"
+            elif "or" in filters:
+                condition_list = filters["or"]
+                logic = "OR"
+            elif "column" in filters:
+                # Single condition dict
+                condition_list = [filters]
+                logic = "AND"
+            else:
+                raise ValueError(
+                    "Filter dict must have 'and'/'or' key or be a single condition with 'column' key"
+                )
+        else:
+            raise TypeError("filters must be None, a list, or a dict")
+        
+        # Process each condition
+        for condition in condition_list:
+            if not isinstance(condition, dict):
+                raise TypeError("Each filter condition must be a dict")
+            
+            column = condition.get("column")
+            operator = condition.get("operator", "").upper()
+            value = condition.get("value")
+            
+            # Validate column name
+            if not column or not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column):
+                raise SQLInjectionError(
+                    f"Invalid column name: {column}. "
+                    "Column names must start with a letter or underscore "
+                    "and contain only alphanumeric characters and underscores."
+                )
+            
+            # Build condition based on operator
+            if operator in ("=", "!=", "<>", "<", ">", "<=", ">="):
+                if value is None:
+                    raise ValueError(f"Operator '{operator}' requires a non-null value")
+                conditions.append(f"{column} {operator} ?")
+                params.append(value)
+                
+            elif operator == "LIKE":
+                if not isinstance(value, str):
+                    raise ValueError("LIKE operator requires a string value")
+                conditions.append(f"{column} LIKE ?")
+                params.append(value)
+                
+            elif operator in ("IN", "NOT IN"):
+                if not isinstance(value, (list, tuple)):
+                    raise ValueError(f"{operator} operator requires a list/tuple value")
+                if not value:
+                    raise ValueError(f"{operator} operator requires a non-empty list")
+                placeholders = ", ".join("?" * len(value))
+                conditions.append(f"{column} {operator} ({placeholders})")
+                params.extend(value)
+                
+            elif operator == "BETWEEN":
+                if not isinstance(value, (list, tuple)) or len(value) != 2:
+                    raise ValueError("BETWEEN operator requires a list/tuple with 2 values [min, max]")
+                conditions.append(f"{column} BETWEEN ? AND ?")
+                params.extend(value)
+                
+            elif operator == "IS NULL":
+                conditions.append(f"{column} IS NULL")
+                
+            elif operator == "IS NOT NULL":
+                conditions.append(f"{column} IS NOT NULL")
+                
+            else:
+                raise ValueError(
+                    f"Unsupported operator: {operator}. "
+                    "Supported operators: =, !=, <>, <, >, <=, >=, LIKE, IN, NOT IN, BETWEEN, "
+                    "IS NULL, IS NOT NULL"
+                )
+        
+        if not conditions:
+            return None, []
+        
+        where_clause = f" {logic} ".join(conditions)
+        return where_clause, params
 
 
 class SchemaUtils:

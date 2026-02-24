@@ -113,16 +113,17 @@ class ParquEdit:
         offset: int = 0,
         columns: list[str] | None = None,
         where: str | None = None,
+        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
     ) -> Any:
-        """View table contents. See QueryOperations.view_table for details."""
-        return self._query.select(table_name, limit, offset, columns, where, order_by, output_format)
+        """View table contents. See QueryOperations.select for details."""
+        return self._query.select(table_name, limit, offset, columns, where, filters, order_by, output_format)
     
     
-    def count(self, table_name: str, where: str | None = None) -> int:
+    def count(self, table_name: str, where: str | None = None, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:
         """Count table rows. See QueryOperations.count for details."""
-        return self._query.count(table_name, where)
+        return self._query.count(table_name, where, filters)
     
     def exists(self, table_name: str) -> bool:
         """Check if table exists. See QueryOperations.table_exists for details."""
