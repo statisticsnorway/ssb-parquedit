@@ -210,23 +210,6 @@ count = editor.count("users", filters=[
 ])
 ```
 
-## Backward Compatibility
-
-The old `where` parameter still works for backward compatibility:
-
-```python
-# ⚠️ Old way (still works but deprecated)
-df = editor.select("users", where="age > 25 AND status = 'active'")
-
-# ✅ New way (recommended)
-df = editor.select("users", filters=[
-    {"column": "age", "operator": ">", "value": 25},
-    {"column": "status", "operator": "=", "value": "active"}
-])
-```
-
-**Note**: If both `where` and `filters` are provided, `filters` takes precedence.
-
 ## Error Handling
 
 Invalid filter structures raise clear errors:
@@ -254,43 +237,6 @@ filters = {"column": "id", "operator": "IN", "value": 123}  # Need list!
 - Structured filters are compiled to parameterized SQL, which is just as fast as raw SQL
 - DuckDB's query optimizer handles parameterized queries efficiently
 - The filtering happens in the database, not in Python
-
-## Security Summary
-
-Structured filters provide multiple layers of security:
-
-1. **Column Name Validation**: Only alphanumeric + underscore allowed
-2. **Operator Whitelist**: Only known operators are accepted
-3. **Value Parameterization**: All values use DuckDB's parameter binding (`?`)
-4. **Type Safety**: Python types prevent most injection attacks at parse time
-
-## Migration Guide
-
-If you're currently using string-based WHERE clauses, here's how to migrate:
-
-### Before (Vulnerable)
-```python
-def get_users_by_status(status):
-    return editor.select("users", where=f"status = '{status}'")
-
-# Risk: status could contain SQL injection
-get_users_by_status("active")  # OK
-get_users_by_status("active'; DROP TABLE users; --")  # DANGER!
-```
-
-### After (Safe)
-```python
-def get_users_by_status(status):
-    return editor.select("users", filters={
-        "column": "status",
-        "operator": "=",
-        "value": status
-    })
-
-# Both are safe:
-get_users_by_status("active")  # OK
-get_users_by_status("active'; DROP TABLE users; --")  # Still safe!
-```
 
 ## References
 

@@ -39,7 +39,6 @@ class QueryOperations:
         limit: int | None = 10,
         offset: int = 0,
         columns: list[str] | None = None,
-        where: str | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
@@ -51,10 +50,7 @@ class QueryOperations:
             limit: Maximum number of rows to return. None returns all rows. Defaults to 10.
             offset: Number of rows to skip. Defaults to 0. Useful for pagination.
             columns: List of column names to select. None selects all columns (*).
-            where: WHERE clause condition (without the WHERE keyword). 
-                DEPRECATED: Use filters parameter for better security.
-                Example: "age > 25" or "status = 'active'"
-            filters: Structured filter conditions (preferred over where). Can be:
+            filters: Structured filter conditions. Can be:
                 - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
                 - Dict with 'and'/'or': {"and": [condition1, condition2]}
                 - Single dict condition: {"column": "age", "operator": ">", "value": 25}
@@ -126,12 +122,8 @@ class QueryOperations:
         if columns:
             SQLSanitizer.validate_column_list(columns)
         
-        # Use filters if provided (recommended), otherwise use where clause
-        if filters is not None:
-            where_parameterized, where_params = SQLSanitizer.build_where_from_filters(filters)
-        else:
-            # Fall back to where clause (for backward compatibility)
-            where_parameterized, where_params = SQLSanitizer.parameterize_where_clause(where)
+        # Build parameterized WHERE clause from filters
+        where_parameterized, where_params = SQLSanitizer.build_where_from_filters(filters)
         
         # Build SELECT clause
         if columns:
@@ -181,14 +173,12 @@ class QueryOperations:
             raise ValueError(f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.")
     
     
-    def count(self, table_name: str, where: str | None = None, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:
+    def count(self, table_name: str, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:
         """Count rows in a table.
         
         Args:
             table_name: Name of the table.
-            where: Optional WHERE clause condition (without the WHERE keyword).
-                   DEPRECATED: Use filters parameter for better security.
-            filters: Structured filter conditions (preferred over where). Can be:
+            filters: Structured filter conditions. Can be:
                 - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
                 - Dict with 'and'/'or': {"and": [condition1, condition2]}
                 - Single dict condition: {"column": "age", "operator": ">", "value": 25}
@@ -211,11 +201,8 @@ class QueryOperations:
         """
         SchemaUtils.validate_table_name(table_name)
         
-        # Use filters if provided (recommended), otherwise use where clause
-        if filters is not None:
-            where_parameterized, where_params = SQLSanitizer.build_where_from_filters(filters)
-        else:
-            where_parameterized, where_params = SQLSanitizer.parameterize_where_clause(where)
+        # Build parameterized WHERE clause from filters
+        where_parameterized, where_params = SQLSanitizer.build_where_from_filters(filters)
         
         query = f"SELECT COUNT(*) as count FROM {table_name}"
         if where_parameterized:

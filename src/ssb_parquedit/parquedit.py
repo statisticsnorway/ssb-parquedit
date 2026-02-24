@@ -35,10 +35,8 @@ class ParquEdit:
         ...     editor.create_table("users", df, "User data", fill=True)
         ...     
         ...     # Query the table
-        ...     result = editor.view_table("users", limit=10, where="age > 25")
-        ...     
-        ...     # Update data
-        ...     editor.update("users", {"status": "active"}, where="id = 1")
+        ...     result = editor.select("users", limit=10, 
+        ...         filters={"column": "age", "operator": ">", "value": 25})
     """
 
     def __init__(
@@ -112,18 +110,17 @@ class ParquEdit:
         limit: int | None = 10,
         offset: int = 0,
         columns: list[str] | None = None,
-        where: str | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
     ) -> Any:
         """View table contents. See QueryOperations.select for details."""
-        return self._query.select(table_name, limit, offset, columns, where, filters, order_by, output_format)
+        return self._query.select(table_name, limit, offset, columns, filters, order_by, output_format)
     
     
-    def count(self, table_name: str, where: str | None = None, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:
+    def count(self, table_name: str, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:
         """Count table rows. See QueryOperations.count for details."""
-        return self._query.count(table_name, where, filters)
+        return self._query.count(table_name, filters)
     
     def exists(self, table_name: str) -> bool:
         """Check if table exists. See QueryOperations.table_exists for details."""

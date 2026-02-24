@@ -21,39 +21,6 @@ class SQLSanitizer:
     }
     
     @staticmethod
-    def validate_where_clause(where: str | None) -> None:
-        """Validate WHERE clause for potential SQL injection patterns.
-        
-        Args:
-            where: WHERE clause condition string.
-            
-        Raises:
-            SQLInjectionError: If dangerous SQL patterns are detected.
-            
-        Note:
-            This provides defense-in-depth but is not a substitute for proper
-            parameterization. Always validate user input at the application level.
-        """
-        if where is None:
-            return
-            
-        where_upper = where.upper().strip()
-        
-        # Check for dangerous keywords
-        for keyword in SQLSanitizer.DANGEROUS_KEYWORDS:
-            if keyword in where_upper:
-                # Allow CAST in WHERE clauses as it's a normal operation
-                if keyword == "CAST":
-                    continue
-                raise SQLInjectionError(
-                    f"Potentially dangerous SQL keyword '{keyword}' detected in WHERE clause"
-                )
-        
-        # Check for comment sequences
-        if "--" in where or "/*" in where or "*/" in where:
-            raise SQLInjectionError("SQL comment sequences detected in WHERE clause")
-    
-    @staticmethod
     def validate_order_by_clause(order_by: str | None) -> None:
         """Validate ORDER BY clause for potential SQL injection patterns.
         
@@ -115,78 +82,7 @@ class SQLSanitizer:
                     "Column names must start with a letter or underscore "
                     "and contain only alphanumeric characters and underscores."
                 )
-        return columns
-    
-    @staticmethod
-    def parameterize_where_clause(where: str | None) -> tuple[str, list[Any]]:
-        """Extract and parameterize values from WHERE clause.
-        
-        Converts WHERE clauses with string literals to parameterized form:
-        Example:
-            Input:  "name = 'John' AND age > 25"
-            Output: ("name = ? AND age > ?", ["John", "25"])
-        
-        Args:
-            where: WHERE clause condition string. String and numeric literals
-                  should be unquoted or single-quoted.
-                  Example: "age > 25 AND status = 'active'"
-            
-        Returns:
-            Tuple of (parameterized_query, parameters_list)
-            
-        Raises:
-            SQLInjectionError: If WHERE clause contains dangerous patterns.
-            
-        Note:
-            - Single-quoted string literals are extracted and parameterized
-            - Unquoted numeric literals can be parameterized
-            - Operators supported: =, <, >, <=, >=, <>, !=, LIKE, IN (limited),
-              BETWEEN, AND, OR, NOT, IS NULL, IS NOT NULL
-        """
-        if where is None:
-            return None, []
-        
-        # First validate for dangerous patterns
-        SQLSanitizer.validate_where_clause(where)
-        
-        params: list[Any] = []
-        parameterized = where
-        
-        # Pattern: single-quoted strings like 'value'
-        string_literal_pattern = r"'([^']*)'"
-        string_matches = list(re.finditer(string_literal_pattern, where))
-        
-        # Replace string literals with ? (in reverse order to maintain offsets)
-        for match in reversed(string_matches):
-            params.insert(0, match.group(1))  # Extract the value without quotes
-            parameterized = parameterized[:match.start()] + "?" + parameterized[match.end():]
-        
-        # Pattern: unquoted numeric literals in common comparison operators
-        # For example: age > 25, id = 123, count < 5.5
-        # This pattern looks for operators followed by optional whitespace and numbers/decimals
-        numeric_pattern = r'(=|<|>|<=|>=|!=|<>)\s*([+-]?\d+\.?\d*)\b'
-        
-        # Find numeric literals (but avoid those already replaced)
-        numeric_matches = list(re.finditer(numeric_pattern, parameterized))
-        
-        # Replace numeric literals in reverse order
-        for match in reversed(numeric_matches):
-            operator = match.group(1)
-            value = match.group(2)
-            
-            # Determine if it's an int or float
-            try:
-                if '.' in value:
-                    numeric_value = float(value)
-                else:
-                    numeric_value = int(value)
-            except ValueError:
-                continue
-            
-            params.insert(0, numeric_value)
-            parameterized = parameterized[:match.start(2)] + "?" + parameterized[match.end(2):]
-        
-        return parameterized, params
+        return column_list
     
     @staticmethod
     def build_where_from_filters(filters: dict[str, Any] | list[dict[str, Any]] | None) -> tuple[str | None, list[Any]]:

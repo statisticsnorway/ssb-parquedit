@@ -62,16 +62,18 @@ with ParquEdit(db_config) as editor:
     #editor.create_table('basic_table_1d', data, 'very nice table', ['year','age'], fill_table=True)    
     #editor.create_table('basic_table_1e', data, 'very nice table', ['year','age','month', 'week', 'day'], fill_table=True)    
     #editor.fill_table('basic_table_3c', parquetfile)
-    #df = editor.view_table("unbasic_table_1", limit=5)
-    #df = editor.view_table("unbasic_table_1", columns=["age", "name"], where="city = 'New York'")
-    #df = editor.view_table("unbasic_table_3",limit=1000, where="var_1 = 724 and var_2=300", 
-    #                            order_by='id')
-    #df = editor.view_table("unbasic_table_3",limit=100000, where="var_1 = 724", 
+    #df = editor.select("unbasic_table_1", limit=5)
+    #df = editor.select("unbasic_table_1", columns=["age", "name"], filters={"column": "city", "operator": "=", "value": "New York"})
+    #df = editor.select("unbasic_table_3", limit=1000, filters=[
+    #    {"column": "var_1", "operator": "=", "value": 724},
+    #    {"column": "var_2", "operator": "=", "value": 300}
+    #], order_by='id')
+    #df = editor.select("unbasic_table_3", limit=100000, filters={"column": "var_1", "operator": "=", "value": 724},
     #                            order_by='id', offset=100, columns=["id", "var_10", "var_2"])
 
                             
 
-    #print(editor.view_table("unbasic_table_4",limit=100000, where="var_1 = 724", 
+    #print(editor.select("unbasic_table_4", limit=100000, filters={"column": "var_1", "operator": "=", "value": 724},
     #                            order_by='id', offset=100, columns=["id", "var_10", "var_2"]))
 
     print(editor.select("vst_table_23"))
@@ -84,7 +86,8 @@ import time
 
 with ParquEdit(db_config) as editor:
     start = time.perf_counter()
-    result = editor.view_table("unbasic_table_4", where="id='ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf'")
+    result = editor.select("unbasic_table_4", 
+        filters={"column": "id", "operator": "=", "value": "ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf"})
     end = time.perf_counter()
     
     print(f"Kjøretid: {(end - start)*1000:.2f} ms")
@@ -98,7 +101,8 @@ import time
 
 with ParquEdit(db_config) as editor:
     start = time.perf_counter()
-    result = editor.view_table("unbasic_table_4", where="id='ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf'")
+    result = editor.select("unbasic_table_4", 
+        filters={"column": "id", "operator": "=", "value": "ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf"})
     end = time.perf_counter()
     
     print(f"Kjøretid: {(end - start)*1000:.2f} ms")
