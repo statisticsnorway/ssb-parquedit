@@ -2,7 +2,7 @@
 
 from typing import Any
 import pandas as pd
-from utils import SchemaUtils
+from utils import SchemaUtils, SQLSanitizer
 
 
 class DDLOperations:
@@ -116,16 +116,17 @@ class DDLOperations:
             table_name: Name of the table to create.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
+        # Use parameterized query for the file path to prevent injection
         ddl = f"""
         CREATE TABLE {table_name} AS
         SELECT
             CAST(NULL AS VARCHAR) AS _id,
             *
-        FROM read_parquet('{parquet_path}')
+        FROM read_parquet(?)
         WHERE 1 = 2
         """
-
-        self.conn.execute(ddl) 
+        
+        self.conn.execute(ddl, [parquet_path]) 
     
     def _create_from_schema(self, table_name: str, schema: dict[str, Any]) -> None:
         """Create a table from a JSON Schema specification.
@@ -144,6 +145,12 @@ class DDLOperations:
         Args:
             table_name: Name of the table to partition.
             part_columns: List of column names to partition by.
+            
+        Raises:
+            SQLInjectionError: If any column name is invalid.
         """
-        cols = ",".join(part_columns)
+        # Validate column names to prevent injection
+        SQLSanitizer.validate_column_list(part_columns)
+        
+        cols = ", ".join(part_columns)
         self.conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols});")

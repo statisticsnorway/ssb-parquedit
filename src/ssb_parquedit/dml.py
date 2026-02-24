@@ -3,6 +3,7 @@
 from typing import Any
 import pandas as pd
 import uuid
+from utils import SchemaUtils, SQLSanitizer
 
 class DMLOperations:
     """DML operations for inserting, updating, and deleting table data.
@@ -58,7 +59,9 @@ class DMLOperations:
             table_name: Name of the table to populate.
             data: DataFrame containing the data to insert.
         """
-
+        # Validate table name
+        SchemaUtils.validate_table_name(table_name)
+        
         df_copy = data.copy()
 
         # Insert _id as first column with string UUIDs
@@ -74,7 +77,7 @@ class DMLOperations:
         
         self.conn.register("data", df_copy)
 
-        # Insert into table
+        # Insert into table - table name is validated, so safe to interpolate
         self.conn.execute(f"INSERT INTO {table_name} SELECT * FROM data")         
     
     def _insert_from_parquet(self, table_name: str, parquet_path: str) -> None:
@@ -84,12 +87,16 @@ class DMLOperations:
             table_name: Name of the table to populate.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
-        self.conn.execute(
-            f"""
-            INSERT INTO {table_name}
-            SELECT
-                uuid()::VARCHAR AS _id,
-                *
-            FROM read_parquet('{parquet_path}');
-            """
-        ) 
+        # Validate table name
+        SchemaUtils.validate_table_name(table_name)
+        
+        # Use parameterized query for the file path
+        sql = f"""
+        INSERT INTO {table_name}
+        SELECT
+            uuid()::VARCHAR AS _id,
+            *
+        FROM read_parquet(?)
+        """
+        
+        self.conn.execute(sql, [parquet_path]) 

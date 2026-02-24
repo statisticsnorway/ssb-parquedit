@@ -13,7 +13,7 @@ try:
 except ImportError:
     pa = None
 
-from utils import SchemaUtils
+from utils import SchemaUtils, SQLSanitizer
 
 
 class QueryOperations:
@@ -52,8 +52,11 @@ class QueryOperations:
             columns: List of column names to select. None selects all columns (*).
             where: WHERE clause condition (without the WHERE keyword). 
                 Example: "age > 25" or "status = 'active'"
+                Values in this clause should be literals; for parameterized queries,
+                consider passing structured data separately.
             order_by: ORDER BY clause (without the ORDER BY keyword).
                 Example: "created_at DESC" or "name ASC, age DESC"
+                Only column names and ASC/DESC keywords are allowed.
             output_format: Format for the returned data. Options are:
                 - "pandas" (default): Returns pd.DataFrame
                 - "polars": Returns pl.DataFrame (requires polars library)
@@ -64,30 +67,36 @@ class QueryOperations:
         
         Example:
             >>> # Simple view - first 5 rows as pandas DataFrame
-            >>> query.view_table("users", limit=5)
+            >>> query.select("users", limit=5)
             
             >>> # Select specific columns
-            >>> query.view_table("users", columns=["id", "name"], limit=10)
+            >>> query.select("users", columns=["id", "name"], limit=10)
             
             >>> # Filter with WHERE clause
-            >>> query.view_table("users", where="age > 25", limit=100)
+            >>> query.select("users", where="age > 25", limit=100)
             
             >>> # Sort results
-            >>> query.view_table("users", order_by="created_at DESC", limit=10)
+            >>> query.select("users", order_by="created_at DESC", limit=10)
             
             >>> # Pagination
-            >>> query.view_table("users", limit=10, offset=20)  # Page 3
+            >>> query.select("users", limit=10, offset=20)  # Page 3
             
             >>> # Get all rows (no limit)
-            >>> query.view_table("users", limit=None)
+            >>> query.select("users", limit=None)
             
             >>> # Return as polars DataFrame
-            >>> query.view_table("users", limit=10, output_format="polars")
+            >>> query.select("users", limit=10, output_format="polars")
             
             >>> # Return as pyarrow Table
-            >>> query.view_table("users", limit=10, output_format="pyarrow")
+            >>> query.select("users", limit=10, output_format="pyarrow")
         """
         SchemaUtils.validate_table_name(table_name)
+        
+        # Validate and sanitize SQL clauses to prevent injection
+        SQLSanitizer.validate_where_clause(where)
+        SQLSanitizer.validate_order_by_clause(order_by)
+        if columns:
+            SQLSanitizer.validate_column_list(columns)
         
         # Build SELECT clause
         if columns:
@@ -95,8 +104,9 @@ class QueryOperations:
         else:
             select_clause = "*"
         
-        # Build query
+        # Build query with parameterized LIMIT and OFFSET
         query = f"SELECT {select_clause} FROM {table_name}"
+        params: list[Any] = []
         
         # Add WHERE clause
         if where:
@@ -106,15 +116,21 @@ class QueryOperations:
         if order_by:
             query += f" ORDER BY {order_by}"
         
-        # Add LIMIT and OFFSET
+        # Add LIMIT and OFFSET with parameter binding
         if limit is not None:
-            query += f" LIMIT {limit}"
+            query += " LIMIT ?"
+            params.append(limit)
         if offset > 0:
-            query += f" OFFSET {offset}"
+            query += " OFFSET ?"
+            params.append(offset)
         
-        # Execute and return in the requested format
-        result = self.conn.execute(query)
+        # Execute with parameterized values
+        if params:
+            result = self.conn.execute(query, params)
+        else:
+            result = self.conn.execute(query)
         
+        # Convert to requested format
         if output_format == "pandas":
             return result.df()
         elif output_format == "polars":
@@ -151,6 +167,9 @@ class QueryOperations:
         """
         SchemaUtils.validate_table_name(table_name)
         
+        # Validate WHERE clause to prevent injection
+        SQLSanitizer.validate_where_clause(where)
+        
         query = f"SELECT COUNT(*) as count FROM {table_name}"
         if where:
             query += f" WHERE {where}"
@@ -171,6 +190,9 @@ class QueryOperations:
             >>> if query.table_exists("users"):
             ...     print("Table exists")
         """
+        # Validate table name first
+        SchemaUtils.validate_table_name(table_name)
+        
         try:
             self.conn.execute(
                 f"SELECT 1 FROM {table_name} WHERE 1=0"
