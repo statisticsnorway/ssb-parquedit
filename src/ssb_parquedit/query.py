@@ -2,6 +2,7 @@
 
 from typing import Any
 from typing import Literal
+import duckdb
 
 try:
     import polars as pl
@@ -26,7 +27,7 @@ class QueryOperations:
     - Table existence checks
     """
 
-    def __init__(self, connection):
+    def __init__(self, connection: duckdb.DuckDBConnection) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
@@ -67,6 +68,11 @@ class QueryOperations:
 
         Returns:
             Data in the specified format (pandas DataFrame, polars DataFrame, or pyarrow Table).
+
+        Raises:
+            ImportError: If output_format is "polars" but polars is not installed,
+                or if output_format is "pyarrow" but pyarrow is not installed.
+            ValueError: If output_format is not "pandas", "polars", or "pyarrow".
 
         Example:
             >>> # Simple view - first 5 rows as pandas DataFrame

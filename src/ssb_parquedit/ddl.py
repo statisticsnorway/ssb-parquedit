@@ -1,6 +1,7 @@
 """DDL (Data Definition Language) operations for DuckDB tables."""
 
 from typing import Any
+import duckdb
 
 import pandas as pd
 from utils import SchemaUtils
@@ -17,7 +18,7 @@ class DDLOperations:
     - Table descriptions/comments
     """
 
-    def __init__(self, connection):
+    def __init__(self, connection: duckdb.DuckDBConnection) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
