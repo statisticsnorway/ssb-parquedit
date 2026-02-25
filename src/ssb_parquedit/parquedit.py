@@ -19,7 +19,7 @@ class ParquEdit:
     For detailed documentation of each method, see the respective operations classes:
     - DDL operations: ddl.DDLOperations (create_table, drop_table, alter_table)
     - DML operations: dml.DMLOperations (insert, update, delete, fill_table)
-    - Query operations: query.QueryOperations (view_table, select, count)
+    - Query operations: query.QueryOperations (view, count)
     
     Example:
         >>> db_config = {
@@ -35,7 +35,7 @@ class ParquEdit:
         ...     editor.create_table("users", df, "User data", fill=True)
         ...     
         ...     # Query the table
-        ...     result = editor.select("users", limit=10, 
+        ...     result = editor.view("users", limit=10, 
         ...         filters={"column": "age", "operator": ">", "value": 25})
     """
 
@@ -104,7 +104,7 @@ class ParquEdit:
     # ============ Query Operations ============
     # Delegate to QueryOperations - see query.py for full documentation
     
-    def select(
+    def view(
         self,
         table_name: str,
         limit: int | None = 10,
@@ -114,8 +114,8 @@ class ParquEdit:
         order_by: str | None = None,
         output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
     ) -> Any:
-        """View table contents. See QueryOperations.select for details."""
-        return self._query.select(table_name, limit, offset, columns, filters, order_by, output_format)
+        """View table contents. See QueryOperations.view for details."""
+        return self._query.view(table_name, limit, offset, columns, filters, order_by, output_format)
     
     
     def count(self, table_name: str, filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> int:

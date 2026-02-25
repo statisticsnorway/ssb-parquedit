@@ -62,21 +62,21 @@ with ParquEdit(db_config) as editor:
     #editor.create_table('basic_table_1d', data, 'very nice table', ['year','age'], fill_table=True)    
     #editor.create_table('basic_table_1e', data, 'very nice table', ['year','age','month', 'week', 'day'], fill_table=True)    
     #editor.fill_table('basic_table_3c', parquetfile)
-    #df = editor.select("unbasic_table_1", limit=5)
-    #df = editor.select("unbasic_table_1", columns=["age", "name"], filters={"column": "city", "operator": "=", "value": "New York"})
-    #df = editor.select("unbasic_table_3", limit=1000, filters=[
+    #df = editor.view("unbasic_table_1", limit=5)
+    #df = editor.view("unbasic_table_1", columns=["age", "name"], filters={"column": "city", "operator": "=", "value": "New York"})
+    #df = editor.view("unbasic_table_3", limit=1000, filters=[
     #    {"column": "var_1", "operator": "=", "value": 724},
     #    {"column": "var_2", "operator": "=", "value": 300}
     #], order_by='id')
-    #df = editor.select("unbasic_table_3", limit=100000, filters={"column": "var_1", "operator": "=", "value": 724},
+    #df = editor.view("unbasic_table_3", limit=100000, filters={"column": "var_1", "operator": "=", "value": 724},
     #                            order_by='id', offset=100, columns=["id", "var_10", "var_2"])
 
                             
 
-    #print(editor.select("unbasic_table_4", limit=100000, filters={"column": "var_1", "operator": "=", "value": 724},
+    #print(editor.view("unbasic_table_4", limit=100000, filters={"column": "var_1", "operator": "=", "value": 724},
     #                            order_by='id', offset=100, columns=["id", "var_10", "var_2"]))
 
-    print(editor.select("vst_table_23"))
+    print(editor.view("vst_table_23"))
 
     #print(editor.count("vst_table_23"))
 
@@ -86,7 +86,7 @@ import time
 
 with ParquEdit(db_config) as editor:
     start = time.perf_counter()
-    result = editor.select("unbasic_table_4", 
+    result = editor.view("unbasic_table_4", 
         filters={"column": "id", "operator": "=", "value": "ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf"})
     end = time.perf_counter()
     
@@ -101,7 +101,7 @@ import time
 
 with ParquEdit(db_config) as editor:
     start = time.perf_counter()
-    result = editor.select("unbasic_table_4", 
+    result = editor.view("unbasic_table_4", 
         filters={"column": "id", "operator": "=", "value": "ffe39a2d-56aa-4dc4-902e-eab2d04ec2cf"})
     end = time.perf_counter()
     
@@ -132,21 +132,21 @@ with ParquEdit(db_config) as editor:
     # oppretter tabeller fra ulike kilder
     # opprette tom tabell fra dataframe
     #editor.create_table(table_name="urb_tab_empty",source=new_data2)
-    #print(editor.select("urb_tab_empty",limit=40))
+    #print(editor.view("urb_tab_empty",limit=40))
     # insert til ny tabell med data fra dataframe
     #editor.insert_data(table_name="urb_tab_empty", source=new_data2)
-    #print(editor.select("urb_tab_empty",limit=40))
+    #print(editor.view("urb_tab_empty",limit=40))
     # insert til ny tabell med data fra parquet-fil
     #editor.insert_data(table_name="urb_tab_empty", source=parquetfile)    
-    #print(editor.select("urb_tab_empty",limit=40))
+    #print(editor.view("urb_tab_empty",limit=40))
     # opprette tabell og fylle den
     #editor.create_table(table_name="urb_tab_not_empty",source=new_data2, fill=True)
     # insert til ny tabell med data fra dataframe
     #editor.insert_data(table_name="urb_tab_not_empty", source=new_data2)
-    #print(editor.select("urb_tab_empty",limit=40))
+    #print(editor.view("urb_tab_empty",limit=40))
     #insert til ny tabell med data fra parquet-fil    
     #editor.insert_data(table_name="urb_tab_not_empty", source=parquetfile)
-    #print(editor.select("urb_tab_not_empty",limit=40))
+    #print(editor.view("urb_tab_not_empty",limit=40))
     # ny tabell med partisjon
     editor.create_table(table_name="urb_tab_part",source=new_data2, fill=True, part_columns=["year", "month"])
 

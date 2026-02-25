@@ -123,13 +123,13 @@ self.conn.execute(ddl, [parquet_path])
 
 ```python
 # Parameterized LIMIT/OFFSET
-df = editor.select("users", limit=10, offset=20)
+df = editor.view("users", limit=10, offset=20)
 
 # Validated table and column names
-df = editor.select("users", columns=["id", "name", "email"])
+df = editor.view("users", columns=["id", "name", "email"])
 
-# Validated WHERE clause (simple patterns only)
-df = editor.select("users", where="age > 25")
+# Structured filters (RECOMMENDED)
+df = editor.view("users", filters={"column": "age", "operator": ">", "value": 25})
 
 # Parameterized file paths
 editor.insert_data("users", "/path/to/users.parquet")
@@ -138,16 +138,14 @@ editor.insert_data("users", "/path/to/users.parquet")
 ### Things to Avoid
 
 ```python
-# DON'T construct WHERE clauses from untrusted input
-user_input = "1 OR 1=1"
-df = editor.select("users", where=user_input)  # Malicious!
+# DON'T construct filter values without parameterization
+# Instead, use structured filters which handle parameterization automatically:
+user_age = user_input  # Could be malicious
+df = editor.view("users", filters={"column": "age", "operator": ">", "value": user_age})
 
-# Instead, validate and structure input:
-try:
-    age = int(user_input)  # Validate type
-    df = editor.select("users", where=f"age > {age}")  # Now it's numeric
-except ValueError:
-    raise ValueError("Invalid age input")
+# The value is automatically parameterized, preventing injection
+# Even if user_age contains: "25); DROP TABLE users; --"
+# It will be safely treated as a literal string value
 ```
 
 ## Testing

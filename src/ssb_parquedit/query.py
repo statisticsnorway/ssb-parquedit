@@ -33,7 +33,7 @@ class QueryOperations:
         """
         self.conn = connection
     
-    def select(
+    def view(
         self,
         table_name: str,
         limit: int | None = 10,
@@ -69,22 +69,22 @@ class QueryOperations:
         
         Example:
             >>> # Simple view - first 5 rows as pandas DataFrame
-            >>> query.select("users", limit=5)
+            >>> query.view("users", limit=5)
             
             >>> # Select specific columns
-            >>> query.select("users", columns=["id", "name"], limit=10)
+            >>> query.view("users", columns=["id", "name"], limit=10)
             
             >>> # Filter with structured filters (RECOMMENDED)
-            >>> query.select("users", filters={"column": "age", "operator": ">", "value": 25})
+            >>> query.view("users", filters={"column": "age", "operator": ">", "value": 25})
             
             >>> # Multiple conditions with AND
-            >>> query.select("users", filters=[
+            >>> query.view("users", filters=[
             ...     {"column": "age", "operator": ">", "value": 25},
             ...     {"column": "status", "operator": "=", "value": "active"}
             ... ])
             
             >>> # Multiple conditions with OR
-            >>> query.select("users", filters={
+            >>> query.view("users", filters={
             ...     "or": [
             ...         {"column": "status", "operator": "=", "value": "admin"},
             ...         {"column": "status", "operator": "=", "value": "moderator"}
@@ -92,28 +92,28 @@ class QueryOperations:
             ... })
             
             >>> # Filter with LIKE operator
-            >>> query.select("users", filters={"column": "name", "operator": "LIKE", "value": "%john%"})
+            >>> query.view("users", filters={"column": "name", "operator": "LIKE", "value": "%john%"})
             
             >>> # Filter with IN operator
-            >>> query.select("users", filters={"column": "id", "operator": "IN", "value": [1, 2, 3]})
+            >>> query.view("users", filters={"column": "id", "operator": "IN", "value": [1, 2, 3]})
             
             >>> # Filter with BETWEEN
-            >>> query.select("users", filters={"column": "age", "operator": "BETWEEN", "value": [18, 65]})
+            >>> query.view("users", filters={"column": "age", "operator": "BETWEEN", "value": [18, 65]})
             
             >>> # Sort results
-            >>> query.select("users", order_by="created_at DESC", limit=10)
+            >>> query.view("users", order_by="created_at DESC", limit=10)
             
             >>> # Pagination
-            >>> query.select("users", limit=10, offset=20)  # Page 3
+            >>> query.view("users", limit=10, offset=20)  # Page 3
             
             >>> # Get all rows (no limit)
-            >>> query.select("users", limit=None)
+            >>> query.view("users", limit=None)
             
             >>> # Return as polars DataFrame
-            >>> query.select("users", limit=10, output_format="polars")
+            >>> query.view("users", limit=10, output_format="polars")
             
             >>> # Return as pyarrow Table
-            >>> query.select("users", limit=10, output_format="pyarrow")
+            >>> query.view("users", limit=10, output_format="pyarrow")
         """
         SchemaUtils.validate_table_name(table_name)
         

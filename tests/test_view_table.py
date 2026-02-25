@@ -1,94 +1,11 @@
-import importlib
 import sys
-from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock
 from unittest.mock import call
 
 import pytest
 
-
-# ---- Test scaffolding: stub external modules before importing the SUT ----
-@pytest.fixture(autouse=True)
-def stub_external_modules(
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[None, None, None]:
-    """Stub external heavy dependencies (duckdb, gcsfs, pandas) so tests run hermetically.
-
-    We inject minimal fakes into sys.modules prior to importing ssb_parquedit.parquedit.
-    """
-
-    # Fake duckdb module with minimal API surface
-    class FakeDuckDB:
-        class DuckDBPyConnection:  # only for type hints; runtime uses MagicMock
-            pass
-
-        def connect(self) -> MagicMock:
-            # Return a MagicMock connection to simulate owned connections
-            conn = MagicMock()
-            conn.sql = MagicMock()
-            conn.execute = MagicMock()
-            conn.register = MagicMock()
-            conn.register_filesystem = MagicMock()
-            conn.close = MagicMock()
-            return conn
-
-    # Fake gcsfs module with a GCSFileSystem type
-    class FakeGCSFS:
-        class GCSFileSystem:
-            def __init__(self, *args: object, **kwargs: object) -> None:
-                self.created = True
-
-    # Fake pandas with just a DataFrame type for isinstance checks
-    class FakePandas:
-        class DataFrame:
-            pass
-
-    monkeypatch.setitem(sys.modules, "duckdb", FakeDuckDB())
-    monkeypatch.setitem(sys.modules, "gcsfs", FakeGCSFS())
-    monkeypatch.setitem(sys.modules, "pandas", FakePandas())
-
-    yield
-
-    # Cleanup is automatic by pytest monkeypatch fixture
-
-
-@pytest.fixture
-def sut() -> Any:
-    """Import and return the ParquEdit class with stubs injected."""
-    module = importlib.import_module("ssb_parquedit.parquedit")
-    importlib.reload(module)
-    return module.ParquEdit
-
-
-@pytest.fixture
-def fake_conn() -> MagicMock:
-    """A MagicMock simulating a DuckDB connection."""
-    conn = MagicMock()
-    # Provide attributes/methods that ParquEdit expects
-    # - register_filesystem(fs)
-    # - sql(str)
-    # - execute(str)
-    # - register(name, obj)
-    # - close()
-    # Use wraps to capture SQL calls distinctly
-    conn.sql = MagicMock()
-    conn.execute = MagicMock()
-    conn.register = MagicMock()
-    conn.register_filesystem = MagicMock()
-    conn.close = MagicMock()
-    return conn
-
-
-@pytest.fixture
-def db_config() -> dict[str, str]:
-    return {
-        "dbname": "testdb",
-        "dbuser": "testuser",
-        "catalog_name": "testcat",
-        "data_path": "gs://bucket/path",
-        "metadata_schema": "meta_schema",
-    }
+# Fixtures are imported from conftest.py: stub_external_modules, sut, fake_conn, db_config, query_test_setup
 
 
 # -------------------- Behavior tests --------------------
@@ -322,155 +239,54 @@ def test_add_table_description_executes_comment(
     fake_conn.execute.assert_called_with("COMMENT ON TABLE t IS 'some desc';")
 
 
-# -------------------- select tests --------------------
+# -------------------- view tests --------------------
+# Most view parameter combinations are covered by test_view_limit_offset_combinations parametrized test.
+# This section tests specific query building and validation logic.
 
 
-def test_select_default_parameters_builds_correct_query(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
-) -> None:
-    """Test select with default parameters builds correct SQL query."""
-    pe = sut(db_config=db_config, conn=fake_conn)
-    
-    # Mock the result of execute()
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table")
-    
-    # Verify execute was called with correct query
-    fake_conn.execute.assert_called_once()
-    query = fake_conn.execute.call_args[0][0]
-    
-    assert "SELECT * FROM my_table" in query
-    assert "LIMIT 10" in query
-    assert "OFFSET" not in query
-
-
-def test_select_with_custom_limit(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
-) -> None:
-    """Test select with custom limit."""
-    pe = sut(db_config=db_config, conn=fake_conn)
-    
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", limit=5)
-    
-    query = fake_conn.execute.call_args[0][0]
-    assert "LIMIT 5" in query
-
-
-def test_select_with_no_limit(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
-) -> None:
-    """Test select with limit=None returns all rows."""
-    pe = sut(db_config=db_config, conn=fake_conn)
-    
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", limit=None)
-    
-    query = fake_conn.execute.call_args[0][0]
-    assert "LIMIT" not in query
-
-
-def test_select_with_offset(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
-) -> None:
-    """Test select with offset."""
-    pe = sut(db_config=db_config, conn=fake_conn)
-    
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", limit=10, offset=20)
-    
-    query = fake_conn.execute.call_args[0][0]
-    assert "LIMIT 10" in query
-    assert "OFFSET 20" in query
-
-
-def test_select_offset_zero_not_included(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
-) -> None:
-    """Test that offset=0 doesn't add OFFSET clause."""
-    pe = sut(db_config=db_config, conn=fake_conn)
-    
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", offset=0)
-    
-    query = fake_conn.execute.call_args[0][0]
-    assert "OFFSET" not in query
-
-
-def test_select_select_specific_columns(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_select_specific_columns(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
     """Test selecting specific columns."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", columns=["id", "name", "age"])
+    pe.view("my_table", columns=["id", "name", "age"])
     
     query = fake_conn.execute.call_args[0][0]
     assert "SELECT id, name, age FROM my_table" in query
 
 
-def test_select_with_filters(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_with_filters(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
-    """Test select with structured filters."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    """Test view with structured filters."""
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", filters={"column": "age", "operator": ">", "value": 25})
+    pe.view("my_table", filters={"column": "age", "operator": ">", "value": 25})
     
     query = fake_conn.execute.call_args[0][0]
     assert "WHERE age > ?" in query
 
 
-def test_select_with_order_by(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_with_order_by(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
-    """Test select with ORDER BY clause."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    """Test view with ORDER BY clause."""
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", order_by="created_at DESC")
+    pe.view("my_table", order_by="created_at DESC")
     
     query = fake_conn.execute.call_args[0][0]
     assert "ORDER BY created_at DESC" in query
 
 
-def test_select_with_all_parameters(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_with_all_parameters(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
-    """Test select with all parameters combined."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    """Test view with all parameters combined."""
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select(
+    pe.view(
         "my_table",
         limit=100,
         offset=50,
@@ -490,17 +306,13 @@ def test_select_with_all_parameters(
     assert "OFFSET 50" in query
 
 
-def test_select_sql_clause_order(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_sql_clause_order(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
     """Test that query clauses appear in correct SQL order."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select(
+    pe.view(
         "my_table",
         columns=["id"],
         filters=[
@@ -523,30 +335,26 @@ def test_select_sql_clause_order(
     assert where_pos < order_pos < limit_pos < offset_pos
 
 
-def test_select_validates_table_name(
+def test_view_validates_table_name(
     sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
 ) -> None:
     """Test that invalid table names raise ValueError."""
     pe = sut(db_config=db_config, conn=fake_conn)
     
     with pytest.raises(ValueError, match="Invalid table name"):
-        pe.select("invalid-table-name")
+        pe.view("invalid-table-name")
     
     # Execute should not be called if validation fails
     fake_conn.execute.assert_not_called()
 
 
-def test_select_empty_columns_list_selects_all(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_empty_columns_list_selects_all(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
     """Test that empty columns list behaves like None (select all)."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", columns=[])
+    pe.view("my_table", columns=[])
     
     query = fake_conn.execute.call_args[0][0]
     assert "SELECT * FROM my_table" in query
@@ -555,48 +363,50 @@ def test_select_empty_columns_list_selects_all(
 @pytest.mark.parametrize(
     "limit,offset,has_limit,has_offset",
     [
-        (5, 0, True, False),
-        (10, 10, True, True),
-        (None, 0, False, False),
-        (100, 50, True, True),
-        (0, 0, True, False),
+        (5, 0, True, False),           # custom limit only
+        (10, 10, True, True),          # limit with offset
+        (None, 0, False, False),       # no limit, no offset
+        (100, 50, True, True),         # large limit with offset
+        (0, 0, True, False),           # zero limit (should still appear in LIMIT clause)
+        (10, 20, True, True),          # standard pagination
     ],
 )
-def test_select_limit_offset_combinations(
-    sut: Any, 
-    fake_conn: MagicMock, 
-    db_config: dict[str, str],
+def test_view_limit_offset_combinations(
+    query_test_setup: tuple[Any, MagicMock],
     limit: int | None,
     offset: int,
     has_limit: bool,
     has_offset: bool
 ) -> None:
-    """Test various combinations of limit and offset."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    """Test various combinations of limit and offset parameters.
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
+    Covers:
+    - test_view_with_custom_limit (limit=5)
+    - test_view_with_no_limit (limit=None)
+    - test_view_with_offset (limit=10, offset=20)
+    - test_view_offset_zero_not_included (offset=0 case)
+    """
+    pe, fake_conn = query_test_setup
     
-    pe.select("my_table", limit=limit, offset=offset)
+    pe.view("my_table", limit=limit, offset=offset)
     
     query = fake_conn.execute.call_args[0][0]
     
     if has_limit:
-        assert "LIMIT" in query
+        assert "LIMIT" in query, f"Expected LIMIT in query when limit={limit}"
     else:
-        assert "LIMIT" not in query
+        assert "LIMIT" not in query, f"Expected no LIMIT when limit={limit}"
     
     if has_offset:
-        assert "OFFSET" in query
+        assert "OFFSET" in query, f"Expected OFFSET in query when offset={offset}"
     else:
-        assert "OFFSET" not in query
+        assert "OFFSET" not in query, f"Expected no OFFSET when offset={offset}"
 
 
-def test_select_returns_dataframe_result(
+def test_view_returns_dataframe_result(
     sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
 ) -> None:
-    """Test that select returns the result of execute().df()."""
+    """Test that view returns the result of execute().df()."""
     pe = sut(db_config=db_config, conn=fake_conn)
     
     expected_df = MagicMock()
@@ -604,23 +414,19 @@ def test_select_returns_dataframe_result(
     mock_result.df.return_value = expected_df
     fake_conn.execute.return_value = mock_result
     
-    result = pe.select("my_table")
+    result = pe.view("my_table")
     
     assert result is expected_df
     mock_result.df.assert_called_once()
 
 
-def test_select_with_multiple_and_filters(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_with_multiple_and_filters(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
-    """Test select with multiple AND filters."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    """Test view with multiple AND filters."""
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", filters=[
+    pe.view("my_table", filters=[
         {"column": "age", "operator": ">", "value": 25},
         {"column": "city", "operator": "=", "value": "Oslo"}
     ])
@@ -629,33 +435,25 @@ def test_select_with_multiple_and_filters(
     assert "WHERE age > ? AND city = ?" in query
 
 
-def test_select_with_multiple_order_by_columns(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_with_multiple_order_by_columns(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
     """Test ORDER BY with multiple columns."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", order_by="age DESC, name ASC")
+    pe.view("my_table", order_by="age DESC, name ASC")
     
     query = fake_conn.execute.call_args[0][0]
     assert "ORDER BY age DESC, name ASC" in query
 
 
-def test_select_offset_without_limit(
-    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+def test_view_offset_without_limit(
+    query_test_setup: tuple[Any, MagicMock],
 ) -> None:
     """Test that offset works even when limit is None."""
-    pe = sut(db_config=db_config, conn=fake_conn)
+    pe, fake_conn = query_test_setup
     
-    mock_result = MagicMock()
-    mock_result.df.return_value = MagicMock()
-    fake_conn.execute.return_value = mock_result
-    
-    pe.select("my_table", limit=None, offset=50)
+    pe.view("my_table", limit=None, offset=50)
     
     query = fake_conn.execute.call_args[0][0]
     assert "OFFSET 50" in query

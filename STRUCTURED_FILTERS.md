@@ -12,14 +12,14 @@ The `select()` and `count()` methods now support a new `filters` parameter that 
 ```python
 # ❌ Vulnerable to SQL injection
 user_input = "25); DROP TABLE users; --"
-df = editor.select("users", where=f"age > {user_input}")
+df = editor.view("users", where=f"age > {user_input}")
 # Executes: SELECT * FROM users WHERE age > 25); DROP TABLE users; --
 ```
 
 ### Solution: Structured Filters
 ```python
 # ✅ Safe - values are parameterized
-df = editor.select("users", filters={"column": "age", "operator": ">", "value": 25})
+df = editor.view("users", filters={"column": "age", "operator": ">", "value": 25})
 # All values are passed as parameters, not concatenated into SQL
 ```
 
@@ -34,7 +34,7 @@ filter = {
     "operator": ">",
     "value": 25
 }
-df = editor.select("users", filters=filter)
+df = editor.view("users", filters=filter)
 # Generates: SELECT * FROM users WHERE age > ?
 # Parameters: [25]
 ```
@@ -48,7 +48,7 @@ filters = [
     {"column": "status", "operator": "=", "value": "active"},
     {"column": "city", "operator": "=", "value": "Oslo"}
 ]
-df = editor.select("users", filters=filters)
+df = editor.view("users", filters=filters)
 # Generates: SELECT * FROM users WHERE age > ? AND status = ? AND city = ?
 # Parameters: [25, "active", "Oslo"]
 ```
@@ -64,7 +64,7 @@ filters = {
         {"column": "role", "operator": "=", "value": "staff"}
     ]
 }
-df = editor.select("users", filters=filters)
+df = editor.view("users", filters=filters)
 # Generates: SELECT * FROM users WHERE role = ? OR role = ? OR role = ?
 # Parameters: ["admin", "moderator", "staff"]
 ```
@@ -137,7 +137,7 @@ filters = [
     {"column": "city", "operator": "=", "value": "Oslo"},
     {"column": "status", "operator": "=", "value": "active"}
 ]
-df = editor.select("users", filters=filters, limit=100)
+df = editor.view("users", filters=filters, limit=100)
 ```
 
 ### Example 2: Product Search
@@ -149,7 +149,7 @@ filters = [
     {"column": "price", "operator": "BETWEEN", "value": [100, 5000]},
     {"column": "stock", "operator": ">", "value": 0}
 ]
-df = editor.select("products", filters=filters)
+df = editor.view("products", filters=filters)
 ```
 
 ### Example 3: Event Filtering
@@ -180,7 +180,7 @@ def search_users(age_min, age_max, city, name_pattern):
         {"column": "city", "operator": "=", "value": city},
         {"column": "name", "operator": "LIKE", "value": f"%{name_pattern}%"}
     ]
-    return editor.select("users", filters=filters)
+    return editor.view("users", filters=filters)
 
 # These calls are ALL safe from SQL injection:
 search_users(25, 65, "Oslo", "john")
