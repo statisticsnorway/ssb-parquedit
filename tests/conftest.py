@@ -94,16 +94,18 @@ def db_config() -> dict[str, str]:
 
 
 @pytest.fixture
-def query_test_setup(sut: Any, fake_conn: MagicMock, db_config: dict[str, str]) -> tuple[Any, MagicMock]:
+def query_test_setup(
+    sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+) -> tuple[Any, MagicMock]:
     """Setup fixture for query/view tests.
-    
+
     Returns a tuple of (pe, fake_conn) with execute mocked and ready.
     """
     pe = sut(db_config=db_config, conn=fake_conn)
-    
+
     # Mock the standard result from execute()
     mock_result = MagicMock()
     mock_result.df.return_value = MagicMock()
     fake_conn.execute.return_value = mock_result
-    
+
     return pe, fake_conn

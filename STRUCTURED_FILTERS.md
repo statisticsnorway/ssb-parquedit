@@ -194,7 +194,7 @@ The `count()` method also supports structured filters:
 
 ```python
 # Count active users
-count = editor.count("users", 
+count = editor.count("users",
     filters={"column": "status", "operator": "=", "value": "active"}
 )
 

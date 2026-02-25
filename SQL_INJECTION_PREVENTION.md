@@ -33,7 +33,7 @@ WHERE and ORDER BY clauses are passed as strings because they often contain comp
 
 **Location**: `utils.py` - `SQLSanitizer.validate_where_clause()`
 
-#### ORDER BY Clause Validation  
+#### ORDER BY Clause Validation
 - Stricter validation than WHERE clauses
 - Only allows column names, ASC/DESC keywords, and basic arithmetic operators
 - Rejects any dangerous SQL patterns
@@ -93,7 +93,7 @@ SELECT * FROM read_parquet(?)
 self.conn.execute(ddl, [parquet_path])
 ```
 
-**Locations**: 
+**Locations**:
 - `ddl.py` - `_create_from_parquet()` method
 - `dml.py` - `_insert_from_parquet()` method
 
