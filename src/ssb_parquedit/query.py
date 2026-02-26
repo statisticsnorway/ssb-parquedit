@@ -15,8 +15,8 @@ try:
 except ImportError:
     pa = None
 
-from utils import SchemaUtils
-from utils import SQLSanitizer
+from .utils import SchemaUtils
+from .utils import SQLSanitizer
 
 
 class QueryOperations:
@@ -28,7 +28,7 @@ class QueryOperations:
     - Table existence checks
     """
 
-    def __init__(self, connection: duckdb.DuckDBConnection) -> None:
+    def __init__(self, connection) -> None:
         """Initialize with a DuckDB connection.
 
         Args:

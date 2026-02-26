@@ -54,18 +54,21 @@ class DuckDBConnection:
         )
         self._conn.sql(f"USE {db_config['catalog_name']}")
 
-    def execute(self, sql: str) -> duckdb.DuckDBPyRelation:
+    def execute(self, sql: str, parameters: list | None = None):
         """Execute SQL statement.
 
         Args:
             sql: SQL statement to execute.
+            parameters: Optional list of parameters for parameterized queries.
 
         Returns:
             DuckDB relation with query results.
         """
+        if parameters is not None:
+            return self._conn.execute(sql, parameters)
         return self._conn.execute(sql)
 
-    def sql(self, query: str) -> duckdb.DuckDBPyRelation:
+    def sql(self, query: str):
         """Execute SQL query.
 
         Args:

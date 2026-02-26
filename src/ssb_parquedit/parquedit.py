@@ -6,10 +6,10 @@ from typing import Literal
 
 import duckdb
 import pandas as pd
-from connection import DuckDBConnection
-from ddl import DDLOperations
-from dml import DMLOperations
-from query import QueryOperations
+from .connection import DuckDBConnection
+from .ddl import DDLOperations
+from .dml import DMLOperations
+from .query import QueryOperations
 
 
 class ParquEdit:

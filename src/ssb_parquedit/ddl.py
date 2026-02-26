@@ -4,9 +4,9 @@ from typing import Any
 
 import duckdb
 import pandas as pd
-from utils import SchemaUtils
-from utils import SQLInjectionError
-from utils import SQLSanitizer
+from .utils import SchemaUtils
+from .utils import SQLInjectionError
+from .utils import SQLSanitizer
 
 
 class DDLOperations:
@@ -19,7 +19,7 @@ class DDLOperations:
     - Table descriptions/comments
     """
 
-    def __init__(self, connection: duckdb.DuckDBConnection) -> None:
+    def __init__(self, connection) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
