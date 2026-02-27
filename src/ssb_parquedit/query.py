@@ -15,8 +15,8 @@ try:
 except ImportError:
     pa = None
 
-from .utils import SchemaUtils
-from .utils import SQLSanitizer
+from utils import SchemaUtils
+from utils import SQLSanitizer
 
 
 class QueryOperations:
