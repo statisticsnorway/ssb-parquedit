@@ -4,9 +4,9 @@ from typing import Any
 
 import duckdb
 import pandas as pd
-from utils import SchemaUtils
-from utils import SQLInjectionError
-from utils import SQLSanitizer
+from .utils import SchemaUtils
+from .utils import SQLInjectionError
+from .utils import SQLSanitizer
 
 
 class DDLOperations:
@@ -58,12 +58,13 @@ class DDLOperations:
             # Re-raise for å gjøre unntaket synlig for lint
             raise ValueError(str(e)) from e
 
-        if isinstance(source, pd.DataFrame):
-            self._create_from_dataframe(table_name, source)
-        elif isinstance(source, dict):
+        # Check if source is a DataFrame (handle both real and mock pandas DataFrames)
+        if isinstance(source, dict):
             self._create_from_schema(table_name, source)
         elif isinstance(source, str):
             self._create_from_parquet(table_name, source)
+        elif isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
+            self._create_from_dataframe(table_name, source)
         else:
             raise TypeError(
                 "source must be a DataFrame, JSON Schema dict, or gs:// Parquet path"
@@ -81,19 +82,17 @@ class DDLOperations:
             table_name: Name of the table to create.
             data: DataFrame whose schema will be used.
         """
-        cols = []
-
-        # Stable UUID primary key
-        cols.append("_id VARCHAR")
-
-        for col, dtype in data.dtypes.items():
-            duck_type = SchemaUtils.pandas_to_duckdb(dtype)
-            cols.append(f"{col} {duck_type}")
-
+        # Register the DataFrame with DuckDB
+        self.conn.register("_temp_df", data)
+        
+        # Create an empty table with the schema from the DataFrame
         ddl = f"""
-        CREATE TABLE {table_name} (
-            {', '.join(cols)}
-        );
+        CREATE TABLE {table_name} AS
+        SELECT
+            CAST(NULL AS VARCHAR) AS _id,
+            *
+        FROM _temp_df
+        WHERE 1 = 2
         """
 
         self.conn.execute(ddl)

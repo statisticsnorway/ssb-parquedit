@@ -1,9 +1,9 @@
 #%%
-from parquedit import ParquEdit
+from .parquedit import ParquEdit
 import pandas as pd
 import os
 import json
-from config.config import settings
+from .config.config import settings
 
 # %%
 db_config = settings.parquedit.to_dict()

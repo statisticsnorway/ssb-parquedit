@@ -5,7 +5,7 @@ from typing import Any
 
 import duckdb
 import pandas as pd
-from utils import SchemaUtils
+from .utils import SchemaUtils
 
 
 class DMLOperations:

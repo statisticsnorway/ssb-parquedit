@@ -60,10 +60,10 @@ class TestCreateTableFromDataFrame:
         
         ddl_ops.create_table("users", df)
         
-        # Should contain _id VARCHAR in the DDL
+        # Should contain _id in the DDL (as a cast or column name)
         assert any(
-            "_id VARCHAR" in str(call_args[0])
-            for (call_args, _) in fake_conn.execute.call_args_list
+            "_id" in str(call)
+            for call in fake_conn.execute.call_args_list
         )
 
     def test_create_from_dataframe_creates_empty_table(

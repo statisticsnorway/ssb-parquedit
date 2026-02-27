@@ -166,7 +166,7 @@ def test_create_table_from_parquet_routes_and_applies_flags(
     pe._create_from_parquet = MagicMock()
     pe._add_table_partition = MagicMock()
     pe.fill_table = MagicMock()
-    #pe._add_table_description = MagicMock()
+    pe._add_table_description = MagicMock()
 
     pe.create_table(
         table_name="t",
