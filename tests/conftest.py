@@ -44,31 +44,32 @@ def stub_external_modules(
     class FakePandas:
         class StringDtype:
             """Fake StringDtype for pandas mocking."""
+
             pass
-        
+
         class DataFrame:
             def __init__(self) -> None:
                 # Empty dict for dtypes attribute that has .items() method
                 self.dtypes = {}
                 self._data: dict[str, list[Any]] = {}
-            
+
             def copy(self) -> "FakePandas.DataFrame":
                 """Return a shallow copy of the DataFrame."""
                 df = FakePandas.DataFrame()
                 df._data = self._data.copy()
                 return df
-            
+
             def __len__(self) -> int:
                 """Return the number of rows in the DataFrame."""
                 if self._data:
                     return len(next(iter(self._data.values())))
                 return 0
-            
+
             def insert(self, loc: int, column: str, value: Any) -> None:
                 """Insert a column into the DataFrame at the given location."""
                 # For our stub, just add it to the _data dict
                 self._data[column] = value if isinstance(value, list) else [value]
-            
+
             def astype(self, dtype_dict: dict[str, Any]) -> "FakePandas.DataFrame":
                 """Return a copy with specified columns converted to new types."""
                 return self.copy()

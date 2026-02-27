@@ -59,7 +59,7 @@ class SQLSanitizer:
         # Check for dangerous keywords and patterns
         for keyword in SQLSanitizer.DANGEROUS_KEYWORDS:
             # Use word boundaries to avoid false positives (e.g., 'UPDATE' in 'UPDATED_AT')
-            if re.search(r'\b' + re.escape(keyword) + r'\b', order_by_upper):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", order_by_upper):
                 raise SQLInjectionError(
                     f"Potentially dangerous SQL keyword '{keyword}' detected in ORDER BY clause"
                 )

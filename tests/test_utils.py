@@ -1,10 +1,10 @@
 """Tests for SQLSanitizer and SchemaUtils utility classes."""
 
 import pytest
+
+from ssb_parquedit.utils import SchemaUtils
 from ssb_parquedit.utils import SQLInjectionError
 from ssb_parquedit.utils import SQLSanitizer
-from ssb_parquedit.utils import SchemaUtils
-
 
 # ================== SQLSanitizer Tests ==================
 
@@ -157,7 +157,11 @@ class TestBuildWhereFromFilters:
 
     def test_single_condition_not_in(self) -> None:
         """Test single condition with NOT IN operator."""
-        filters = {"column": "status", "operator": "NOT IN", "value": ["deleted", "archived"]}
+        filters = {
+            "column": "status",
+            "operator": "NOT IN",
+            "value": ["deleted", "archived"],
+        }
         where, params = SQLSanitizer.build_where_from_filters(filters)
         assert where == "status NOT IN (?, ?)"
         assert params == ["deleted", "archived"]
@@ -287,7 +291,10 @@ class TestTranslate:
 
     def test_string_type_with_datetime_format(self) -> None:
         """Test string type with date-time format."""
-        assert SchemaUtils.translate({"type": "string", "format": "date-time"}) == "TIMESTAMP"
+        assert (
+            SchemaUtils.translate({"type": "string", "format": "date-time"})
+            == "TIMESTAMP"
+        )
 
     def test_integer_type(self) -> None:
         """Test integer type translation."""
@@ -467,7 +474,7 @@ class TestPandasToDuckdb:
     # Note: These tests require real pandas functionality
     # The conftest.py stubs pandas with only a DataFrame class
     # So we skip dtype testing and instead document the function exists
-    
+
     def test_pandas_to_duckdb_function_exists(self) -> None:
         """Test that pandas_to_duckdb function is available."""
         assert hasattr(SchemaUtils, "pandas_to_duckdb")

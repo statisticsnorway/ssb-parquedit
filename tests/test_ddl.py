@@ -1,9 +1,7 @@
 """Tests for DDL (Data Definition Language) operations."""
 
 import sys
-from typing import Any
 from unittest.mock import MagicMock
-from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +12,7 @@ import pytest
 def sut_ddl() -> object:
     """Import and return the DDLOperations class."""
     import importlib
-    
+
     module = importlib.import_module("ssb_parquedit.ddl")
     importlib.reload(module)
     return module.DDLOperations
@@ -28,12 +26,12 @@ class TestCreateTableFromDataFrame:
     ) -> None:
         """Test basic table creation from DataFrame."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         ddl_ops.create_table("users", df)
-        
+
         # Should have called execute
         assert fake_conn.execute.called
 
@@ -42,10 +40,10 @@ class TestCreateTableFromDataFrame:
     ) -> None:
         """Test that table name is validated."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         with pytest.raises(ValueError, match="Invalid table name"):
             ddl_ops.create_table("123invalid", df)
 
@@ -54,29 +52,26 @@ class TestCreateTableFromDataFrame:
     ) -> None:
         """Test that _id column is created."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         ddl_ops.create_table("users", df)
-        
+
         # Should contain _id in the DDL (as a cast or column name)
-        assert any(
-            "_id" in str(call)
-            for call in fake_conn.execute.call_args_list
-        )
+        assert any("_id" in str(call) for call in fake_conn.execute.call_args_list)
 
     def test_create_from_dataframe_creates_empty_table(
         self, sut_ddl: object, fake_conn: MagicMock
     ) -> None:
         """Test that table is created empty (WHERE 1=2 pattern)."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         ddl_ops.create_table("users", df)
-        
+
         # Should register the dataframe and create empty table
         assert fake_conn.register.called
 
@@ -89,9 +84,9 @@ class TestCreateTableFromParquet:
     ) -> None:
         """Test basic table creation from Parquet file."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         ddl_ops.create_table("users", "gs://bucket/users.parquet")
-        
+
         # Should have called execute
         assert fake_conn.execute.called
 
@@ -100,15 +95,14 @@ class TestCreateTableFromParquet:
     ) -> None:
         """Test that Parquet path uses parameterized query."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         parquet_path = "gs://bucket/users.parquet"
         ddl_ops.create_table("users", parquet_path)
-        
+
         # Should call execute with parameters
         execute_calls = fake_conn.execute.call_args_list
         assert any(
-            len(call[0]) > 1 or call[1].get("parameters", [])
-            for call in execute_calls
+            len(call[0]) > 1 or call[1].get("parameters", []) for call in execute_calls
         ), "Expected parameterized query"
 
     def test_create_from_parquet_validates_table_name(
@@ -116,7 +110,7 @@ class TestCreateTableFromParquet:
     ) -> None:
         """Test that table name is validated."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         with pytest.raises(ValueError, match="Invalid table name"):
             ddl_ops.create_table("invalid-name", "gs://bucket/file.parquet")
 
@@ -129,7 +123,7 @@ class TestCreateTableFromSchema:
     ) -> None:
         """Test basic table creation from schema."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         schema = {
             "properties": {
                 "id": {"type": "integer"},
@@ -137,9 +131,9 @@ class TestCreateTableFromSchema:
             },
             "required": ["id"],
         }
-        
+
         ddl_ops.create_table("users", schema)
-        
+
         # Should have called execute
         assert fake_conn.execute.called
 
@@ -148,15 +142,15 @@ class TestCreateTableFromSchema:
     ) -> None:
         """Test that _id column is added to schema-based tables."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         schema = {
             "properties": {
                 "id": {"type": "integer"},
             },
         }
-        
+
         ddl_ops.create_table("users", schema)
-        
+
         # Should include _id column
         assert any(
             "_id VARCHAR" in str(call_args[0])
@@ -168,9 +162,9 @@ class TestCreateTableFromSchema:
     ) -> None:
         """Test that table name is validated for schema-based creation."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         schema = {"properties": {"id": {"type": "integer"}}}
-        
+
         with pytest.raises(ValueError, match="Invalid table name"):
             ddl_ops.create_table("123invalid", schema)
 
@@ -183,19 +177,18 @@ class TestCreateTableWithPartitioning:
     ) -> None:
         """Test table creation with partition columns."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         ddl_ops.create_table("users", df, part_columns=["region", "year"])
-        
+
         # Should have called execute for both CREATE TABLE and ALTER TABLE
         assert fake_conn.execute.called
-        
+
         # Check for ALTER TABLE PARTITIONED BY
         partition_calls = [
-            str(call_args[0])
-            for (call_args, _) in fake_conn.execute.call_args_list
+            str(call_args[0]) for (call_args, _) in fake_conn.execute.call_args_list
         ]
         assert any(
             "ALTER TABLE" in call and "PARTITIONED BY" in call
@@ -207,16 +200,15 @@ class TestCreateTableWithPartitioning:
     ) -> None:
         """Test that empty partition columns list is handled."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         ddl_ops.create_table("users", df, part_columns=[])
-        
+
         # Should not make ALTER TABLE call for empty partition list
         partition_calls = [
-            str(call_args[0])
-            for (call_args, _) in fake_conn.execute.call_args_list
+            str(call_args[0]) for (call_args, _) in fake_conn.execute.call_args_list
         ]
         assert not any(
             "ALTER TABLE" in call and "PARTITIONED BY" in call
@@ -228,10 +220,10 @@ class TestCreateTableWithPartitioning:
     ) -> None:
         """Test that invalid partition column names raise error."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         # Invalid column name with dash
         with pytest.raises(Exception):  # SQLInjectionError
             ddl_ops.create_table("users", df, part_columns=["invalid-column"])
@@ -245,7 +237,7 @@ class TestCreateTableTypeErrors:
     ) -> None:
         """Test that invalid source type raises TypeError."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         with pytest.raises(TypeError, match="source must be a DataFrame"):
             ddl_ops.create_table("users", 12345)  # type: ignore
 
@@ -254,6 +246,6 @@ class TestCreateTableTypeErrors:
     ) -> None:
         """Test that list source raises TypeError."""
         ddl_ops = sut_ddl(fake_conn)
-        
+
         with pytest.raises(TypeError, match="source must be a DataFrame"):
             ddl_ops.create_table("users", [1, 2, 3])  # type: ignore

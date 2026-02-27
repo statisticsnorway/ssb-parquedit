@@ -3,8 +3,6 @@ from typing import Any
 from unittest.mock import MagicMock
 from unittest.mock import call
 
-import pytest
-
 # Fixtures are imported from conftest.py: stub_external_modules, sut, fake_conn, db_config
 
 
@@ -171,7 +169,7 @@ def test_create_table_from_parquet_routes_and_applies_flags(
     pe.create_table(
         table_name="t",
         source="gs://bucket/path/file.parquet",
-        #table_description="desc",
+        # table_description="desc",
         part_columns=None,  # should treat as [] and not call _add_table_partition
         fill=False,
     )
@@ -249,16 +247,16 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that create_table delegates to DDL operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the DDL operations
         pe._ddl.create_table = MagicMock()
         pe._dml.insert_data = MagicMock()
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         pe.create_table("users", df)
-        
+
         # Should call DDL create_table
         pe._ddl.create_table.assert_called_once()
 
@@ -267,16 +265,16 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that create_table with fill=True calls insert_data."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the operations
         pe._ddl.create_table = MagicMock()
         pe._dml.insert_data = MagicMock()
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         pe.create_table("users", df, fill=True)
-        
+
         # Should call insert_data
         pe._dml.insert_data.assert_called_once_with("users", df)
 
@@ -285,16 +283,16 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that create_table with fill=False does not call insert."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the operations
         pe._ddl.create_table = MagicMock()
         pe._dml.insert_data = MagicMock()
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         pe.create_table("users", df, fill=False)
-        
+
         # Should not call insert_data
         pe._dml.insert_data.assert_not_called()
 
@@ -303,15 +301,15 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that insert_data delegates to DML operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the DML operations
         pe._dml.insert_data = MagicMock()
-        
+
         DF = sys.modules["pandas"].DataFrame
         df = DF()
-        
+
         pe.insert_data("users", df)
-        
+
         # Should call DML insert_data
         pe._dml.insert_data.assert_called_once_with("users", df)
 
@@ -320,12 +318,12 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that view delegates to Query operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the Query operations
         pe._query.view = MagicMock(return_value=MagicMock())
-        
+
         pe.view("users", limit=10)
-        
+
         # Should call Query view
         pe._query.view.assert_called_once()
 
@@ -334,14 +332,20 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that view passes all parameters to Query operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the Query operations
         pe._query.view = MagicMock(return_value=MagicMock())
-        
+
         filters = {"column": "id", "operator": ">", "value": 10}
-        pe.view("users", limit=20, offset=5, columns=["id", "name"], 
-                filters=filters, order_by="id ASC")
-        
+        pe.view(
+            "users",
+            limit=20,
+            offset=5,
+            columns=["id", "name"],
+            filters=filters,
+            order_by="id ASC",
+        )
+
         # Should pass all parameters
         call_args = pe._query.view.call_args
         assert call_args[0][0] == "users"
@@ -353,12 +357,12 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that count delegates to Query operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the Query operations
         pe._query.count = MagicMock(return_value=42)
-        
+
         result = pe.count("users")
-        
+
         # Should call Query count and return result
         pe._query.count.assert_called_once_with("users", None)
         assert result == 42
@@ -368,13 +372,13 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that count passes filters to Query operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the Query operations
         pe._query.count = MagicMock(return_value=10)
-        
+
         filters = {"column": "status", "operator": "=", "value": "active"}
         result = pe.count("users", filters=filters)
-        
+
         # Should pass filters
         pe._query.count.assert_called_once_with("users", filters)
 
@@ -383,12 +387,12 @@ class TestParquEditDelegation:
     ) -> None:
         """Test that exists delegates to Query operations."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Mock the Query operations
         pe._query.table_exists = MagicMock(return_value=True)
-        
+
         result = pe.exists("users")
-        
+
         # Should call Query table_exists
         pe._query.table_exists.assert_called_once_with("users")
         assert result is True
@@ -405,7 +409,7 @@ class TestParquEditContextManager:
     ) -> None:
         """Test that __enter__ returns the instance."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         with pe as context_pe:
             assert context_pe is pe
 
@@ -414,13 +418,13 @@ class TestParquEditContextManager:
     ) -> None:
         """Test that __exit__ calls close."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         # Reset to clear init calls
         fake_conn.reset_mock()
-        
+
         with pe:
             pass
-        
+
         # Should not close external connection
         fake_conn.close.assert_not_called()
 
@@ -429,10 +433,10 @@ class TestParquEditContextManager:
     ) -> None:
         """Test that __exit__ closes connection if owned."""
         pe = sut(db_config=db_config)  # No conn provided, so it's owned
-        
+
         with pe:
             pass
-        
+
         # Should have closed the connection
         pe._connection._conn.close.assert_called()
 
@@ -441,9 +445,9 @@ class TestParquEditContextManager:
     ) -> None:
         """Test that close can be called manually."""
         pe = sut(db_config=db_config, conn=fake_conn)
-        
+
         fake_conn.reset_mock()
         pe.close()
-        
+
         # Should not close external connection
         fake_conn.close.assert_not_called()

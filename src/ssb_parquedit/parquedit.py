@@ -6,6 +6,7 @@ from typing import Literal
 
 import duckdb
 import pandas as pd
+
 from .connection import DuckDBConnection
 from .ddl import DDLOperations
 from .dml import DMLOperations
@@ -96,7 +97,7 @@ class ParquEdit:
             self._create_from_parquet(table_name, source)
         else:
             self._ddl.create_table(table_name, source, part_columns)
-        
+
         # Always ensure DDL is invoked for delegation/audit trail
         # (This handles cases notcovered by source-specific routing)
         if not isinstance(source, dict):
@@ -107,13 +108,13 @@ class ParquEdit:
             except Exception:
                 # If DDL fails (e.g., table already exists), that's OK
                 pass
-        
+
         if part_columns and len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
-        
+
         if fill:
             self.fill_table(table_name, source)
-        
+
         self._add_table_description(table_name, "desc")
 
     # ============ DML Operations ============
@@ -163,41 +164,31 @@ class ParquEdit:
 
     # ============ Helper Methods for Table Operations ============
 
-    def _create_from_dataframe(
-        self, table_name: str, source: pd.DataFrame
-    ) -> None:
+    def _create_from_dataframe(self, table_name: str, source: pd.DataFrame) -> None:
         """Create table from DataFrame by registering and creating empty table."""
         self._connection._conn.register("data", source)
         self._connection._conn.execute(
             f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2"
         )
 
-    def _create_from_parquet(
-        self, table_name: str, source: str
-    ) -> None:
+    def _create_from_parquet(self, table_name: str, source: str) -> None:
         """Create table from Parquet file by delegating to DDL."""
         self._ddl.create_table(table_name, source)
 
-    def _add_table_partition(
-        self, table_name: str, part_columns: list[str]
-    ) -> None:
+    def _add_table_partition(self, table_name: str, part_columns: list[str]) -> None:
         """Add partitioning to a table."""
         columns_str = ",".join(part_columns)
         self._connection._conn.execute(
             f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
         )
 
-    def _add_table_description(
-        self, table_name: str, description: str
-    ) -> None:
+    def _add_table_description(self, table_name: str, description: str) -> None:
         """Add description/comment to a table."""
         self._connection._conn.execute(
             f"COMMENT ON TABLE {table_name} IS '{description}';"
         )
 
-    def fill_table(
-        self, table_name: str, source: pd.DataFrame | str
-    ) -> None:
+    def fill_table(self, table_name: str, source: pd.DataFrame | str) -> None:
         """Fill table with data from DataFrame or Parquet file."""
         if isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
             self._fill_from_dataframe(table_name, data=source)
@@ -206,15 +197,10 @@ class ParquEdit:
         else:
             self._dml.insert_data(table_name, source)
 
-    def _fill_from_dataframe(
-        self, table_name: str, data: pd.DataFrame
-    ) -> None:
+    def _fill_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
         """Fill table with data from DataFrame."""
         self._dml.insert_data(table_name, data)
 
-    def _fill_from_parquet(
-        self, table_name: str, parquet_path: str
-    ) -> None:
+    def _fill_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Fill table with data from Parquet file."""
         self._dml.insert_data(table_name, parquet_path)
-

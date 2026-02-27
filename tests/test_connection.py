@@ -12,8 +12,7 @@ import pytest
 def sut_connection() -> object:
     """Import and return the DuckDBConnection class."""
     import importlib
-    import sys
-    
+
     module = importlib.import_module("ssb_parquedit.connection")
     importlib.reload(module)
     return module.DuckDBConnection
@@ -27,7 +26,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test initialization when no connection is provided (owns connection)."""
         conn = sut_connection(db_config)
-        
+
         # Should own the connection
         assert conn.owns_connection is True
         # _owns_conn should be True
@@ -38,7 +37,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test initialization with existing connection (doesn't own it)."""
         conn = sut_connection(db_config, fake_conn)
-        
+
         # Should not own the connection
         assert conn.owns_connection is False
         # _owns_conn should be False
@@ -49,7 +48,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test that GCS filesystem is registered during init."""
         sut_connection(db_config, fake_conn)
-        
+
         # Should call register_filesystem
         assert fake_conn.register_filesystem.called
 
@@ -58,7 +57,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test that extensions are loaded during init."""
         sut_connection(db_config, fake_conn)
-        
+
         # Should install and load ducklake and postgres extensions
         expected_calls = [
             call("INSTALL ducklake"),
@@ -73,7 +72,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test that catalog is attached during init."""
         sut_connection(db_config, fake_conn)
-        
+
         # Should contain ATTACH call with catalog config
         attach_called = any(
             "ATTACH 'ducklake:postgres" in str(call_args[0])
@@ -86,7 +85,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test that catalog is used (USE command)."""
         sut_connection(db_config, fake_conn)
-        
+
         # Should contain USE command
         use_called = any(
             f"USE {db_config['catalog_name']}" in str(call_args[0])
@@ -99,7 +98,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test that catalog config includes DATA_PATH."""
         sut_connection(db_config, fake_conn)
-        
+
         # Should include DATA_PATH in ATTACH
         data_path_found = any(
             db_config["data_path"] in str(call_args[0])
@@ -112,7 +111,7 @@ class TestDuckDBConnectionInit:
     ) -> None:
         """Test that catalog config includes METADATA_SCHEMA."""
         sut_connection(db_config, fake_conn)
-        
+
         # Should include METADATA_SCHEMA in ATTACH
         schema_found = any(
             db_config["metadata_schema"] in str(call_args[0])
@@ -129,9 +128,9 @@ class TestDuckDBConnectionExecute:
     ) -> None:
         """Test execute method without parameters."""
         conn = sut_connection(db_config, fake_conn)
-        
+
         conn.execute("SELECT * FROM users")
-        
+
         # When parameters is None, only the SQL is passed
         fake_conn.execute.assert_called_with("SELECT * FROM users")
 
@@ -140,10 +139,10 @@ class TestDuckDBConnectionExecute:
     ) -> None:
         """Test execute method with parameters."""
         conn = sut_connection(db_config, fake_conn)
-        
+
         params = [42, "test"]
         conn.execute("SELECT * FROM users WHERE id = ? AND name = ?", params)
-        
+
         fake_conn.execute.assert_called_with(
             "SELECT * FROM users WHERE id = ? AND name = ?", params
         )
@@ -154,10 +153,10 @@ class TestDuckDBConnectionExecute:
         """Test that execute returns the result from underlying connection."""
         fake_result = MagicMock()
         fake_conn.execute.return_value = fake_result
-        
+
         conn = sut_connection(db_config, fake_conn)
         result = conn.execute("SELECT 1")
-        
+
         assert result == fake_result
 
 
@@ -169,9 +168,9 @@ class TestDuckDBConnectionSql:
     ) -> None:
         """Test sql method executes query."""
         conn = sut_connection(db_config, fake_conn)
-        
+
         conn.sql("SELECT * FROM users")
-        
+
         assert any(
             "SELECT * FROM users" in str(call_args[0])
             for (call_args, _) in fake_conn.sql.call_args_list
@@ -183,10 +182,10 @@ class TestDuckDBConnectionSql:
         """Test that sql returns the result from underlying connection."""
         fake_result = MagicMock()
         fake_conn.sql.return_value = fake_result
-        
+
         conn = sut_connection(db_config, fake_conn)
         result = conn.sql("SELECT 1")
-        
+
         assert result == fake_result
 
 
@@ -198,10 +197,10 @@ class TestDuckDBConnectionRegister:
     ) -> None:
         """Test registering a Python object as virtual table."""
         conn = sut_connection(db_config, fake_conn)
-        
+
         obj = MagicMock()
         conn.register("my_table", obj)
-        
+
         fake_conn.register.assert_called_with("my_table", obj)
 
 
@@ -214,9 +213,9 @@ class TestDuckDBConnectionClose:
         """Test that close calls underlying close when connection is owned."""
         # Don't pass fake_conn so ownership is True
         conn = sut_connection(db_config)
-        
+
         conn.close()
-        
+
         # Check that the owned connection's close was called
         conn._conn.close.assert_called_once()
 
@@ -226,12 +225,12 @@ class TestDuckDBConnectionClose:
         """Test that close does not call underlying close when connection is not owned."""
         # Create with existing connection
         conn = sut_connection(db_config, fake_conn)
-        
+
         # Reset the mock since init already called sql methods
         fake_conn.reset_mock()
-        
+
         conn.close()
-        
+
         # close() should not have been called since we don't own the connection
         fake_conn.close.assert_not_called()
 
@@ -242,7 +241,7 @@ class TestDuckDBConnectionClose:
         # With external connection
         conn1 = sut_connection(db_config, fake_conn)
         assert conn1.owns_connection is False
-        
+
         # Without external connection (creates own)
         conn2 = sut_connection(db_config)
         assert conn2.owns_connection is True

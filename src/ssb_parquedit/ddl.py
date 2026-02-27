@@ -2,8 +2,8 @@
 
 from typing import Any
 
-import duckdb
 import pandas as pd
+
 from .utils import SchemaUtils
 from .utils import SQLInjectionError
 from .utils import SQLSanitizer
@@ -63,7 +63,9 @@ class DDLOperations:
             self._create_from_schema(table_name, source)
         elif isinstance(source, str):
             self._create_from_parquet(table_name, source)
-        elif isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
+        elif (
+            isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame"
+        ):
             self._create_from_dataframe(table_name, source)
         else:
             raise TypeError(
@@ -84,7 +86,7 @@ class DDLOperations:
         """
         # Register the DataFrame with DuckDB
         self.conn.register("_temp_df", data)
-        
+
         # Create an empty table with the schema from the DataFrame
         ddl = f"""
         CREATE TABLE {table_name} AS
