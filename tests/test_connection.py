@@ -132,7 +132,8 @@ class TestDuckDBConnectionExecute:
         
         conn.execute("SELECT * FROM users")
         
-        fake_conn.execute.assert_called_with("SELECT * FROM users", None)
+        # When parameters is None, only the SQL is passed
+        fake_conn.execute.assert_called_with("SELECT * FROM users")
 
     def test_execute_with_parameters(
         self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
@@ -208,14 +209,16 @@ class TestDuckDBConnectionClose:
     """Test connection closing behavior."""
 
     def test_close_when_owns_connection(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: object, db_config: dict[str, str]
     ) -> None:
         """Test that close calls underlying close when connection is owned."""
-        conn = sut_connection(db_config, fake_conn)
+        # Don't pass fake_conn so ownership is True
+        conn = sut_connection(db_config)
         
         conn.close()
         
-        fake_conn.close.assert_called_once()
+        # Check that the owned connection's close was called
+        conn._conn.close.assert_called_once()
 
     def test_close_when_does_not_own_connection(
         self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
