@@ -4,7 +4,6 @@ from types import TracebackType
 from typing import Any
 from typing import Literal
 
-import duckdb
 import pandas as pd
 
 from .connection import DuckDBConnection
@@ -41,9 +40,7 @@ class ParquEdit:
         ...         filters={"column": "age", "operator": ">", "value": 25})
     """
 
-    def __init__(
-        self, db_config: dict[str, str], conn: duckdb.DuckDBPyConnection | None = None
-    ) -> None:
+    def __init__(self, db_config: dict[str, str], conn: Any | None = None) -> None:
         """Initialize ParquEdit.
 
         Args:

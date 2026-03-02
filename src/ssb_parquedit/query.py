@@ -3,16 +3,6 @@
 from typing import Any
 from typing import Literal
 
-try:
-    import polars as pl
-except ImportError:
-    pl = None
-
-try:
-    import pyarrow as pa
-except ImportError:
-    pa = None
-
 from .utils import SchemaUtils
 from .utils import SQLSanitizer
 
@@ -26,7 +16,7 @@ class QueryOperations:
     - Table existence checks
     """
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection: Any) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
@@ -69,8 +59,6 @@ class QueryOperations:
             Data in the specified format (pandas DataFrame, polars DataFrame, or pyarrow Table).
 
         Raises:
-            ImportError: If output_format is "polars" but polars is not installed,
-                or if output_format is "pyarrow" but pyarrow is not installed.
             ValueError: If output_format is not "pandas", "polars", or "pyarrow".
 
         Example:
@@ -170,16 +158,8 @@ class QueryOperations:
         if output_format == "pandas":
             return result.df()
         elif output_format == "polars":
-            if pl is None:
-                raise ImportError(
-                    "polars is not installed. Install it with: pip install polars"
-                )
             return result.pl()
         elif output_format == "pyarrow":
-            if pa is None:
-                raise ImportError(
-                    "pyarrow is not installed. Install it with: pip install pyarrow"
-                )
             return result.arrow()
         else:
             raise ValueError(

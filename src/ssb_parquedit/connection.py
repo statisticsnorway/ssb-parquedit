@@ -1,5 +1,7 @@
 """DuckDB connection management with DuckLake catalog support."""
 
+from typing import Any
+
 import duckdb
 import gcsfs
 
@@ -54,7 +56,7 @@ class DuckDBConnection:
         )
         self._conn.sql(f"USE {db_config['catalog_name']}")
 
-    def execute(self, sql: str, parameters: list | None = None):
+    def execute(self, sql: str, parameters: list | None = None) -> Any:
         """Execute SQL statement.
 
         Args:
@@ -68,7 +70,7 @@ class DuckDBConnection:
             return self._conn.execute(sql, parameters)
         return self._conn.execute(sql)
 
-    def sql(self, query: str):
+    def sql(self, query: str) -> Any:
         """Execute SQL query.
 
         Args:

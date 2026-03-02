@@ -19,7 +19,7 @@ class DDLOperations:
     - Table descriptions/comments
     """
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection: Any) -> None:
         """Initialize with a DuckDB connection.
 
         Args:

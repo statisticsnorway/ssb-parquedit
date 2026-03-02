@@ -17,7 +17,8 @@ class DMLOperations:
     - Row deletions with filtering
     """
 
-    def __init__(self, connection) -> None:
+    # def __init__(self, connection) -> None:
+    def __init__(self, connection: Any) -> None:
         """Initialize with a DuckDB connection.
 
         Args:

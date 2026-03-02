@@ -22,11 +22,11 @@ schema = json.load(open("products.json"))
 
 with ParquEdit(db_config) as editor:
     # editor.create_table('vst_table_27', parquetfile, part_columns=['year'], fill=True)
-    # print(editor.view('vst_table_27', limit=110,output_format='pyarrow').read_all())
-    # print(editor.view('vst_table_27', limit=110,output_format='polars'))
+    print(editor.view("vst_table_27", limit=110, output_format="pyarrow").read_all())
+    # print(editor.view('vst_table_27', limit=110,output_format='pyarrow'))
     # editor.insert_data('vst_table_27', parquetfile)
     # print(editor.count('vst_table_27'))
     # print(editor.exists('vst_table_27'))
-    editor.create_table("vst_table_28", schema, part_columns=["name"], fill=False)
+    # editor.create_table("vst_table_28", schema, part_columns=["name"], fill=False)
 
 # %%

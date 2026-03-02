@@ -2,6 +2,7 @@
 
 import re
 from typing import Any
+from typing import ClassVar
 
 import pandas as pd
 
@@ -16,7 +17,7 @@ class SQLSanitizer:
     """Sanitization utilities for SQL clauses to prevent injection attacks."""
 
     # Dangerous SQL keywords that shouldn't appear in WHERE or ORDER BY clauses
-    DANGEROUS_KEYWORDS = {
+    DANGEROUS_KEYWORDS: ClassVar[set[str]] = {
         "DROP",
         "DELETE",
         "TRUNCATE",
@@ -283,7 +284,7 @@ class SchemaUtils:
 
     @staticmethod
     def jsonschema_to_duckdb(schema: dict[str, Any], table_name: str) -> str:
-        """Convert a JSON Schema to a DuckDB CREATE TABLE statement.
+        r"""Convert a JSON Schema to a DuckDB CREATE TABLE statement.
 
         Args:
             schema: JSON Schema dictionary with 'properties' and optional 'required' fields.
@@ -338,7 +339,7 @@ class SchemaUtils:
             )
 
     @staticmethod
-    def pandas_to_duckdb(dtype) -> str:
+    def pandas_to_duckdb(dtype: Any) -> str:
         """Map a pandas dtype to a DuckDB column type."""
         PANDAS_DUCKDB_TYPE_MAP = [
             (lambda d: pd.api.types.is_integer_dtype(d), "BIGINT"),

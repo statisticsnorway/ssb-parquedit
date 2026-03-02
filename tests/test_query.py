@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from ssb_parquedit.utils import SQLInjectionError
+
 # Fixtures are imported from conftest.py: stub_external_modules, fake_conn, db_config
 
 
@@ -67,6 +69,7 @@ class TestViewBasic:
         # Should call .df() for pandas
         mock_result = fake_conn.execute.return_value
         mock_result.df.assert_called()
+        assert result == mock_result.df.return_value
 
     def test_view_with_limit(
         self, query_with_mock_result: tuple[object, MagicMock]
@@ -96,6 +99,9 @@ class TestViewBasic:
         ]
         # If limit is None, SQL should not have LIMIT clause
         # (This depends on implementation - check if LIMIT is added for None)
+        assert all(
+            "LIMIT" not in call for call in execute_calls
+        ), "LIMIT should not appear when limit=None"
 
     def test_view_with_offset(
         self, query_with_mock_result: tuple[object, MagicMock]
@@ -135,7 +141,7 @@ class TestViewBasic:
         """Test that column names are validated."""
         query_ops = sut_query(fake_conn)
 
-        with pytest.raises(Exception):  # SQLInjectionError
+        with pytest.raises(SQLInjectionError):  # SQLInjectionError
             query_ops.view("users", columns=["id; DROP TABLE users"])
 
 
@@ -266,7 +272,7 @@ class TestViewOrdering:
         query_ops = sut_query(fake_conn)
 
         # Order by with dangerous SQL
-        with pytest.raises(Exception):  # SQLInjectionError
+        with pytest.raises(SQLInjectionError):  # SQLInjectionError
             query_ops.view("users", order_by="id; DROP TABLE users")
 
 
@@ -284,20 +290,6 @@ class TestViewOutputFormats:
         # Should call .df()
         mock_result = fake_conn.execute.return_value
         mock_result.df.assert_called()
-
-    def test_view_with_polars_format_raises_if_not_installed(
-        self, sut_query: object, fake_conn: MagicMock
-    ) -> None:
-        """Test that polars format raises ImportError if not installed."""
-        query_ops = sut_query(fake_conn)
-
-        mock_result = MagicMock()
-        mock_result.pl.side_effect = AttributeError("polars not available")
-        fake_conn.execute.return_value = mock_result
-
-        # Should handle polars import gracefully
-        # The actual implementation checks if pl is None
-        # For now, we test the behavior with mocked connection
 
     def test_view_with_invalid_format_raises_error(
         self, sut_query: object, fake_conn: MagicMock
@@ -337,6 +329,7 @@ class TestCount:
 
         # Should execute COUNT query
         assert fake_conn.execute.called
+        assert result == 42
 
     def test_count_validates_table_name(
         self, sut_query: object, fake_conn: MagicMock
@@ -381,6 +374,7 @@ class TestTableExists:
         result = query_ops.table_exists("users")
 
         # Should return True when query succeeds
+        assert fake_conn.execute.called
         assert result is True
 
     def test_table_exists_returns_false_on_error(

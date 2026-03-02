@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from ssb_parquedit.utils import SQLInjectionError
+
 # Fixtures are imported from conftest.py: stub_external_modules, fake_conn, db_config
 
 
@@ -225,7 +227,7 @@ class TestCreateTableWithPartitioning:
         df = DF()
 
         # Invalid column name with dash
-        with pytest.raises(Exception):  # SQLInjectionError
+        with pytest.raises(SQLInjectionError):  # SQLInjectionError
             ddl_ops.create_table("users", df, part_columns=["invalid-column"])
 
 
