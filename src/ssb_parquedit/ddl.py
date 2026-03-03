@@ -8,6 +8,7 @@ from .utils import SchemaUtils
 from .utils import SQLInjectionError
 from .utils import SQLSanitizer
 
+
 class DDLOperations:
     """DDL operations for creating and modifying table structures.
 
@@ -29,7 +30,7 @@ class DDLOperations:
     def create_table(
         self,
         table_name: str,
-        source: pd.DataFrame | dict[str, Any] | str,
+        source: Any,
         part_columns: list[str] | None = None,
     ) -> None:
         """Create a new table in the DuckLake catalog.
@@ -139,7 +140,7 @@ class DDLOperations:
         """
         try:
             SQLSanitizer.validate_column_list(part_columns)
-        except SQLInjectionError as e:  
+        except SQLInjectionError as e:
             # Re-raise for å gjøre unntaket synlig for linter
             raise SQLInjectionError(str(e)) from e
 

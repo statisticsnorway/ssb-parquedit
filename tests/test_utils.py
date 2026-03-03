@@ -1,6 +1,8 @@
 """Tests for SQLSanitizer and SchemaUtils utility classes."""
 
-from typing import Any, cast
+from typing import Any
+from typing import cast
+
 import pytest
 
 from ssb_parquedit.utils import SchemaUtils

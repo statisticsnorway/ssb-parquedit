@@ -1,6 +1,7 @@
 """Tests for DDL (Data Definition Language) operations."""
-from typing import Any
+
 import sys
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -120,9 +121,7 @@ class TestCreateTableFromParquet:
 class TestCreateTableFromSchema:
     """Test table creation from JSON Schema."""
 
-    def test_create_from_schema_basic(
-        self, sut_ddl: Any, fake_conn: MagicMock
-    ) -> None:
+    def test_create_from_schema_basic(self, sut_ddl: Any, fake_conn: MagicMock) -> None:
         """Test basic table creation from schema."""
         ddl_ops = sut_ddl(fake_conn)
 
@@ -174,9 +173,7 @@ class TestCreateTableFromSchema:
 class TestCreateTableWithPartitioning:
     """Test table creation with partitioning."""
 
-    def test_create_with_part_columns(
-        self, sut_ddl: Any, fake_conn: MagicMock
-    ) -> None:
+    def test_create_with_part_columns(self, sut_ddl: Any, fake_conn: MagicMock) -> None:
         """Test table creation with partition columns."""
         ddl_ops = sut_ddl(fake_conn)
 
@@ -250,4 +247,4 @@ class TestCreateTableTypeErrors:
         ddl_ops = sut_ddl(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            ddl_ops.create_table("users", [1, 2, 3]) 
+            ddl_ops.create_table("users", [1, 2, 3])

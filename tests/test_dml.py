@@ -1,9 +1,7 @@
 """Tests for DML (Data Manipulation Language) operations."""
 
-from typing import Any
-
-
 import sys
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -184,7 +182,7 @@ class TestInsertDataTypeErrors:
         dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            dml_ops.insert_data("users", 12345)  
+            dml_ops.insert_data("users", 12345)
 
     def test_insert_with_list_source_raises_error(
         self, sut_dml: Any, fake_conn: MagicMock
@@ -193,7 +191,7 @@ class TestInsertDataTypeErrors:
         dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            dml_ops.insert_data("users", [1, 2, 3])  
+            dml_ops.insert_data("users", [1, 2, 3])
 
     def test_insert_with_dict_source_raises_error(
         self, sut_dml: Any, fake_conn: MagicMock
@@ -202,4 +200,4 @@ class TestInsertDataTypeErrors:
         dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            dml_ops.insert_data("users", {"id": 1})  
+            dml_ops.insert_data("users", {"id": 1})

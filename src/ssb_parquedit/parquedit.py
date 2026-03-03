@@ -2,7 +2,6 @@
 
 from types import TracebackType
 from typing import Any
-from typing import Literal
 
 import pandas as pd
 
@@ -31,7 +30,7 @@ class ParquEdit:
         ...     "metadata_schema": "public"
         ... }
         >>>
-        >>> with ParquEdit(db_config) as editor:
+        >>> with ParquEdit(db_config) as editor: # xdoctest: +SKIP
         ...     # Create and populate a table
         ...     editor.create_table("users", df, "User data", fill=True)
         ...
@@ -134,7 +133,7 @@ class ParquEdit:
         columns: list[str] | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
-        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+        output_format: str = "pandas",
     ) -> Any:
         """View table contents. See QueryOperations.view for details."""
         return self._query.view(

@@ -1,4 +1,5 @@
 """Tests for DuckDB connection management."""
+
 from typing import Any
 from unittest.mock import MagicMock
 from unittest.mock import call

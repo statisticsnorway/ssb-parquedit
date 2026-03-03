@@ -26,9 +26,7 @@ class DMLOperations:
         """
         self.conn = connection
 
-    def insert_data(
-        self, table_name: str, source: pd.DataFrame | dict[str, Any] | str
-    ) -> None:
+    def insert_data(self, table_name: str, source: Any) -> None:
         """Populate an existing table with data.
 
         Args:

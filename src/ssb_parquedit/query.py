@@ -1,7 +1,6 @@
 """Query operations for DuckDB tables."""
 
 from typing import Any
-from typing import Literal
 
 from .utils import SchemaUtils
 from .utils import SQLSanitizer
@@ -32,7 +31,7 @@ class QueryOperations:
         columns: list[str] | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
-        output_format: Literal["pandas", "polars", "pyarrow"] = "pandas",
+        output_format: str = "pandas",
     ) -> Any:
         """View contents of a table in the DuckLake catalog.
 
@@ -109,6 +108,11 @@ class QueryOperations:
             >>> # Return as pyarrow Table
             >>> query.view("users", limit=10, output_format="pyarrow")
         """
+        if output_format not in ("pandas", "polars", "pyarrow"):
+            raise ValueError(
+                f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
+            )
+
         SchemaUtils.validate_table_name(table_name)
 
         # Validate and sanitize SQL clauses to prevent injection
@@ -161,7 +165,7 @@ class QueryOperations:
             return result.pl()
         elif output_format == "pyarrow":
             return result.arrow()
-        else:
+        else:  # pragma: no cover
             raise ValueError(
                 f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
             )

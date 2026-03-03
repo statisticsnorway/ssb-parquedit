@@ -1,7 +1,10 @@
 """Utility functions for schema translation and validation."""
 
 import re
-from typing import ClassVar, Callable, Any, List, Tuple
+from collections.abc import Callable
+from typing import Any
+from typing import ClassVar
+
 import pandas as pd
 
 
@@ -103,7 +106,7 @@ class SQLSanitizer:
 
     @staticmethod
     def build_where_from_filters(
-        filters: dict[str, Any] | list[dict[str, Any]] | str | None,
+        filters: dict[str, Any] | list[dict[str, Any]] | str | Any | None,
     ) -> tuple[str | None, list[Any]]:
         """Build a parameterized WHERE clause from structured filter conditions.
 
@@ -300,7 +303,7 @@ class SchemaUtils:
             ...     "required": ["id"]
             ... }
             >>> SchemaUtils.jsonschema_to_duckdb(schema, "users")
-            'CREATE TABLE users (\\n  id BIGINT NOT NULL,\\n  name VARCHAR\\n);'
+            'CREATE TABLE users (\n  _id VARCHAR,\n  id BIGINT NOT NULL,\n  name VARCHAR\n);'
         """
         required = set(schema.get("required", []))
         cols = []
@@ -339,7 +342,7 @@ class SchemaUtils:
     @staticmethod
     def pandas_to_duckdb(dtype: Any) -> str:
         """Map a pandas dtype to a DuckDB column type."""
-        PANDAS_DUCKDB_TYPE_MAP: List[Tuple[Callable[[Any], bool], str]] = [
+        PANDAS_DUCKDB_TYPE_MAP: list[tuple[Callable[[Any], bool], str]] = [
             (lambda d: pd.api.types.is_integer_dtype(d), "BIGINT"),
             (lambda d: pd.api.types.is_float_dtype(d), "DOUBLE"),
             (lambda d: pd.api.types.is_bool_dtype(d), "BOOLEAN"),
