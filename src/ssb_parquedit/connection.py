@@ -56,7 +56,7 @@ class DuckDBConnection:
         )
         self._conn.sql(f"USE {db_config['catalog_name']}")
 
-    def execute(self, sql: str, parameters: list | None = None) -> Any:
+    def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute SQL statement.
 
         Args:

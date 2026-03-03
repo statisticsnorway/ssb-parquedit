@@ -1,5 +1,8 @@
 """Tests for DML (Data Manipulation Language) operations."""
 
+from typing import Any
+
+
 import sys
 from unittest.mock import MagicMock
 
@@ -9,7 +12,7 @@ import pytest
 
 
 @pytest.fixture
-def sut_dml() -> object:
+def sut_dml() -> Any:
     """Import and return the DMLOperations class."""
     import importlib
 
@@ -22,10 +25,10 @@ class TestInsertDataFromDataFrame:
     """Test data insertion from DataFrame."""
 
     def test_insert_from_dataframe_basic(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test basic data insertion from DataFrame."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         DF = sys.modules["pandas"].DataFrame
         df = DF()
@@ -37,10 +40,10 @@ class TestInsertDataFromDataFrame:
         assert fake_conn.execute.called
 
     def test_insert_from_dataframe_validates_table_name(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         DF = sys.modules["pandas"].DataFrame
         df = DF()
@@ -49,10 +52,10 @@ class TestInsertDataFromDataFrame:
             dml_ops.insert_data("123invalid", df)
 
     def test_insert_from_dataframe_registers_with_data_name(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that DataFrame is registered as 'data'."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         DF = sys.modules["pandas"].DataFrame
         df = DF()
@@ -66,10 +69,10 @@ class TestInsertDataFromDataFrame:
         ), "DataFrame not registered as 'data'"
 
     def test_insert_from_dataframe_executes_insert_statement(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that INSERT statement is executed."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         DF = sys.modules["pandas"].DataFrame
         df = DF()
@@ -85,10 +88,10 @@ class TestInsertDataFromDataFrame:
         ), "INSERT statement not executed"
 
     def test_insert_from_dataframe_adds_id_column(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that _id column is added to inserted data."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         DF = sys.modules["pandas"].DataFrame
         df = DF()
@@ -104,10 +107,10 @@ class TestInsertDataFromParquet:
     """Test data insertion from Parquet file."""
 
     def test_insert_from_parquet_basic(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test basic data insertion from Parquet file."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         dml_ops.insert_data("users", "gs://bucket/users.parquet")
 
@@ -115,19 +118,19 @@ class TestInsertDataFromParquet:
         assert fake_conn.execute.called
 
     def test_insert_from_parquet_validates_table_name(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(ValueError, match="Invalid table name"):
             dml_ops.insert_data("invalid-name", "gs://bucket/file.parquet")
 
     def test_insert_from_parquet_uses_parameterized_query(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that Parquet path uses parameterized query."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         parquet_path = "gs://bucket/users.parquet"
         dml_ops.insert_data("users", parquet_path)
@@ -139,10 +142,10 @@ class TestInsertDataFromParquet:
         ), "Expected parameterized query"
 
     def test_insert_from_parquet_executes_insert_statement(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that INSERT statement is executed."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         dml_ops.insert_data("users", "gs://bucket/users.parquet")
 
@@ -155,10 +158,10 @@ class TestInsertDataFromParquet:
         ), "INSERT statement not executed"
 
     def test_insert_from_parquet_generates_uuid_for_id(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that uuid() is used for _id column."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         dml_ops.insert_data("users", "gs://bucket/users.parquet")
 
@@ -175,28 +178,28 @@ class TestInsertDataTypeErrors:
     """Test error handling for invalid source types."""
 
     def test_insert_with_invalid_source_type(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that invalid source type raises TypeError."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            dml_ops.insert_data("users", 12345)  # type: ignore
+            dml_ops.insert_data("users", 12345)  
 
     def test_insert_with_list_source_raises_error(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that list source raises TypeError."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            dml_ops.insert_data("users", [1, 2, 3])  # type: ignore
+            dml_ops.insert_data("users", [1, 2, 3])  
 
     def test_insert_with_dict_source_raises_error(
-        self, sut_dml: object, fake_conn: MagicMock
+        self, sut_dml: Any, fake_conn: MagicMock
     ) -> None:
         """Test that dict source raises TypeError."""
-        dml_ops = sut_dml(fake_conn)
+        dml_ops: Any = sut_dml(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            dml_ops.insert_data("users", {"id": 1})  # type: ignore
+            dml_ops.insert_data("users", {"id": 1})  

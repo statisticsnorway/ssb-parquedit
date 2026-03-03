@@ -1,5 +1,8 @@
 """Tests for Query operations."""
 
+from typing import Any
+
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,7 +13,7 @@ from ssb_parquedit.utils import SQLInjectionError
 
 
 @pytest.fixture
-def sut_query() -> object:
+def sut_query() -> Any:
     """Import and return the QueryOperations class."""
     import importlib
 
@@ -21,10 +24,10 @@ def sut_query() -> object:
 
 @pytest.fixture
 def query_with_mock_result(
-    sut_query: object, fake_conn: MagicMock
-) -> tuple[object, MagicMock]:
+    sut_query: Any, fake_conn: MagicMock
+) -> tuple[Any, MagicMock]:
     """Create QueryOperations with mocked connection and result."""
-    query_ops = sut_query(fake_conn)
+    query_ops: Any = sut_query(fake_conn)
 
     # Mock the result object
     mock_result = MagicMock()
@@ -39,7 +42,7 @@ class TestViewBasic:
     """Test basic view functionality."""
 
     def test_view_simple_query(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test simple view query execution."""
         query_ops, fake_conn = query_with_mock_result
@@ -50,7 +53,7 @@ class TestViewBasic:
         assert fake_conn.execute.called
 
     def test_view_validates_table_name(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated."""
         query_ops = sut_query(fake_conn)
@@ -59,7 +62,7 @@ class TestViewBasic:
             query_ops.view("123invalid")
 
     def test_view_returns_pandas_by_default(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test that view returns pandas DataFrame by default."""
         query_ops, fake_conn = query_with_mock_result
@@ -72,7 +75,7 @@ class TestViewBasic:
         assert result == mock_result.df.return_value
 
     def test_view_with_limit(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with LIMIT clause."""
         query_ops, fake_conn = query_with_mock_result
@@ -86,7 +89,7 @@ class TestViewBasic:
         assert any("LIMIT" in call for call in execute_calls), "LIMIT clause not found"
 
     def test_view_with_none_limit(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with limit=None (all rows)."""
         query_ops, fake_conn = query_with_mock_result
@@ -104,7 +107,7 @@ class TestViewBasic:
         ), "LIMIT should not appear when limit=None"
 
     def test_view_with_offset(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with OFFSET clause."""
         query_ops, fake_conn = query_with_mock_result
@@ -120,7 +123,7 @@ class TestViewBasic:
         ), "OFFSET clause not found"
 
     def test_view_with_columns_select(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with specific columns."""
         query_ops, fake_conn = query_with_mock_result
@@ -136,7 +139,7 @@ class TestViewBasic:
         ), "Column names not in SELECT"
 
     def test_view_validates_column_names(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that column names are validated."""
         query_ops = sut_query(fake_conn)
@@ -149,7 +152,7 @@ class TestViewFiltering:
     """Test view with various filters."""
 
     def test_view_with_simple_filter(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with simple filter."""
         query_ops, fake_conn = query_with_mock_result
@@ -164,7 +167,7 @@ class TestViewFiltering:
         assert any("WHERE" in call for call in execute_calls), "WHERE clause not found"
 
     def test_view_with_multiple_filters_and(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with multiple filters (AND logic)."""
         query_ops, fake_conn = query_with_mock_result
@@ -182,7 +185,7 @@ class TestViewFiltering:
         assert any("WHERE" in call for call in execute_calls), "WHERE clause not found"
 
     def test_view_with_or_filters(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with OR filters."""
         query_ops, fake_conn = query_with_mock_result
@@ -199,7 +202,7 @@ class TestViewFiltering:
         assert fake_conn.execute.called
 
     def test_view_with_like_filter(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with LIKE filter."""
         query_ops, fake_conn = query_with_mock_result
@@ -211,7 +214,7 @@ class TestViewFiltering:
         assert fake_conn.execute.called
 
     def test_view_with_in_filter(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with IN filter."""
         query_ops, fake_conn = query_with_mock_result
@@ -223,7 +226,7 @@ class TestViewFiltering:
         assert fake_conn.execute.called
 
     def test_view_with_between_filter(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with BETWEEN filter."""
         query_ops, fake_conn = query_with_mock_result
@@ -239,7 +242,7 @@ class TestViewOrdering:
     """Test view with ORDER BY clause."""
 
     def test_view_with_order_by(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with ORDER BY clause."""
         query_ops, fake_conn = query_with_mock_result
@@ -255,7 +258,7 @@ class TestViewOrdering:
         ), "ORDER BY clause not found"
 
     def test_view_with_order_by_multiple_columns(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test view with multiple ORDER BY columns."""
         query_ops, fake_conn = query_with_mock_result
@@ -266,7 +269,7 @@ class TestViewOrdering:
         assert fake_conn.execute.called
 
     def test_view_validates_order_by_clause(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that ORDER BY clause is validated."""
         query_ops = sut_query(fake_conn)
@@ -280,7 +283,7 @@ class TestViewOutputFormats:
     """Test different output formats."""
 
     def test_view_returns_pandas_format(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test pandas output format."""
         query_ops, fake_conn = query_with_mock_result
@@ -292,7 +295,7 @@ class TestViewOutputFormats:
         mock_result.df.assert_called()
 
     def test_view_with_invalid_format_raises_error(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that invalid output format raises ValueError."""
         query_ops = sut_query(fake_conn)
@@ -308,7 +311,7 @@ class TestCount:
     """Test count operation."""
 
     def test_count_all_rows(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test counting all rows."""
         query_ops, fake_conn = query_with_mock_result
@@ -332,7 +335,7 @@ class TestCount:
         assert result == 42
 
     def test_count_validates_table_name(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated in count."""
         query_ops = sut_query(fake_conn)
@@ -341,7 +344,7 @@ class TestCount:
             query_ops.count("123invalid")
 
     def test_count_with_filters(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test counting with filters."""
         query_ops, fake_conn = query_with_mock_result
@@ -366,7 +369,7 @@ class TestTableExists:
     """Test table existence check."""
 
     def test_table_exists_returns_true(
-        self, query_with_mock_result: tuple[object, MagicMock]
+        self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
         """Test that existing table returns True."""
         query_ops, fake_conn = query_with_mock_result
@@ -378,7 +381,7 @@ class TestTableExists:
         assert result is True
 
     def test_table_exists_returns_false_on_error(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that non-existent table returns False."""
         query_ops = sut_query(fake_conn)
@@ -392,7 +395,7 @@ class TestTableExists:
         assert result is False
 
     def test_table_exists_validates_table_name(
-        self, sut_query: object, fake_conn: MagicMock
+        self, sut_query: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated in table_exists."""
         query_ops = sut_query(fake_conn)

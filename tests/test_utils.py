@@ -1,5 +1,6 @@
 """Tests for SQLSanitizer and SchemaUtils utility classes."""
 
+from typing import Any, cast
 import pytest
 
 from ssb_parquedit.utils import SchemaUtils
@@ -189,7 +190,7 @@ class TestBuildWhereFromFilters:
 
     def test_multiple_conditions_and_logic(self) -> None:
         """Test multiple conditions combined with AND."""
-        filters = [
+        filters: list[Any] = [
             {"column": "age", "operator": ">", "value": 25},
             {"column": "status", "operator": "=", "value": "active"},
         ]
@@ -272,7 +273,7 @@ class TestBuildWhereFromFilters:
         """Test that each condition must be a dict."""
         filters = ["not a dict"]
         with pytest.raises(TypeError, match="must be a dict"):
-            SQLSanitizer.build_where_from_filters(filters)
+            SQLSanitizer.build_where_from_filters(cast(Any, filters))
 
 
 # ================== SchemaUtils Tests ==================

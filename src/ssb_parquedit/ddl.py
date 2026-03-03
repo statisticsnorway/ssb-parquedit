@@ -8,7 +8,6 @@ from .utils import SchemaUtils
 from .utils import SQLInjectionError
 from .utils import SQLSanitizer
 
-
 class DDLOperations:
     """DDL operations for creating and modifying table structures.
 
@@ -140,7 +139,7 @@ class DDLOperations:
         """
         try:
             SQLSanitizer.validate_column_list(part_columns)
-        except SQLInjectionError as e:  # type: ignore[name-defined]
+        except SQLInjectionError as e:  
             # Re-raise for å gjøre unntaket synlig for linter
             raise SQLInjectionError(str(e)) from e
 

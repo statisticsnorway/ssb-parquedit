@@ -1,5 +1,5 @@
 """Tests for DuckDB connection management."""
-
+from typing import Any
 from unittest.mock import MagicMock
 from unittest.mock import call
 
@@ -9,7 +9,7 @@ import pytest
 
 
 @pytest.fixture
-def sut_connection() -> object:
+def sut_connection() -> Any:
     """Import and return the DuckDBConnection class."""
     import importlib
 
@@ -22,7 +22,7 @@ class TestDuckDBConnectionInit:
     """Test DuckDB connection initialization."""
 
     def test_init_with_no_existing_connection(
-        self, sut_connection: object, db_config: dict[str, str]
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test initialization when no connection is provided (owns connection)."""
         conn = sut_connection(db_config)
@@ -33,7 +33,7 @@ class TestDuckDBConnectionInit:
         assert conn._owns_conn is True
 
     def test_init_with_existing_connection(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test initialization with existing connection (doesn't own it)."""
         conn = sut_connection(db_config, fake_conn)
@@ -44,7 +44,7 @@ class TestDuckDBConnectionInit:
         assert conn._owns_conn is False
 
     def test_init_registers_gcs_filesystem(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that GCS filesystem is registered during init."""
         sut_connection(db_config, fake_conn)
@@ -53,7 +53,7 @@ class TestDuckDBConnectionInit:
         assert fake_conn.register_filesystem.called
 
     def test_init_loads_extensions(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that extensions are loaded during init."""
         sut_connection(db_config, fake_conn)
@@ -68,7 +68,7 @@ class TestDuckDBConnectionInit:
         fake_conn.sql.assert_has_calls(expected_calls, any_order=False)
 
     def test_init_attaches_catalog(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that catalog is attached during init."""
         sut_connection(db_config, fake_conn)
@@ -81,7 +81,7 @@ class TestDuckDBConnectionInit:
         assert attach_called, "ATTACH catalog call not found"
 
     def test_init_uses_catalog(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that catalog is used (USE command)."""
         sut_connection(db_config, fake_conn)
@@ -94,7 +94,7 @@ class TestDuckDBConnectionInit:
         assert use_called, "USE catalog call not found"
 
     def test_catalog_config_includes_data_path(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that catalog config includes DATA_PATH."""
         sut_connection(db_config, fake_conn)
@@ -107,7 +107,7 @@ class TestDuckDBConnectionInit:
         assert data_path_found, "DATA_PATH not found in catalog config"
 
     def test_catalog_config_includes_metadata_schema(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that catalog config includes METADATA_SCHEMA."""
         sut_connection(db_config, fake_conn)
@@ -124,7 +124,7 @@ class TestDuckDBConnectionExecute:
     """Test execute method."""
 
     def test_execute_without_parameters(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test execute method without parameters."""
         conn = sut_connection(db_config, fake_conn)
@@ -135,7 +135,7 @@ class TestDuckDBConnectionExecute:
         fake_conn.execute.assert_called_with("SELECT * FROM users")
 
     def test_execute_with_parameters(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test execute method with parameters."""
         conn = sut_connection(db_config, fake_conn)
@@ -148,7 +148,7 @@ class TestDuckDBConnectionExecute:
         )
 
     def test_execute_returns_result(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that execute returns the result from underlying connection."""
         fake_result = MagicMock()
@@ -164,7 +164,7 @@ class TestDuckDBConnectionSql:
     """Test sql method."""
 
     def test_sql_executes_query(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test sql method executes query."""
         conn = sut_connection(db_config, fake_conn)
@@ -177,7 +177,7 @@ class TestDuckDBConnectionSql:
         )
 
     def test_sql_returns_result(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that sql returns the result from underlying connection."""
         fake_result = MagicMock()
@@ -192,8 +192,8 @@ class TestDuckDBConnectionSql:
 class TestDuckDBConnectionRegister:
     """Test register method for virtual tables."""
 
-    def test_register_python_object(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+    def test_register_python_Any(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test registering a Python object as virtual table."""
         conn = sut_connection(db_config, fake_conn)
@@ -208,7 +208,7 @@ class TestDuckDBConnectionClose:
     """Test connection closing behavior."""
 
     def test_close_when_owns_connection(
-        self, sut_connection: object, db_config: dict[str, str]
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that close calls underlying close when connection is owned."""
         # Don't pass fake_conn so ownership is True
@@ -220,7 +220,7 @@ class TestDuckDBConnectionClose:
         conn._conn.close.assert_called_once()
 
     def test_close_when_does_not_own_connection(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test that close does not call underlying close when connection is not owned."""
         # Create with existing connection
@@ -235,7 +235,7 @@ class TestDuckDBConnectionClose:
         fake_conn.close.assert_not_called()
 
     def test_owns_connection_property(
-        self, sut_connection: object, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
     ) -> None:
         """Test owns_connection property reflects ownership."""
         # With external connection

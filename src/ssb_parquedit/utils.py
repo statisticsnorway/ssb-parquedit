@@ -1,9 +1,7 @@
 """Utility functions for schema translation and validation."""
 
 import re
-from typing import Any
-from typing import ClassVar
-
+from typing import ClassVar, Callable, Any, List, Tuple
 import pandas as pd
 
 
@@ -105,7 +103,7 @@ class SQLSanitizer:
 
     @staticmethod
     def build_where_from_filters(
-        filters: dict[str, Any] | list[dict[str, Any]] | None,
+        filters: dict[str, Any] | list[dict[str, Any]] | str | None,
     ) -> tuple[str | None, list[Any]]:
         """Build a parameterized WHERE clause from structured filter conditions.
 
@@ -341,7 +339,7 @@ class SchemaUtils:
     @staticmethod
     def pandas_to_duckdb(dtype: Any) -> str:
         """Map a pandas dtype to a DuckDB column type."""
-        PANDAS_DUCKDB_TYPE_MAP = [
+        PANDAS_DUCKDB_TYPE_MAP: List[Tuple[Callable[[Any], bool], str]] = [
             (lambda d: pd.api.types.is_integer_dtype(d), "BIGINT"),
             (lambda d: pd.api.types.is_float_dtype(d), "DOUBLE"),
             (lambda d: pd.api.types.is_bool_dtype(d), "BOOLEAN"),

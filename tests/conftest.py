@@ -50,7 +50,7 @@ def stub_external_modules(
         class DataFrame:
             def __init__(self) -> None:
                 # Empty dict for dtypes attribute that has .items() method
-                self.dtypes = {}
+                self.dtypes: dict[Any, Any] = {}
                 self._data: dict[str, list[Any]] = {}
 
             def copy(self) -> "FakePandas.DataFrame":

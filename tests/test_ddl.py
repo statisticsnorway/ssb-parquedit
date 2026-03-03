@@ -1,5 +1,5 @@
 """Tests for DDL (Data Definition Language) operations."""
-
+from typing import Any
 import sys
 from unittest.mock import MagicMock
 
@@ -11,7 +11,7 @@ from ssb_parquedit.utils import SQLInjectionError
 
 
 @pytest.fixture
-def sut_ddl() -> object:
+def sut_ddl() -> Any:
     """Import and return the DDLOperations class."""
     import importlib
 
@@ -24,7 +24,7 @@ class TestCreateTableFromDataFrame:
     """Test table creation from DataFrame."""
 
     def test_create_from_dataframe_basic(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test basic table creation from DataFrame."""
         ddl_ops = sut_ddl(fake_conn)
@@ -38,7 +38,7 @@ class TestCreateTableFromDataFrame:
         assert fake_conn.execute.called
 
     def test_create_from_dataframe_validates_table_name(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated."""
         ddl_ops = sut_ddl(fake_conn)
@@ -50,7 +50,7 @@ class TestCreateTableFromDataFrame:
             ddl_ops.create_table("123invalid", df)
 
     def test_create_from_dataframe_creates_id_column(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that _id column is created."""
         ddl_ops = sut_ddl(fake_conn)
@@ -64,7 +64,7 @@ class TestCreateTableFromDataFrame:
         assert any("_id" in str(call) for call in fake_conn.execute.call_args_list)
 
     def test_create_from_dataframe_creates_empty_table(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table is created empty (WHERE 1=2 pattern)."""
         ddl_ops = sut_ddl(fake_conn)
@@ -82,7 +82,7 @@ class TestCreateTableFromParquet:
     """Test table creation from Parquet file."""
 
     def test_create_from_parquet_basic(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test basic table creation from Parquet file."""
         ddl_ops = sut_ddl(fake_conn)
@@ -93,7 +93,7 @@ class TestCreateTableFromParquet:
         assert fake_conn.execute.called
 
     def test_create_from_parquet_uses_parameterized_query(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that Parquet path uses parameterized query."""
         ddl_ops = sut_ddl(fake_conn)
@@ -108,7 +108,7 @@ class TestCreateTableFromParquet:
         ), "Expected parameterized query"
 
     def test_create_from_parquet_validates_table_name(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated."""
         ddl_ops = sut_ddl(fake_conn)
@@ -121,7 +121,7 @@ class TestCreateTableFromSchema:
     """Test table creation from JSON Schema."""
 
     def test_create_from_schema_basic(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test basic table creation from schema."""
         ddl_ops = sut_ddl(fake_conn)
@@ -140,7 +140,7 @@ class TestCreateTableFromSchema:
         assert fake_conn.execute.called
 
     def test_create_from_schema_includes_id_column(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that _id column is added to schema-based tables."""
         ddl_ops = sut_ddl(fake_conn)
@@ -160,7 +160,7 @@ class TestCreateTableFromSchema:
         )
 
     def test_create_from_schema_validates_table_name(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that table name is validated for schema-based creation."""
         ddl_ops = sut_ddl(fake_conn)
@@ -175,7 +175,7 @@ class TestCreateTableWithPartitioning:
     """Test table creation with partitioning."""
 
     def test_create_with_part_columns(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test table creation with partition columns."""
         ddl_ops = sut_ddl(fake_conn)
@@ -198,7 +198,7 @@ class TestCreateTableWithPartitioning:
         )
 
     def test_create_with_empty_part_columns(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that empty partition columns list is handled."""
         ddl_ops = sut_ddl(fake_conn)
@@ -218,7 +218,7 @@ class TestCreateTableWithPartitioning:
         )
 
     def test_create_with_invalid_partition_column_name(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that invalid partition column names raise error."""
         ddl_ops = sut_ddl(fake_conn)
@@ -235,19 +235,19 @@ class TestCreateTableTypeErrors:
     """Test error handling for invalid source types."""
 
     def test_create_with_invalid_source_type(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that invalid source type raises TypeError."""
         ddl_ops = sut_ddl(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            ddl_ops.create_table("users", 12345)  # type: ignore
+            ddl_ops.create_table("users", 12345)
 
     def test_create_with_list_source_raises_error(
-        self, sut_ddl: object, fake_conn: MagicMock
+        self, sut_ddl: Any, fake_conn: MagicMock
     ) -> None:
         """Test that list source raises TypeError."""
         ddl_ops = sut_ddl(fake_conn)
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
-            ddl_ops.create_table("users", [1, 2, 3])  # type: ignore
+            ddl_ops.create_table("users", [1, 2, 3]) 
