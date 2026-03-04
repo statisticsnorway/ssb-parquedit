@@ -39,6 +39,7 @@ class DMLOperations:
             TypeError: If source is not a DataFrame or string.
 
         Example:
+            >>> # doctest: +SKIP
             >>> # Fill from DataFrame
             >>> df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
             >>> dml.fill_table("users", df)

@@ -330,7 +330,10 @@ class SchemaUtils:
 
         Example:
             >>> SchemaUtils.validate_table_name("users")  # OK
-            >>> SchemaUtils.validate_table_name("user-table")  # Raises ValueError
+            >>> SchemaUtils.validate_table_name("user-table")
+            Traceback (most recent call last):
+                ...
+            ValueError: Invalid table name: user-table. Table names must start with a letter or underscore, and contain only letters, numbers, and underscores.
         """
         if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table_name):
             raise ValueError(

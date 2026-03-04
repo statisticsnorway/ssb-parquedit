@@ -61,6 +61,7 @@ class QueryOperations:
             ValueError: If output_format is not "pandas", "polars", or "pyarrow".
 
         Example:
+            >>> # doctest: +SKIP
             >>> # Simple view - first 5 rows as pandas DataFrame
             >>> query.view("users", limit=5)
 
@@ -188,11 +189,12 @@ class QueryOperations:
             int: Number of rows matching the condition.
 
         Example:
+            >>> # doctest: +SKIP
             >>> # Count all rows
-            >>> total = query.count("users")
+            >>> total = query.count("users") # doctest: +SKIP
 
             >>> # Count with structured filters (RECOMMENDED)
-            >>> active = query.count("users", filters={"column": "status", "operator": "=", "value": "active"})
+            >>> active = query.count("users", filters={"column": "status", "operator": "=", "value": "active"}) # doctest: +SKIP
 
             >>> # Count with complex filters
             >>> recent = query.count("users", filters=[
@@ -228,6 +230,7 @@ class QueryOperations:
             bool: True if table exists, False otherwise.
 
         Example:
+            >>> # doctest: +SKIP
             >>> if query.table_exists("users"):
             ...     print("Table exists")
         """
