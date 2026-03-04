@@ -1,94 +1,9 @@
-import importlib
 import sys
-from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock
 from unittest.mock import call
 
-import pytest
-
-
-# ---- Test scaffolding: stub external modules before importing the SUT ----
-@pytest.fixture(autouse=True)
-def stub_external_modules(
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[None, None, None]:
-    """Stub external heavy dependencies (duckdb, gcsfs, pandas) so tests run hermetically.
-
-    We inject minimal fakes into sys.modules prior to importing ssb_parquedit.parquedit.
-    """
-
-    # Fake duckdb module with minimal API surface
-    class FakeDuckDB:
-        class DuckDBPyConnection:  # only for type hints; runtime uses MagicMock
-            pass
-
-        def connect(self) -> MagicMock:
-            # Return a MagicMock connection to simulate owned connections
-            conn = MagicMock()
-            conn.sql = MagicMock()
-            conn.execute = MagicMock()
-            conn.register = MagicMock()
-            conn.register_filesystem = MagicMock()
-            conn.close = MagicMock()
-            return conn
-
-    # Fake gcsfs module with a GCSFileSystem type
-    class FakeGCSFS:
-        class GCSFileSystem:
-            def __init__(self, *args: object, **kwargs: object) -> None:
-                self.created = True
-
-    # Fake pandas with just a DataFrame type for isinstance checks
-    class FakePandas:
-        class DataFrame:
-            pass
-
-    monkeypatch.setitem(sys.modules, "duckdb", FakeDuckDB())
-    monkeypatch.setitem(sys.modules, "gcsfs", FakeGCSFS())
-    monkeypatch.setitem(sys.modules, "pandas", FakePandas())
-
-    yield
-
-    # Cleanup is automatic by pytest monkeypatch fixture
-
-
-@pytest.fixture
-def sut() -> Any:
-    """Import and return the ParquEdit class with stubs injected."""
-    module = importlib.import_module("ssb_parquedit.parquedit")
-    importlib.reload(module)
-    return module.ParquEdit
-
-
-@pytest.fixture
-def fake_conn() -> MagicMock:
-    """A MagicMock simulating a DuckDB connection."""
-    conn = MagicMock()
-    # Provide attributes/methods that ParquEdit expects
-    # - register_filesystem(fs)
-    # - sql(str)
-    # - execute(str)
-    # - register(name, obj)
-    # - close()
-    # Use wraps to capture SQL calls distinctly
-    conn.sql = MagicMock()
-    conn.execute = MagicMock()
-    conn.register = MagicMock()
-    conn.register_filesystem = MagicMock()
-    conn.close = MagicMock()
-    return conn
-
-
-@pytest.fixture
-def db_config() -> dict[str, str]:
-    return {
-        "dbname": "testdb",
-        "dbuser": "testuser",
-        "catalog_name": "testcat",
-        "data_path": "gs://bucket/path",
-        "metadata_schema": "meta_schema",
-    }
+# Fixtures are imported from conftest.py: stub_external_modules, sut, fake_conn, db_config
 
 
 # -------------------- Behavior tests --------------------
@@ -132,85 +47,12 @@ def test_context_manager_closes_only_if_owns_connection(
     pe1 = sut(db_config=db_config)
     with pe1:
         pass
-    pe1._conn.close.assert_called_once()
+    pe1._connection._conn.close.assert_called_once()
 
     # Case 2: Manually close closes if owns
-    prev_calls = pe1._conn.close.call_count
+    prev_calls = pe1._connection._conn.close.call_count
     pe1.close()
-    assert pe1._conn.close.call_count == prev_calls + 1
-
-
-@pytest.mark.parametrize(
-    "name,valid",
-    [
-        ("valid_name", True),
-        ("_underscore_ok", True),
-        ("1starts_with_digit", False),
-        ("has-dash", False),
-        ("has space", False),
-    ],
-)
-def test_validate_table_name(sut: Any, name: str, valid: bool) -> None:
-    if valid:
-        sut._validate_table_name(name)  # should not raise
-    else:
-        with pytest.raises(ValueError):
-            sut._validate_table_name(name)
-
-
-@pytest.mark.parametrize(
-    "prop,expected",
-    [
-        ({"type": "string"}, "VARCHAR"),
-        ({"type": ["null", "string"]}, "VARCHAR"),
-        ({"type": "string", "format": "date"}, "DATE"),
-        ({"type": "string", "format": "date-time"}, "TIMESTAMP"),
-        ({"type": "integer"}, "BIGINT"),
-        ({"type": "number"}, "DOUBLE"),
-        ({"type": "boolean"}, "BOOLEAN"),
-        ({"type": "array", "items": {"type": "integer"}}, "LIST<BIGINT>"),
-        (
-            {
-                "type": "object",
-                "properties": {"a": {"type": "string"}, "b": {"type": "integer"}},
-            },
-            "STRUCT(a VARCHAR, b BIGINT)",
-        ),
-        ({"type": "object"}, "JSON"),  # object with no properties -> JSON
-        ({}, "JSON"),  # fallback
-    ],
-)
-def test_translate_jsonschema_property(
-    sut: Any, prop: dict[str, object], expected: str
-) -> None:
-    assert sut.translate(prop) == expected
-
-
-def test_jsonschema_to_duckdb_builds_correct_ddl(sut: Any) -> None:
-    schema = {
-        "properties": {
-            "id": {"type": "integer"},
-            "name": {"type": "string"},
-            "tags": {"type": "array", "items": {"type": "string"}},
-            "meta": {
-                "type": "object",
-                "properties": {
-                    "active": {"type": "boolean"},
-                    "score": {"type": ["null", "number"]},
-                },
-            },
-        },
-        "required": ["id", "name"],
-    }
-
-    ddl = sut.jsonschema_to_duckdb(schema, "t")
-    # Expected columns and constraints
-    assert "CREATE TABLE t (" in ddl
-    assert "id BIGINT NOT NULL" in ddl
-    assert "name VARCHAR NOT NULL" in ddl
-    assert "tags LIST<VARCHAR>" in ddl
-    assert "meta STRUCT(active BOOLEAN, score DOUBLE)" in ddl
-    assert ddl.strip().endswith(");"), "DDL should end with semicolon"
+    assert pe1._connection._conn.close.call_count == prev_calls + 1
 
 
 def test_create_table_from_dataframe_routes_and_applies_flags(
@@ -231,7 +73,6 @@ def test_create_table_from_dataframe_routes_and_applies_flags(
     pe.create_table(
         table_name="t",
         source=source,
-        table_description="desc",
         part_columns=["c1", "c2"],
         fill=True,
     )
@@ -255,7 +96,7 @@ def test_create_table_from_parquet_routes_and_applies_flags(
     pe.create_table(
         table_name="t",
         source="gs://bucket/path/file.parquet",
-        table_description="desc",
+        # table_description="desc",
         part_columns=None,  # should treat as [] and not call _add_table_partition
         fill=False,
     )
@@ -320,3 +161,221 @@ def test_add_table_description_executes_comment(
     pe._add_table_description("t", "some desc")
 
     fake_conn.execute.assert_called_with("COMMENT ON TABLE t IS 'some desc';")
+
+
+# -------------------- Delegation Tests --------------------
+
+
+class TestParquEditDelegation:
+    """Test that ParquEdit properly delegates to internal operations."""
+
+    def test_create_table_delegates_to_ddl(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that create_table delegates to DDL operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the DDL operations
+        pe._ddl.create_table = MagicMock()
+        pe._dml.insert_data = MagicMock()
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+
+        pe.create_table("users", df)
+
+        # Should call DDL create_table
+        pe._ddl.create_table.assert_called_once()
+
+    def test_create_table_with_fill_calls_insert(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that create_table with fill=True calls insert_data."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the operations
+        pe._ddl.create_table = MagicMock()
+        pe._dml.insert_data = MagicMock()
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+
+        pe.create_table("users", df, fill=True)
+
+        # Should call insert_data
+        pe._dml.insert_data.assert_called_once_with("users", df)
+
+    def test_create_table_without_fill_does_not_insert(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that create_table with fill=False does not call insert."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the operations
+        pe._ddl.create_table = MagicMock()
+        pe._dml.insert_data = MagicMock()
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+
+        pe.create_table("users", df, fill=False)
+
+        # Should not call insert_data
+        pe._dml.insert_data.assert_not_called()
+
+    def test_insert_data_delegates_to_dml(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that insert_data delegates to DML operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the DML operations
+        pe._dml.insert_data = MagicMock()
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+
+        pe.insert_data("users", df)
+
+        # Should call DML insert_data
+        pe._dml.insert_data.assert_called_once_with("users", df)
+
+    def test_view_delegates_to_query(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that view delegates to Query operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the Query operations
+        pe._query.view = MagicMock(return_value=MagicMock())
+
+        pe.view("users", limit=10)
+
+        # Should call Query view
+        pe._query.view.assert_called_once()
+
+    def test_view_passes_all_parameters(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that view passes all parameters to Query operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the Query operations
+        pe._query.view = MagicMock(return_value=MagicMock())
+
+        filters = {"column": "id", "operator": ">", "value": 10}
+        pe.view(
+            "users",
+            limit=20,
+            offset=5,
+            columns=["id", "name"],
+            filters=filters,
+            order_by="id ASC",
+        )
+
+        # Should pass all parameters
+        call_args = pe._query.view.call_args
+        assert call_args[0][0] == "users"
+        assert call_args[1]["limit"] == 20
+        assert call_args[1]["offset"] == 5
+
+    def test_count_delegates_to_query(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that count delegates to Query operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the Query operations
+        pe._query.count = MagicMock(return_value=42)
+
+        result = pe.count("users")
+
+        # Should call Query count and return result
+        pe._query.count.assert_called_once_with("users", None)
+        assert result == 42
+
+    def test_count_with_filters(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that count passes filters to Query operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the Query operations
+        pe._query.count = MagicMock(return_value=10)
+
+        filters = {"column": "status", "operator": "=", "value": "active"}
+        result = pe.count("users", filters=filters)
+
+        # Should pass filters
+        pe._query.count.assert_called_once_with("users", filters)
+        assert result == 10
+
+    def test_exists_delegates_to_query(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that exists delegates to Query operations."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Mock the Query operations
+        pe._query.table_exists = MagicMock(return_value=True)
+
+        result = pe.exists("users")
+
+        # Should call Query table_exists
+        pe._query.table_exists.assert_called_once_with("users")
+        assert result is True
+
+
+# -------------------- Context Manager Tests --------------------
+
+
+class TestParquEditContextManager:
+    """Test ParquEdit as context manager."""
+
+    def test_context_manager_enter_returns_self(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that __enter__ returns the instance."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        with pe as context_pe:
+            assert context_pe is pe
+
+    def test_context_manager_exit_closes_connection(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that __exit__ calls close."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        # Reset to clear init calls
+        fake_conn.reset_mock()
+
+        with pe:
+            pass
+
+        # Should not close external connection
+        fake_conn.close.assert_not_called()
+
+    def test_context_manager_closes_owned_connection(
+        self, sut: Any, db_config: dict[str, str]
+    ) -> None:
+        """Test that __exit__ closes connection if owned."""
+        pe = sut(db_config=db_config)  # No conn provided, so it's owned
+
+        with pe:
+            pass
+
+        # Should have closed the connection
+        pe._connection._conn.close.assert_called()
+
+    def test_manual_close_works_outside_context(
+        self, sut: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that close can be called manually."""
+        pe = sut(db_config=db_config, conn=fake_conn)
+
+        fake_conn.reset_mock()
+        pe.close()
+
+        # Should not close external connection
+        fake_conn.close.assert_not_called()
