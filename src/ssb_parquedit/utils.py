@@ -72,8 +72,10 @@ class SQLSanitizer:
 
         # ORDER BY should only contain column names, ASC, DESC, and commas
         # Pattern: column_name [ASC|DESC], column_name [ASC|DESC], ...
-        pattern = r"^[\w\s,.()\-\+\*\/]*(?:ASC|DESC)?(?:\s*,\s*[\w\s,.()\-\+\*\/]*(?:ASC|DESC)?)*$"
-        if not re.match(pattern, order_by, re.IGNORECASE):
+        # Each term: optional_whitespace, column_name, optional_whitespace, optional_ASC/DESC
+        term_pattern = r"[a-zA-Z_]\w*(?:\s+(?:ASC|DESC))?"
+        full_pattern = rf"^\s*{term_pattern}(?:\s*,\s*{term_pattern})*\s*$"
+        if not re.match(full_pattern, order_by, re.IGNORECASE):
             raise SQLInjectionError(
                 f"Invalid ORDER BY clause format: {order_by}. "
                 "Only column names, ASC/DESC, and basic operators allowed."
