@@ -80,10 +80,15 @@ class ParquEdit:
         self,
         table_name: str,
         source: pd.DataFrame | dict[str, Any] | str,
+        short_name : str | None = None,
         part_columns: list[str] | None = None,
         fill: bool = False,
     ) -> None:
         """Create a new table. See DDLOperations.create_table for details."""
+
+        if short_name is None:
+            raise ValueError("'short_name' must have a value, please provide the valid short-name for your table")
+
         # Route to appropriate handler and ensure DDL delegation for tests
         if isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
             self._create_from_dataframe(table_name, source)
@@ -111,7 +116,7 @@ class ParquEdit:
         if fill:
             self.fill_table(table_name, source)
 
-        self._add_table_description(table_name, "desc")
+        self._add_table_description(table_name, description=short_name)
 
     # ============ DML Operations ============
     # Delegate to DMLOperations - see dml.py for full documentation
