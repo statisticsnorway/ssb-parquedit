@@ -1,35 +1,43 @@
-"""A collection of useful functions.
+import os
 
-The template and this example uses Google style docstrings as described at:
-https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html
-
-"""
-
-
-def example_function(number1: int, number2: int) -> str:
-    """Compare two integers.
-
-    This is merely an example function can be deleted. It is used to show and test generating
-    documentation from code, type hinting, testing, and testing examples
-    in the code.
-
-
-    Args:
-        number1: The first number.
-        number2: The second number, which will be compared to number1.
+def get_dapla_group() -> str:
+    """Retrieves the Dapla group context from environment variables.
 
     Returns:
-        A string describing which number is the greatest.
-
-    Examples:
-        Examples should be written in doctest format, and should illustrate how
-        to use the function.
-
-        >>> example_function(1, 2)
-        1 is less than 2
-
+        str: The value of DAPLA_GROUP_CONTEXT, or an empty string if not set.
     """
-    if number1 < number2:
-        return f"{number1} is less than {number2}"
+    dapla_group: str = os.getenv('DAPLA_GROUP_CONTEXT', "")
 
-    return f"{number1} is greater than or equal to {number2}"
+    return dapla_group
+
+
+def get_team_name() -> str:
+    """Extracts the team name from the Dapla group context environment variable.
+
+    Reads the DAPLA_GROUP_CONTEXT environment variable and extracts the team name
+    by taking everything up to and including the second '-'.
+    For example, 'dapla-ffunk-developers' becomes 'dapla-ffunk'.
+
+    Returns:
+        str: The extracted team name.
+    """
+    team_name: str = '-'.join(get_dapla_group().split('-')[:2])
+
+    return team_name
+
+
+def get_bucket_name() -> str:
+    """Builds a GCS bucket name based on environment variables.
+
+    Constructs the bucket name using the team name from DAPLA_GROUP_CONTEXT
+    and the DAPLA_ENVIRONMENT variable, following the format:
+    ssb-{team_name}-data-produkt-{environment}.
+
+    Returns:
+        str: The constructed bucket name.
+    """
+    team_name: str = get_team_name()
+    environment: str = os.getenv('DAPLA_ENVIRONMENT', "").lower()
+    bucket_name: str = f"ssb-{team_name}-data-produkt-{environment}"
+
+    return bucket_name
