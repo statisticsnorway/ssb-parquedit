@@ -9,6 +9,10 @@ from .ddl import DDLOperations
 from .dml import DMLOperations
 from .query import QueryOperations
 
+from .functions import get_dapla_group
+from .functions import get_team_name
+from .functions import get_bucket_name
+
 
 class ParquEdit:
     """A class for managing DuckDB tables with DuckLake catalog integration.
@@ -56,7 +60,7 @@ class ParquEdit:
         fill: bool = False,
     ) -> None:
         """Create a new table. See DDLOperations.create_table for details."""
-        if short_name is None:
+        if short_name is None or short_name == "":
             raise ValueError("'short_name' must have a value, please provide the valid short-name for your table")
 
         with self._get_connection() as conn:
@@ -133,6 +137,19 @@ class ParquEdit:
             query = QueryOperations(conn)
             return query.table_exists(table_name)
 
+    @staticmethod
+    def create_config(short_name: str | None) -> dict[str, str]:
+        
+        db_config: dict[str, str] = {
+            "short_name": f"{short_name}",
+            "dbname": "dapla-ffunk",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+            "data_path": f"gs://{get_bucket_name()}/{short_name}/.parquedit_data",
+            "catalog_name": get_team_name().replace("-", "_"),
+            "metadata_schema": get_team_name().replace("-", "_"),
+        }
+
+        return db_config
 # """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
 # from types import TracebackType

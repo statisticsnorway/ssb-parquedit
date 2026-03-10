@@ -337,11 +337,16 @@ class SchemaUtils:
                 ...
             ValueError: Invalid table name: user-table. Table names must start with a letter or underscore, and contain only letters, numbers, and underscores.
         """
-        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table_name):
+        if not re.match(r"^[a-z_][a-z0-9_]*$", table_name):
             raise ValueError(
                 f"Invalid table name: {table_name}. "
-                "Table names must start with a letter or underscore, "
-                "and contain only letters, numbers, and underscores."
+                "Table names must start with a lowercase letter or underscore, "
+                "and contain only lowercase letters, numbers, and underscores."
+            )
+        if len(table_name) > 20:
+            raise ValueError(
+                f"Invalid table name: {table_name}. "
+                "Table names must not exceed 20 characters."
             )
 
     @staticmethod

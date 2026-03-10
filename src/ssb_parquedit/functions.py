@@ -1,3 +1,4 @@
+from typing import Any
 import os
 
 def get_dapla_group() -> str:
@@ -41,3 +42,16 @@ def get_bucket_name() -> str:
     bucket_name: str = f"ssb-{team_name}-data-produkt-{environment}"
 
     return bucket_name
+
+def create_config(short_name: str | None) -> dict[str, str]:
+    
+    db_config: dict[str, str] = {
+        "short_name": f"{short_name}",
+        "dbname": "dapla-ffunk",
+        "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+        "data_path": f"gs://{get_bucket_name()}/{short_name}/.parquedit_data",
+        "catalog_name": get_team_name().replace("-", "_"),
+        "metadata_schema": get_team_name().replace("-", "_"),
+    }
+
+    return db_config
