@@ -16,14 +16,15 @@ def get_team_name() -> str:
     """Extracts the team name from the Dapla group context environment variable.
 
     Reads the DAPLA_GROUP_CONTEXT environment variable and extracts the team name
-    by taking everything up to and including the second '-'.
+    by removing everything after the last '-'.
     For example, 'dapla-ffunk-developers' becomes 'dapla-ffunk'.
 
     Returns:
         str: The extracted team name.
     """
-    team_name: str = '-'.join(get_dapla_group().split('-')[:2])
-
+    s = get_dapla_group()
+    team_name: str = s[:s.rfind("-")]
+    
     return team_name
 
 
