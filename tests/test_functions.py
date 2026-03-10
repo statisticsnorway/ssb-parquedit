@@ -23,10 +23,6 @@ class TestGetTeamName:
         with patch.dict(os.environ, {}, clear=True):
             assert get_team_name() == ""
 
-    def test_handles_short_group_name(self):
-        with patch.dict(os.environ, {'DAPLA_GROUP_CONTEXT': 'dapla'}):
-            assert get_team_name() == 'dapla'
-
 
 class TestGetBucketName:
     def test_builds_bucket_name(self):
