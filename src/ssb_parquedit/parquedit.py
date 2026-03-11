@@ -7,11 +7,10 @@ import pandas as pd
 from .connection import DuckDBConnection
 from .ddl import DDLOperations
 from .dml import DMLOperations
-from .query import QueryOperations
-
+from .functions import get_bucket_name
 from .functions import get_dapla_group
 from .functions import get_team_name
-from .functions import get_bucket_name
+from .query import QueryOperations
 
 
 class ParquEdit:
@@ -29,7 +28,7 @@ class ParquEdit:
         ...     "metadata_schema": "public"
         ... }
         >>> pe = ParquEdit(db_config) # xdoctest: +SKIP
-        >>> pe.create_table("users", df, short_name="my_product", fill=True)
+        >>> pe.create_table("users", df, short_name="my_product", fill=True) # xdoctest: +SKIP
     """
 
     def __init__(self, db_config: dict[str, str]) -> None:
@@ -61,15 +60,22 @@ class ParquEdit:
     ) -> None:
         """Create a new table. See DDLOperations.create_table for details."""
         if short_name is None or short_name == "":
-            raise ValueError("'short_name' must have a value, please provide the valid short-name for your table")
+            raise ValueError(
+                "'short_name' must have a value, please provide the valid short-name for your table"
+            )
 
         with self._get_connection() as conn:
             ddl = DDLOperations(conn)
             dml = DMLOperations(conn)
 
-            if isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
+            if (
+                isinstance(source, pd.DataFrame)
+                or source.__class__.__name__ == "DataFrame"
+            ):
                 conn._conn.register("data", source)
-                conn._conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2")
+                conn._conn.execute(
+                    f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2"
+                )
             elif isinstance(source, dict):
                 ddl.create_table(table_name, source, part_columns)
             elif isinstance(source, str):
@@ -79,7 +85,9 @@ class ParquEdit:
 
             if part_columns and len(part_columns) > 0:
                 columns_str = ",".join(part_columns)
-                conn._conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});")
+                conn._conn.execute(
+                    f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
+                )
 
             if fill:
                 dml.insert_data(table_name, source)
@@ -139,7 +147,32 @@ class ParquEdit:
 
     @staticmethod
     def create_config(short_name: str | None) -> dict[str, str]:
-        
+        """Create a standardized ParquEdit database configuration.
+
+        This helper constructs a configuration dictionary required by
+        ``ParquEdit`` for connecting to DuckDB with DuckLake integration.
+        It automatically derives settings such as bucket name, team name,
+        and service account user based on the current environment.
+
+        Args:
+            short_name: Short identifier for the table or dataset. Used to
+                generate storage paths such as ``gs://<bucket>/<short_name>/.parquedit_data``.
+                Must not be empty or ``None``.
+
+        Returns:
+            A configuration dictionary containing:
+                - ``short_name``: The provided short name.
+                - ``dbname``: Default database name used in the environment.
+                - ``dbuser``: Fully qualified service account string derived
+                  from the current Dapla group.
+                - ``data_path``: GCS path for ParquEdit table storage.
+                - ``catalog_name``: DuckLake catalog name derived from team.
+                - ``metadata_schema``: Metadata schema, identical to the catalog name.
+
+        Note:
+            This function does not validate that ``short_name`` points to a valid
+            bucket or schema. It simply constructs the configuration structure.
+        """
         db_config: dict[str, str] = {
             "short_name": f"{short_name}",
             "dbname": "dapla-ffunk",
@@ -150,6 +183,8 @@ class ParquEdit:
         }
 
         return db_config
+
+
 # """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
 # from types import TracebackType
@@ -161,7 +196,6 @@ class ParquEdit:
 # from .ddl import DDLOperations
 # from .dml import DMLOperations
 # from .query import QueryOperations
-
 
 # class ParquEdit:
 #     """A class for managing DuckDB tables with DuckLake catalog integration.

@@ -1,5 +1,5 @@
-from typing import Any
 import os
+
 
 def get_dapla_group() -> str:
     """Retrieves the Dapla group context from environment variables.
@@ -7,7 +7,7 @@ def get_dapla_group() -> str:
     Returns:
         str: The value of DAPLA_GROUP_CONTEXT, or an empty string if not set.
     """
-    dapla_group: str = os.getenv('DAPLA_GROUP_CONTEXT', "")
+    dapla_group: str = os.getenv("DAPLA_GROUP_CONTEXT", "")
 
     return dapla_group
 
@@ -23,8 +23,8 @@ def get_team_name() -> str:
         str: The extracted team name.
     """
     s = get_dapla_group()
-    team_name: str = s[:s.rfind("-")]
-    
+    team_name: str = s[: s.rfind("-")]
+
     return team_name
 
 
@@ -39,13 +39,39 @@ def get_bucket_name() -> str:
         str: The constructed bucket name.
     """
     team_name: str = get_team_name()
-    environment: str = os.getenv('DAPLA_ENVIRONMENT', "").lower()
+    environment: str = os.getenv("DAPLA_ENVIRONMENT", "").lower()
     bucket_name: str = f"ssb-{team_name}-data-produkt-{environment}"
 
     return bucket_name
 
+
 def create_config(short_name: str | None) -> dict[str, str]:
-    
+    """Build a DuckDB configuration dictionary for a given dataset.
+
+    Constructs the configuration by combining the provided short name with
+    environment-derived values for group context, bucket name, and team name.
+    The resulting dict can be passed directly to ParquEdit.
+
+    Args:
+        short_name: A short identifier for the dataset, used to construct
+            the data path. For example, "my_dataset" results in a data path
+            of gs://{bucket}/{short_name}/.parquedit_data.
+
+    Returns:
+        dict[str, str]: Configuration dictionary with the following keys:
+            - short_name: The provided dataset identifier
+            - dbname: The DuckDB database name
+            - dbuser: The service account identity derived from DAPLA_GROUP_CONTEXT
+            - data_path: GCS path where table data will be stored
+            - catalog_name: DuckLake catalog name derived from the team name
+            - metadata_schema: Schema name derived from the team name
+
+    Example:
+        >>> # xdoctest: +SKIP
+        >>> config = create_config("my_dataset")
+        >>> config["catalog_name"]
+        'dapla_ffunk'
+    """
     db_config: dict[str, str] = {
         "short_name": f"{short_name}",
         "dbname": "dapla-ffunk",
