@@ -19,9 +19,9 @@ class ParquEdit:
 
     """
 
-    def __init__(self, config: dict[str, str] = create_config()) -> None:
+    def __init__(self, config: dict[str, str] | None = None) -> None:
         """Initialize ParquEdit."""
-        self._db_config  = config
+        self._db_config = config if config is not None else create_config()
 
     def _get_connection(self) -> DuckDBConnection:
         """Create a new connection."""

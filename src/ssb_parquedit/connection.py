@@ -113,4 +113,3 @@ class DuckDBConnection:
     def owns_connection(self) -> bool:
         """Whether this instance owns the connection."""
         return self._owns_conn
-        

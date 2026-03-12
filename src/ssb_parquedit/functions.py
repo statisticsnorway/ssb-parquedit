@@ -46,7 +46,19 @@ def get_bucket_name() -> str:
 
 
 def create_config() -> dict[str, str]:
+    """Create a default database configuration dictionary.
 
+    Generates configuration values dynamically by querying the current
+    Dapla group, bucket name, and team name from the environment.
+
+    Returns:
+        dict[str, str]: A dictionary containing the following keys:
+            - dbname: The name of the database.
+            - dbuser: The database user, formatted as a service account email.
+            - data_path: The GCS path used for temporary parquedit data.
+            - catalog_name: The catalog name derived from the team name.
+            - metadata_schema: The metadata schema derived from the team name.
+    """
     db_config: dict[str, str] = {
         "dbname": "dapla-ffunk",
         "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
