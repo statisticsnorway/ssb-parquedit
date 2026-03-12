@@ -1,5 +1,5 @@
-from typing import Any
 import os
+
 
 def get_dapla_group() -> str:
     """Retrieves the Dapla group context from environment variables.
@@ -7,7 +7,7 @@ def get_dapla_group() -> str:
     Returns:
         str: The value of DAPLA_GROUP_CONTEXT, or an empty string if not set.
     """
-    dapla_group: str = os.getenv('DAPLA_GROUP_CONTEXT', "")
+    dapla_group: str = os.getenv("DAPLA_GROUP_CONTEXT", "")
 
     return dapla_group
 
@@ -23,8 +23,8 @@ def get_team_name() -> str:
         str: The extracted team name.
     """
     s = get_dapla_group()
-    team_name: str = s[:s.rfind("-")]
-    
+    team_name: str = s[: s.rfind("-")]
+
     return team_name
 
 
@@ -39,18 +39,18 @@ def get_bucket_name() -> str:
         str: The constructed bucket name.
     """
     team_name: str = get_team_name()
-    environment: str = os.getenv('DAPLA_ENVIRONMENT', "").lower()
+    environment: str = os.getenv("DAPLA_ENVIRONMENT", "").lower()
     bucket_name: str = f"ssb-{team_name}-data-produkt-{environment}"
 
     return bucket_name
 
-def create_config(short_name: str | None) -> dict[str, str]:
-    
+
+def create_config() -> dict[str, str]:
+
     db_config: dict[str, str] = {
-        "short_name": f"{short_name}",
         "dbname": "dapla-ffunk",
         "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
-        "data_path": f"gs://{get_bucket_name()}/{short_name}/.parquedit_data",
+        "data_path": f"gs://{get_bucket_name()}/temp/.parquedit_data",
         "catalog_name": get_team_name().replace("-", "_"),
         "metadata_schema": get_team_name().replace("-", "_"),
     }
