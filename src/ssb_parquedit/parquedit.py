@@ -56,9 +56,6 @@ class ParquEdit:
 
         Raises:
             ValueError: If product_name is None or empty.
-            ValueError: If table_name contains invalid characters or exceeds
-                20 characters.
-            TypeError: If source is not a DataFrame, dict, or string.
         """
         if product_name is None or product_name == "":
             raise ValueError(
@@ -114,8 +111,8 @@ class ParquEdit:
         """Insert data into a table.
 
         Args:
-            table_name (str): The name of the table to insert data into.
-            source (pd.DataFrame | dict[str, Any] | str): The data to insert.
+            table_name: The name of the table to insert data into.
+            source: The data to insert.
                 Can be a pandas DataFrame, a dictionary mapping column names
                 to values, or a string file path to a data file.
         """
@@ -128,28 +125,28 @@ class ParquEdit:
     def view(
         self,
         table_name: str,
-        limit: int | None,
+        limit: int | None = None,
         offset: int = 0,
         columns: list[str] | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: str = "pandas",
-    ) -> Any:            
+    ) -> Any:
         """View the contents of a table.
 
         Args:
-            table_name (str): The name of the table to query.
-            limit (int | None): Maximum number of rows to return. Defaults to None.                
-            offset (int): Number of rows to skip before returning results.
+            table_name: The name of the table to query.
+            limit: Maximum number of rows to return. Defaults to None.
+            offset: Number of rows to skip before returning results.
                 Defaults to 0.
-            columns (list[str] | None): List of column names to include. Defaults
+            columns: List of column names to include. Defaults
                 to None, which returns all columns.
-            filters (dict[str, Any] | list[dict[str, Any]] | None): Filter
+            filters: Filter
                 conditions to apply. Can be a single filter dict or a list of
                 filter dicts. Defaults to None.
-            order_by (str | None): Column name to sort results by. Defaults
+            order_by: Column name to sort results by. Defaults
                 to None.
-            output_format (str): Format of the returned data. Defaults to
+            output_format: Format of the returned data. Defaults to
                 "pandas".
 
         Returns:
@@ -175,8 +172,8 @@ class ParquEdit:
         """Count the number of rows in a table.
 
         Args:
-            table_name (str): The name of the table to count rows in.
-            filters (dict[str, Any] | list[dict[str, Any]] | None): Filter
+            table_name: The name of the table to count rows in.
+            filters: Filter
                 conditions to apply before counting. Can be a single filter
                 dict or a list of filter dicts. Defaults to None.
 
