@@ -44,8 +44,7 @@ class DuckDBConnection:
             self._conn.sql(f"LOAD {ext}")
 
         # Attach catalog
-        self._conn.sql(
-            f"""
+        self._conn.sql(f"""
             ATTACH 'ducklake:postgres:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
@@ -53,8 +52,7 @@ class DuckDBConnection:
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
              METADATA_SCHEMA {db_config["metadata_schema"]});
-            """
-        )
+            """)
         self._conn.sql(f"USE {db_config['catalog_name']}")
 
     def __enter__(self) -> "DuckDBConnection":
