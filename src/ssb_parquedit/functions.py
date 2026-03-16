@@ -62,7 +62,7 @@ def create_config() -> dict[str, str]:
     db_config: dict[str, str] = {
         "dbname": "dapla-ffunk",
         "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
-        "data_path": f"gs://{get_bucket_name()}/temp/.parquedit_data",
+        "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
         "catalog_name": get_team_name().replace("-", "_"),
         "metadata_schema": get_team_name().replace("-", "_"),
     }
