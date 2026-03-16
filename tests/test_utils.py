@@ -424,14 +424,6 @@ class TestValidateTableName:
         """Test valid lowercase table name."""
         SchemaUtils.validate_table_name("users")
 
-    def test_valid_table_name_uppercase(self) -> None:
-        """Test valid uppercase table name."""
-        SchemaUtils.validate_table_name("USERS")
-
-    def test_valid_table_name_mixed_case(self) -> None:
-        """Test valid mixed case table name."""
-        SchemaUtils.validate_table_name("UserData")
-
     def test_valid_table_name_with_underscore(self) -> None:
         """Test valid table name with underscore."""
         SchemaUtils.validate_table_name("user_data")
@@ -443,6 +435,16 @@ class TestValidateTableName:
     def test_valid_table_name_with_numbers(self) -> None:
         """Test valid table name with numbers."""
         SchemaUtils.validate_table_name("users123")
+
+    def test_invalid_table_name_uppercase(self) -> None:
+        """Test that uppercase table names are invalid."""
+        with pytest.raises(ValueError, match="Invalid table name"):
+            SchemaUtils.validate_table_name("USERS")
+
+    def test_invalid_table_name_mixed_case(self) -> None:
+        """Test that mixed case table names are invalid."""
+        with pytest.raises(ValueError, match="Invalid table name"):
+            SchemaUtils.validate_table_name("UserData")
 
     def test_invalid_table_name_starting_with_digit(self) -> None:
         """Test that table names starting with digit are invalid."""

@@ -1,5 +1,6 @@
 """DuckDB connection management with DuckLake catalog support."""
 
+from types import TracebackType
 from typing import Any
 
 import duckdb
@@ -43,8 +44,7 @@ class DuckDBConnection:
             self._conn.sql(f"LOAD {ext}")
 
         # Attach catalog
-        self._conn.sql(
-            f"""
+        self._conn.sql(f"""
             ATTACH 'ducklake:postgres:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
@@ -52,9 +52,21 @@ class DuckDBConnection:
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
              METADATA_SCHEMA {db_config["metadata_schema"]});
-            """
-        )
+            """)
         self._conn.sql(f"USE {db_config['catalog_name']}")
+
+    def __enter__(self) -> "DuckDBConnection":
+        """Context manager entry."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        """Context manager exit, closes connection."""
+        self.close()
 
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute SQL statement.
@@ -81,7 +93,7 @@ class DuckDBConnection:
         """
         return self._conn.sql(query)
 
-    def register(self, name: str, obj: str) -> None:
+    def register(self, name: str, obj: Any) -> None:
         """Register Python object as virtual table.
 
         Args:
