@@ -1,6 +1,6 @@
 """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -52,10 +52,11 @@ class ParquEdit:
                 or source.__class__.__name__ == "DataFrame"
             ):
                 # DuckDB does not support pandas' nullable StringDtype — convert to object dtype first
-                source_converted = source.astype(
-                    {col: object for col, dtype in source.dtypes.items()
+                df = cast(pd.DataFrame, source)
+                source_converted = df.astype(
+                    {col: object for col, dtype in df.dtypes.items()
                     if isinstance(dtype, pd.StringDtype)}
-                )
+    )
                 conn._conn.register("data", source_converted)
                 conn._conn.execute(
                     f"CREATE TABLE {table_name} AS "
