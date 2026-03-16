@@ -3,8 +3,8 @@
 import re
 from collections.abc import Callable
 from typing import Any
-from typing import cast
 from typing import ClassVar
+from typing import cast
 
 import pandas as pd
 
@@ -131,9 +131,7 @@ class SQLSanitizer:
         return f"{column} {operator} ?"
 
     @staticmethod
-    def _build_like_condition(
-        column: str, value: Any, params: list[Any]
-    ) -> str:
+    def _build_like_condition(column: str, value: Any, params: list[Any]) -> str:
         """Build a LIKE condition.
 
         Args:
@@ -179,9 +177,7 @@ class SQLSanitizer:
         return f"{column} {operator} ({placeholders})"
 
     @staticmethod
-    def _build_between_condition(
-        column: str, value: Any, params: list[Any]
-    ) -> str:
+    def _build_between_condition(column: str, value: Any, params: list[Any]) -> str:
         """Build a BETWEEN condition.
 
         Args:
@@ -220,9 +216,7 @@ class SQLSanitizer:
             )
 
     @staticmethod
-    def _process_single_condition(
-        condition: dict[str, Any], params: list[Any]
-    ) -> str:
+    def _process_single_condition(condition: Any, params: list[Any]) -> str:
         """Process a single filter condition and return WHERE clause fragment.
 
         Args:
@@ -234,7 +228,6 @@ class SQLSanitizer:
 
         Raises:
             TypeError: If condition is not a dict.
-            SQLInjectionError: If column name is invalid.
             ValueError: If operator is unsupported or values are invalid.
         """
         if not isinstance(condition, dict):
@@ -301,11 +294,6 @@ class SQLSanitizer:
         Returns:
             Tuple of (where_clause_sql, parameters_list). where_clause_sql is None if no filters.
 
-        Raises:
-            TypeError: If filters is not None, list, or dict; or if condition is not a dict
-            SQLInjectionError: If column names are invalid
-            ValueError: If structure is invalid, operators unsupported, or values are mismatched
-
         Example:
             >>> filters = [
             ...     {"column": "age", "operator": ">", "value": 25},
@@ -338,7 +326,7 @@ class SQLSanitizer:
     @staticmethod
     def _extract_filters(
         filters: dict[str, Any] | list[dict[str, Any]] | str | Any,
-    ) -> tuple[list[dict[str, Any]], str]:
+    ) -> tuple[list[Any], str]:
         """Extract condition list and logic operator from filter input.
 
         Args:

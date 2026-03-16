@@ -356,7 +356,9 @@ class TestSQLSanitizerHelperMethods:
     def test_build_in_condition_valid_tuple(self) -> None:
         """Test building valid IN condition with tuple."""
         params: list[Any] = []
-        result = SQLSanitizer._build_in_condition("status", "NOT IN", ("a", "b"), params)
+        result = SQLSanitizer._build_in_condition(
+            "status", "NOT IN", ("a", "b"), params
+        )
         assert result == "status NOT IN (?, ?)"
         assert params == ["a", "b"]
 
