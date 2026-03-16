@@ -213,7 +213,7 @@ Key points:
 - Raw SQL string filters are not accepted
 
 ---
-
+```text
 ## Project structure
 src/ssb_parquedit/
 ├── parquedit.py      # ParquEdit facade — main public API
@@ -223,7 +223,7 @@ src/ssb_parquedit/
 ├── query.py          # Query operations (SELECT, COUNT, EXISTS)
 ├── functions.py      # Environment helpers (Dapla config auto-detection)
 └── utils.py          # Schema utilities and SQL sanitization
-
+```
 ---
 
 ## Contributing
