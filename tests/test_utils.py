@@ -278,6 +278,231 @@ class TestBuildWhereFromFilters:
             SQLSanitizer.build_where_from_filters(cast(Any, filters))
 
 
+class TestSQLSanitizerHelperMethods:
+    """Test helper methods of SQLSanitizer for WHERE clause building."""
+
+    # Tests for _validate_column_name
+    def test_validate_column_name_valid(self) -> None:
+        """Test valid column names."""
+        # Should not raise
+        SQLSanitizer._validate_column_name("id")
+        SQLSanitizer._validate_column_name("_id")
+        SQLSanitizer._validate_column_name("user_name")
+        SQLSanitizer._validate_column_name("Column123")
+
+    def test_validate_column_name_invalid_starts_with_digit(self) -> None:
+        """Test column names starting with digit are invalid."""
+        with pytest.raises(SQLInjectionError, match="Invalid column name"):
+            SQLSanitizer._validate_column_name("1user")
+
+    def test_validate_column_name_invalid_with_special_chars(self) -> None:
+        """Test column names with special characters are invalid."""
+        with pytest.raises(SQLInjectionError, match="Invalid column name"):
+            SQLSanitizer._validate_column_name("user-name")
+
+    def test_validate_column_name_none_is_invalid(self) -> None:
+        """Test None column name is invalid."""
+        with pytest.raises(SQLInjectionError, match="Invalid column name"):
+            SQLSanitizer._validate_column_name(None)
+
+    def test_validate_column_name_empty_string_is_invalid(self) -> None:
+        """Test empty string is invalid."""
+        with pytest.raises(SQLInjectionError, match="Invalid column name"):
+            SQLSanitizer._validate_column_name("")
+
+    # Tests for _build_comparison_condition
+    def test_build_comparison_condition_equals(self) -> None:
+        """Test building = condition."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_comparison_condition("age", "=", 25, params)
+        assert result == "age = ?"
+        assert params == [25]
+
+    def test_build_comparison_condition_greater_than(self) -> None:
+        """Test building > condition."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_comparison_condition("price", ">", 100.50, params)
+        assert result == "price > ?"
+        assert params == [100.50]
+
+    def test_build_comparison_condition_null_value_raises_error(self) -> None:
+        """Test that null values raise error for comparison operators."""
+        params: list[Any] = []
+        with pytest.raises(ValueError, match="requires a non-null value"):
+            SQLSanitizer._build_comparison_condition("age", "=", None, params)
+
+    # Tests for _build_like_condition
+    def test_build_like_condition_valid(self) -> None:
+        """Test building valid LIKE condition."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_like_condition("name", "%john%", params)
+        assert result == "name LIKE ?"
+        assert params == ["%john%"]
+
+    def test_build_like_condition_non_string_raises_error(self) -> None:
+        """Test that non-string value raises error for LIKE."""
+        params: list[Any] = []
+        with pytest.raises(ValueError, match="requires a string value"):
+            SQLSanitizer._build_like_condition("name", 123, params)
+
+    # Tests for _build_in_condition
+    def test_build_in_condition_valid_list(self) -> None:
+        """Test building valid IN condition with list."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_in_condition("id", "IN", [1, 2, 3], params)
+        assert result == "id IN (?, ?, ?)"
+        assert params == [1, 2, 3]
+
+    def test_build_in_condition_valid_tuple(self) -> None:
+        """Test building valid IN condition with tuple."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_in_condition("status", "NOT IN", ("a", "b"), params)
+        assert result == "status NOT IN (?, ?)"
+        assert params == ["a", "b"]
+
+    def test_build_in_condition_non_list_raises_error(self) -> None:
+        """Test that non-list value raises error for IN."""
+        params: list[Any] = []
+        with pytest.raises(ValueError, match="requires a list/tuple value"):
+            SQLSanitizer._build_in_condition("id", "IN", 123, params)
+
+    def test_build_in_condition_empty_list_raises_error(self) -> None:
+        """Test that empty list raises error for IN."""
+        params: list[Any] = []
+        with pytest.raises(ValueError, match="requires a non-empty list"):
+            SQLSanitizer._build_in_condition("id", "IN", [], params)
+
+    # Tests for _build_between_condition
+    def test_build_between_condition_valid(self) -> None:
+        """Test building valid BETWEEN condition."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_between_condition("age", [18, 65], params)
+        assert result == "age BETWEEN ? AND ?"
+        assert params == [18, 65]
+
+    def test_build_between_condition_tuple(self) -> None:
+        """Test BETWEEN with tuple."""
+        params: list[Any] = []
+        result = SQLSanitizer._build_between_condition("price", (10.5, 99.99), params)
+        assert result == "price BETWEEN ? AND ?"
+        assert params == [10.5, 99.99]
+
+    def test_build_between_condition_wrong_count_raises_error(self) -> None:
+        """Test that BETWEEN with wrong value count raises error."""
+        params: list[Any] = []
+        with pytest.raises(ValueError, match="2 values"):
+            SQLSanitizer._build_between_condition("age", [18], params)
+
+    def test_build_between_condition_non_list_raises_error(self) -> None:
+        """Test that BETWEEN with non-list raises error."""
+        params: list[Any] = []
+        with pytest.raises(ValueError, match="2 values"):
+            SQLSanitizer._build_between_condition("age", "invalid", params)
+
+    # Tests for _process_single_condition
+    def test_process_single_condition_comparison(self) -> None:
+        """Test processing comparison condition."""
+        params: list[Any] = []
+        condition = {"column": "age", "operator": ">", "value": 30}
+        result = SQLSanitizer._process_single_condition(condition, params)
+        assert result == "age > ?"
+        assert params == [30]
+
+    def test_process_single_condition_like(self) -> None:
+        """Test processing LIKE condition."""
+        params: list[Any] = []
+        condition = {"column": "email", "operator": "LIKE", "value": "%@example.com"}
+        result = SQLSanitizer._process_single_condition(condition, params)
+        assert result == "email LIKE ?"
+        assert params == ["%@example.com"]
+
+    def test_process_single_condition_in(self) -> None:
+        """Test processing IN condition."""
+        params: list[Any] = []
+        condition = {"column": "role", "operator": "IN", "value": ["admin", "user"]}
+        result = SQLSanitizer._process_single_condition(condition, params)
+        assert result == "role IN (?, ?)"
+        assert params == ["admin", "user"]
+
+    def test_process_single_condition_is_null(self) -> None:
+        """Test processing IS NULL condition."""
+        params: list[Any] = []
+        condition = {"column": "deleted_at", "operator": "IS NULL"}
+        result = SQLSanitizer._process_single_condition(condition, params)
+        assert result == "deleted_at IS NULL"
+        assert params == []
+
+    def test_process_single_condition_is_not_null(self) -> None:
+        """Test processing IS NOT NULL condition."""
+        params: list[Any] = []
+        condition = {"column": "updated_at", "operator": "IS NOT NULL"}
+        result = SQLSanitizer._process_single_condition(condition, params)
+        assert result == "updated_at IS NOT NULL"
+        assert params == []
+
+    def test_process_single_condition_not_dict_raises_error(self) -> None:
+        """Test that non-dict condition raises error."""
+        params: list[Any] = []
+        with pytest.raises(TypeError, match="must be a dict"):
+            SQLSanitizer._process_single_condition(cast(Any, "invalid"), params)
+
+    def test_process_single_condition_invalid_column_raises_error(self) -> None:
+        """Test that invalid column name raises error."""
+        params: list[Any] = []
+        condition = {"column": "col;DROP", "operator": "=", "value": "x"}
+        with pytest.raises(SQLInjectionError, match="Invalid column name"):
+            SQLSanitizer._process_single_condition(condition, params)
+
+    # Tests for _extract_filters
+    def test_extract_filters_from_list(self) -> None:
+        """Test extracting filters from list."""
+        filters = [
+            {"column": "age", "operator": ">", "value": 25},
+            {"column": "status", "operator": "=", "value": "active"},
+        ]
+        conditions, logic = SQLSanitizer._extract_filters(filters)
+        assert conditions == filters
+        assert logic == "AND"
+
+    def test_extract_filters_from_dict_with_and(self) -> None:
+        """Test extracting filters from dict with 'and' key."""
+        condition_list = [
+            {"column": "age", "operator": ">", "value": 25},
+        ]
+        filters = {"and": condition_list}
+        conditions, logic = SQLSanitizer._extract_filters(filters)
+        assert conditions == condition_list
+        assert logic == "AND"
+
+    def test_extract_filters_from_dict_with_or(self) -> None:
+        """Test extracting filters from dict with 'or' key."""
+        condition_list = [
+            {"column": "status", "operator": "=", "value": "admin"},
+        ]
+        filters = {"or": condition_list}
+        conditions, logic = SQLSanitizer._extract_filters(filters)
+        assert conditions == condition_list
+        assert logic == "OR"
+
+    def test_extract_filters_single_condition_dict(self) -> None:
+        """Test extracting single condition dict."""
+        filters = {"column": "id", "operator": "=", "value": 1}
+        conditions, logic = SQLSanitizer._extract_filters(filters)
+        assert conditions == [filters]
+        assert logic == "AND"
+
+    def test_extract_filters_invalid_dict_raises_error(self) -> None:
+        """Test that dict without and/or/column raises error."""
+        filters = {"invalid_key": "value"}
+        with pytest.raises(ValueError, match="must have 'and'/'or' key"):
+            SQLSanitizer._extract_filters(filters)
+
+    def test_extract_filters_invalid_type_raises_error(self) -> None:
+        """Test that non-dict/list raises error."""
+        with pytest.raises(TypeError, match="must be None, a list, or a dict"):
+            SQLSanitizer._extract_filters("invalid")
+
+
 # ================== SchemaUtils Tests ==================
 
 
