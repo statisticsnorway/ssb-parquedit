@@ -95,7 +95,7 @@ class DuckDBConnection:
         """
         return self._conn.sql(query)
 
-    def register(self, name: str, obj: str) -> None:
+    def register(self, name: str, obj: Any) -> None:
         """Register Python object as virtual table.
 
         Args:

@@ -51,10 +51,17 @@ class ParquEdit:
                 isinstance(source, pd.DataFrame)
                 or source.__class__.__name__ == "DataFrame"
             ):
-                conn._conn.register("data", source)
-                conn._conn.execute(
-                    f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2"
+                # DuckDB does not support pandas' nullable StringDtype — convert to object dtype first
+                source_converted = source.astype(
+                    {col: object for col, dtype in source.dtypes.items()
+                    if isinstance(dtype, pd.StringDtype)}
                 )
+                conn._conn.register("data", source_converted)
+                conn._conn.execute(
+                    f"CREATE TABLE {table_name} AS "
+                    f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
+                )
+                
             elif isinstance(source, dict):
                 ddl.create_table(table_name, source, part_columns)
             elif isinstance(source, str):
