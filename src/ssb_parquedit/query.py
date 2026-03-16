@@ -26,7 +26,7 @@ class QueryOperations:
     def view(
         self,
         table_name: str,
-        limit: int | None = 10,
+        limit: int | None,
         offset: int = 0,
         columns: list[str] | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
@@ -37,7 +37,7 @@ class QueryOperations:
 
         Args:
             table_name: Name of the table to view.
-            limit: Maximum number of rows to return. None returns all rows. Defaults to 10.
+            limit: Maximum number of rows to return. None returns all rows. 
             offset: Number of rows to skip. Defaults to 0. Useful for pagination.
             columns: List of column names to select. None selects all columns (*).
             filters: Structured filter conditions. Can be:

@@ -38,10 +38,31 @@ class ParquEdit:
         part_columns: list[str] | None = None,
         fill: bool = False,
     ) -> None:
-        """Create a new table. See DDLOperations.create_table for details."""
+        """Create a new table in the DuckLake catalog.
+
+        Args:
+            table_name: Name of the table to create. Must be lowercase, start
+                with a letter or underscore, and contain only lowercase letters,
+                numbers, and underscores. Maximum 20 characters.
+            source: Source for the table schema. Can be:
+                - pd.DataFrame: Creates table structure from the DataFrame schema.
+                - dict: JSON Schema specification defining the table structure.
+                - str: GCS path (gs://) to a Parquet file to infer schema from.
+            product_name: Label identifying the product this table belongs to.
+                Stored as a comment on the table. Must not be None or empty.
+            part_columns: Optional list of column names to partition the table by.
+            fill: If True, inserts data from source into the table immediately
+                after creation. Defaults to False.
+
+        Raises:
+            ValueError: If product_name is None or empty.
+            ValueError: If table_name contains invalid characters or exceeds
+                20 characters.
+            TypeError: If source is not a DataFrame, dict, or string.
+        """
         if product_name is None or product_name == "":
             raise ValueError(
-                "'product_name' must have a value, please provide the valid short-name for your table"
+                "'product_name' must have a value, please provide the valid product-name for your table"
             )
 
         with self._get_connection() as conn:
@@ -90,7 +111,14 @@ class ParquEdit:
     def insert_data(
         self, table_name: str, source: pd.DataFrame | dict[str, Any] | str
     ) -> None:
-        """Insert data into a table."""
+        """Insert data into a table.
+
+        Args:
+            table_name (str): The name of the table to insert data into.
+            source (pd.DataFrame | dict[str, Any] | str): The data to insert.
+                Can be a pandas DataFrame, a dictionary mapping column names
+                to values, or a string file path to a data file.
+        """
         with self._get_connection() as conn:
             dml = DMLOperations(conn)
             dml.insert_data(table_name, source)
@@ -100,14 +128,33 @@ class ParquEdit:
     def view(
         self,
         table_name: str,
-        limit: int | None = 10,
+        limit: int | None,
         offset: int = 0,
         columns: list[str] | None = None,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: str = "pandas",
-    ) -> Any:
-        """View table contents. See QueryOperations.view for details."""
+    ) -> Any:            
+        """View the contents of a table.
+
+        Args:
+            table_name (str): The name of the table to query.
+            limit (int | None): Maximum number of rows to return. Defaults to None.                
+            offset (int): Number of rows to skip before returning results.
+                Defaults to 0.
+            columns (list[str] | None): List of column names to include. Defaults
+                to None, which returns all columns.
+            filters (dict[str, Any] | list[dict[str, Any]] | None): Filter
+                conditions to apply. Can be a single filter dict or a list of
+                filter dicts. Defaults to None.
+            order_by (str | None): Column name to sort results by. Defaults
+                to None.
+            output_format (str): Format of the returned data. Defaults to
+                "pandas".
+
+        Returns:
+            Any: Query results in the specified output format.
+        """
         with self._get_connection() as conn:
             query = QueryOperations(conn)
             return query.view(
@@ -125,7 +172,17 @@ class ParquEdit:
         table_name: str,
         filters: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> int:
-        """Count table rows. See QueryOperations.count for details."""
+        """Count the number of rows in a table.
+
+        Args:
+            table_name (str): The name of the table to count rows in.
+            filters (dict[str, Any] | list[dict[str, Any]] | None): Filter
+                conditions to apply before counting. Can be a single filter
+                dict or a list of filter dicts. Defaults to None.
+
+        Returns:
+            int: The number of rows matching the given filters.
+        """
         with self._get_connection() as conn:
             query = QueryOperations(conn)
             return query.count(table_name, filters)
