@@ -71,7 +71,7 @@ class TestCreateConfig:
             assert config["dbuser"] == "dapla-ffunk-developers@dapla-group-sa-t-57.iam"
             assert (
                 config["data_path"]
-                == "gs://ssb-dapla-ffunk-data-produkt-test/temp/.parquedit_data"
+                == "gs://ssb-dapla-ffunk-data-produkt-test/.parquedit_data"
             )
             assert config["catalog_name"] == "dapla_ffunk"
             assert config["metadata_schema"] == "dapla_ffunk"
