@@ -213,8 +213,8 @@ Key points:
 - Raw SQL string filters are not accepted
 
 ---
-```text
 ## Project structure
+```text
 src/ssb_parquedit/
 ├── parquedit.py      # ParquEdit facade — main public API
 ├── connection.py     # DuckDB + DuckLake catalog connection management
