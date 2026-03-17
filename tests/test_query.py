@@ -400,3 +400,137 @@ class TestTableExists:
 
         with pytest.raises(ValueError, match="Invalid table name"):
             query_ops.table_exists("123invalid")
+
+
+class TestListTables:
+    """Test listing all tables in the catalog."""
+
+    def test_list_tables_returns_list(
+        self, query_with_mock_result: tuple[Any, MagicMock]
+    ) -> None:
+        """Test that list_tables returns a list."""
+        query_ops, fake_conn = query_with_mock_result
+
+        # Mock DataFrame with table_name column
+        mock_result = MagicMock()
+        mock_df = MagicMock()
+        mock_df_column = MagicMock()
+        mock_df_column.tolist.return_value = ["users", "products", "orders"]
+        mock_df.__getitem__.return_value = mock_df_column
+        mock_result.df.return_value = mock_df
+        fake_conn.execute.return_value = mock_result
+
+        result = query_ops.list_tables()
+
+        assert isinstance(result, list)
+        assert result == ["users", "products", "orders"]
+
+    def test_list_tables_executes_query(
+        self, query_with_mock_result: tuple[Any, MagicMock]
+    ) -> None:
+        """Test that list_tables executes a query."""
+        query_ops, fake_conn = query_with_mock_result
+
+        # Mock DataFrame
+        mock_result = MagicMock()
+        mock_df = MagicMock()
+        mock_df_column = MagicMock()
+        mock_df_column.tolist.return_value = []
+        mock_df.__getitem__.return_value = mock_df_column
+        mock_result.df.return_value = mock_df
+        fake_conn.execute.return_value = mock_result
+
+        query_ops.list_tables()
+
+        # Should execute a query
+        assert fake_conn.execute.called
+
+    def test_list_tables_queries_information_schema(
+        self, query_with_mock_result: tuple[Any, MagicMock]
+    ) -> None:
+        """Test that list_tables queries the information_schema."""
+        query_ops, fake_conn = query_with_mock_result
+
+        # Mock DataFrame
+        mock_result = MagicMock()
+        mock_df = MagicMock()
+        mock_df_column = MagicMock()
+        mock_df_column.tolist.return_value = []
+        mock_df.__getitem__.return_value = mock_df_column
+        mock_result.df.return_value = mock_df
+        fake_conn.execute.return_value = mock_result
+
+        query_ops.list_tables()
+
+        # Get the executed SQL query
+        call_args = fake_conn.execute.call_args
+        sql_query = call_args[0][0] if call_args[0] else ""
+
+        # Verify it queries information_schema
+        assert "information_schema" in sql_query.lower()
+        assert "table_name" in sql_query.lower()
+
+    def test_list_tables_excludes_system_tables(
+        self, query_with_mock_result: tuple[Any, MagicMock]
+    ) -> None:
+        """Test that list_tables excludes system schema tables."""
+        query_ops, fake_conn = query_with_mock_result
+
+        # Mock DataFrame
+        mock_result = MagicMock()
+        mock_df = MagicMock()
+        mock_df_column = MagicMock()
+        mock_df_column.tolist.return_value = []
+        mock_df.__getitem__.return_value = mock_df_column
+        mock_result.df.return_value = mock_df
+        fake_conn.execute.return_value = mock_result
+
+        query_ops.list_tables()
+
+        # Get the executed SQL query
+        call_args = fake_conn.execute.call_args
+        sql_query = call_args[0][0] if call_args[0] else ""
+
+        # Verify it excludes information_schema schema
+        assert "information_schema" in sql_query.lower()
+        assert "!=" in sql_query or "<>" in sql_query
+
+    def test_list_tables_returns_sorted_results(
+        self, query_with_mock_result: tuple[Any, MagicMock]
+    ) -> None:
+        """Test that list_tables returns results from database query."""
+        query_ops, fake_conn = query_with_mock_result
+
+        # Mock DataFrame with unsorted table names
+        mock_result = MagicMock()
+        mock_df = MagicMock()
+        mock_df_column = MagicMock()
+        mock_df_column.tolist.return_value = ["zebra", "apple", "banana"]
+        mock_df.__getitem__.return_value = mock_df_column
+        mock_result.df.return_value = mock_df
+        fake_conn.execute.return_value = mock_result
+
+        result = query_ops.list_tables()
+
+        # Should contain the tables in the order returned by the database
+        assert result == ["zebra", "apple", "banana"]
+
+    def test_list_tables_with_empty_catalog(
+        self, query_with_mock_result: tuple[Any, MagicMock]
+    ) -> None:
+        """Test list_tables when catalog is empty."""
+        query_ops, fake_conn = query_with_mock_result
+
+        # Mock empty DataFrame
+        mock_result = MagicMock()
+        mock_df = MagicMock()
+        mock_df_column = MagicMock()
+        mock_df_column.tolist.return_value = []
+        mock_df.__getitem__.return_value = mock_df_column
+        mock_result.df.return_value = mock_df
+        fake_conn.execute.return_value = mock_result
+
+        result = query_ops.list_tables()
+
+        assert isinstance(result, list)
+        assert len(result) == 0

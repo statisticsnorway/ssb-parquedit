@@ -1,6 +1,7 @@
 """Query operations for DuckDB tables."""
 
 from typing import Any
+from typing import cast
 
 from .utils import SchemaUtils
 from .utils import SQLSanitizer
@@ -242,3 +243,24 @@ class QueryOperations:
             return True
         except Exception:
             return False
+
+    def list_tables(self) -> list[str]:
+        """List all tables in the current catalog.
+
+        Returns:
+            list[str]: A list of table names in the catalog.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> tables = query.list_tables()
+            >>> print(tables)  # ['users', 'products', 'orders']
+        """
+        query = """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema != 'information_schema'
+                AND table_type = 'BASE TABLE'
+            ORDER BY table_name
+        """
+        result = self.conn.execute(query).df()
+        return cast(list[str], result["table_name"].tolist())
