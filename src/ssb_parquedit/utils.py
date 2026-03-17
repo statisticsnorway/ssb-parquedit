@@ -4,6 +4,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 from typing import ClassVar
+from typing import cast
 
 import pandas as pd
 
@@ -107,6 +108,170 @@ class SQLSanitizer:
         return columns
 
     @staticmethod
+    def _build_comparison_condition(
+        column: str, operator: str, value: Any, params: list[Any]
+    ) -> str:
+        """Build a comparison condition (=, !=, <>, <, >, <=, >=).
+
+        Args:
+            column: Column name.
+            operator: Comparison operator.
+            value: Value to compare.
+            params: Parameters list to append to.
+
+        Returns:
+            WHERE clause fragment.
+
+        Raises:
+            ValueError: If value is None.
+        """
+        if value is None:
+            raise ValueError(f"Operator '{operator}' requires a non-null value")
+        params.append(value)
+        return f"{column} {operator} ?"
+
+    @staticmethod
+    def _build_like_condition(column: str, value: Any, params: list[Any]) -> str:
+        """Build a LIKE condition.
+
+        Args:
+            column: Column name.
+            value: Pattern string.
+            params: Parameters list to append to.
+
+        Returns:
+            WHERE clause fragment.
+
+        Raises:
+            ValueError: If value is not a string.
+        """
+        if not isinstance(value, str):
+            raise ValueError("LIKE operator requires a string value")
+        params.append(value)
+        return f"{column} LIKE ?"
+
+    @staticmethod
+    def _build_in_condition(
+        column: str, operator: str, value: Any, params: list[Any]
+    ) -> str:
+        """Build an IN or NOT IN condition.
+
+        Args:
+            column: Column name.
+            operator: Either 'IN' or 'NOT IN'.
+            value: List/tuple of values.
+            params: Parameters list to append to.
+
+        Returns:
+            WHERE clause fragment.
+
+        Raises:
+            ValueError: If value is not a list/tuple or is empty.
+        """
+        if not isinstance(value, (list, tuple)):
+            raise ValueError(f"{operator} operator requires a list/tuple value")
+        if not value:
+            raise ValueError(f"{operator} operator requires a non-empty list")
+        placeholders = ", ".join("?" * len(value))
+        params.extend(value)
+        return f"{column} {operator} ({placeholders})"
+
+    @staticmethod
+    def _build_between_condition(column: str, value: Any, params: list[Any]) -> str:
+        """Build a BETWEEN condition.
+
+        Args:
+            column: Column name.
+            value: List/tuple with exactly 2 values [min, max].
+            params: Parameters list to append to.
+
+        Returns:
+            WHERE clause fragment.
+
+        Raises:
+            ValueError: If value is not a 2-element list/tuple.
+        """
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            raise ValueError(
+                "BETWEEN operator requires a list/tuple with 2 values [min, max]"
+            )
+        params.extend(value)
+        return f"{column} BETWEEN ? AND ?"
+
+    @staticmethod
+    def _validate_column_name(column: Any) -> None:
+        """Validate column name format.
+
+        Args:
+            column: Column name to validate.
+
+        Raises:
+            SQLInjectionError: If column name is invalid.
+        """
+        if not column or not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column):
+            raise SQLInjectionError(
+                f"Invalid column name: {column}. "
+                "Column names must start with a letter or underscore "
+                "and contain only alphanumeric characters and underscores."
+            )
+
+    @staticmethod
+    def _process_single_condition(condition: Any, params: list[Any]) -> str:
+        """Process a single filter condition and return WHERE clause fragment.
+
+        Args:
+            condition: Condition dict with 'column', 'operator', and 'value' keys.
+            params: Parameters list to append values to.
+
+        Returns:
+            WHERE clause fragment for this condition.
+
+        Raises:
+            TypeError: If condition is not a dict.
+            ValueError: If operator is unsupported or values are invalid.
+        """
+        if not isinstance(condition, dict):
+            raise TypeError("Each filter condition must be a dict")
+
+        column = condition.get("column")
+        operator = condition.get("operator", "").upper()
+        value = condition.get("value")
+
+        # Validate column name
+        SQLSanitizer._validate_column_name(column)
+        # After validation, column is guaranteed to be a str
+        column_str = cast(str, column)
+
+        # Dispatch to appropriate handler based on operator
+        comparison_ops = ("=", "!=", "<>", "<", ">", "<=", ">=")
+        if operator in comparison_ops:
+            return SQLSanitizer._build_comparison_condition(
+                column_str, operator, value, params
+            )
+
+        if operator == "LIKE":
+            return SQLSanitizer._build_like_condition(column_str, value, params)
+
+        in_ops = ("IN", "NOT IN")
+        if operator in in_ops:
+            return SQLSanitizer._build_in_condition(column_str, operator, value, params)
+
+        if operator == "BETWEEN":
+            return SQLSanitizer._build_between_condition(column_str, value, params)
+
+        if operator == "IS NULL":
+            return f"{column_str} IS NULL"
+
+        if operator == "IS NOT NULL":
+            return f"{column_str} IS NOT NULL"
+
+        raise ValueError(
+            f"Unsupported operator: {operator}. "
+            "Supported operators: =, !=, <>, <, >, <=, >=, LIKE, IN, NOT IN, BETWEEN, "
+            "IS NULL, IS NOT NULL"
+        )
+
+    @staticmethod
     def build_where_from_filters(
         filters: dict[str, Any] | list[dict[str, Any]] | str | Any | None,
     ) -> tuple[str | None, list[Any]]:
@@ -129,11 +294,6 @@ class SQLSanitizer:
         Returns:
             Tuple of (where_clause_sql, parameters_list). where_clause_sql is None if no filters.
 
-        Raises:
-            TypeError: If filters is not None, list, or dict; or if condition is not a dict
-            SQLInjectionError: If column names are invalid
-            ValueError: If structure is invalid, operators unsupported, or values are mismatched
-
         Example:
             >>> filters = [
             ...     {"column": "age", "operator": ">", "value": 25},
@@ -146,97 +306,57 @@ class SQLSanitizer:
         if filters is None:
             return None, []
 
+        # Extract condition list and logic operator
+        condition_list, logic = SQLSanitizer._extract_filters(filters)
+
+        # Build WHERE clause from all conditions
         conditions = []
         params: list[Any] = []
 
-        # Determine if input is a list of conditions or a dict with and/or
-        if isinstance(filters, list):
-            condition_list = filters
-            logic = "AND"
-        elif isinstance(filters, dict):
-            # Check for explicit AND/OR logic
-            if "and" in filters:
-                condition_list = filters["and"]
-                logic = "AND"
-            elif "or" in filters:
-                condition_list = filters["or"]
-                logic = "OR"
-            elif "column" in filters:
-                # Single condition dict
-                condition_list = [filters]
-                logic = "AND"
-            else:
-                raise ValueError(
-                    "Filter dict must have 'and'/'or' key or be a single condition with 'column' key"
-                )
-        else:
-            raise TypeError("filters must be None, a list, or a dict")
-
-        # Process each condition
         for condition in condition_list:
-            if not isinstance(condition, dict):
-                raise TypeError("Each filter condition must be a dict")
-
-            column = condition.get("column")
-            operator = condition.get("operator", "").upper()
-            value = condition.get("value")
-
-            # Validate column name
-            if not column or not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column):
-                raise SQLInjectionError(
-                    f"Invalid column name: {column}. "
-                    "Column names must start with a letter or underscore "
-                    "and contain only alphanumeric characters and underscores."
-                )
-
-            # Build condition based on operator
-            if operator in ("=", "!=", "<>", "<", ">", "<=", ">="):
-                if value is None:
-                    raise ValueError(f"Operator '{operator}' requires a non-null value")
-                conditions.append(f"{column} {operator} ?")
-                params.append(value)
-
-            elif operator == "LIKE":
-                if not isinstance(value, str):
-                    raise ValueError("LIKE operator requires a string value")
-                conditions.append(f"{column} LIKE ?")
-                params.append(value)
-
-            elif operator in ("IN", "NOT IN"):
-                if not isinstance(value, (list, tuple)):
-                    raise ValueError(f"{operator} operator requires a list/tuple value")
-                if not value:
-                    raise ValueError(f"{operator} operator requires a non-empty list")
-                placeholders = ", ".join("?" * len(value))
-                conditions.append(f"{column} {operator} ({placeholders})")
-                params.extend(value)
-
-            elif operator == "BETWEEN":
-                if not isinstance(value, (list, tuple)) or len(value) != 2:
-                    raise ValueError(
-                        "BETWEEN operator requires a list/tuple with 2 values [min, max]"
-                    )
-                conditions.append(f"{column} BETWEEN ? AND ?")
-                params.extend(value)
-
-            elif operator == "IS NULL":
-                conditions.append(f"{column} IS NULL")
-
-            elif operator == "IS NOT NULL":
-                conditions.append(f"{column} IS NOT NULL")
-
-            else:
-                raise ValueError(
-                    f"Unsupported operator: {operator}. "
-                    "Supported operators: =, !=, <>, <, >, <=, >=, LIKE, IN, NOT IN, BETWEEN, "
-                    "IS NULL, IS NOT NULL"
-                )
+            sql_fragment = SQLSanitizer._process_single_condition(condition, params)
+            conditions.append(sql_fragment)
 
         if not conditions:
             return None, []
 
         where_clause = f" {logic} ".join(conditions)
         return where_clause, params
+
+    @staticmethod
+    def _extract_filters(
+        filters: dict[str, Any] | list[dict[str, Any]] | str | Any,
+    ) -> tuple[list[Any], str]:
+        """Extract condition list and logic operator from filter input.
+
+        Args:
+            filters: Filter specification (list or dict).
+
+        Returns:
+            Tuple of (condition_list, logic_operator).
+
+        Raises:
+            TypeError: If filters is not a list or dict.
+            ValueError: If dict structure is invalid.
+        """
+        if isinstance(filters, list):
+            return filters, "AND"
+
+        if isinstance(filters, dict):
+            if "and" in filters:
+                return filters["and"], "AND"
+
+            if "or" in filters:
+                return filters["or"], "OR"
+
+            if "column" in filters:
+                return [filters], "AND"
+
+            raise ValueError(
+                "Filter dict must have 'and'/'or' key or be a single condition with 'column' key"
+            )
+
+        raise TypeError("filters must be None, a list, or a dict")
 
 
 class SchemaUtils:
