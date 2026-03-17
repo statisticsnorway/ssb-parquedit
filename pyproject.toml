@@ -6,7 +6,7 @@ authors = [{ name = "Team Fellesfunksjoner", email = "osn@ssb.no" }]
 maintainers = [{ name = "Statistics Norway, Data enablement Department (724)" }]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.11,<4.0"
+requires-python = ">=3.10"
 dynamic = ["classifiers"]
 dependencies = [
     "click>=8.0.1",
