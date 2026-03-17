@@ -264,6 +264,7 @@ class QueryOperations:
             WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'memory')
                 AND table_type = 'BASE TABLE'
                 AND table_schema NOT LIKE '\\_%' ESCAPE '\\'
+                AND table_name NOT LIKE 'ducklake%'
             ORDER BY table_name
         """
         result = self.conn.execute(query).df()
