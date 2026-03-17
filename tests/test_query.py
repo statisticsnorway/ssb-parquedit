@@ -473,7 +473,7 @@ class TestListTables:
     def test_list_tables_excludes_system_tables(
         self, query_with_mock_result: tuple[Any, MagicMock]
     ) -> None:
-        """Test that list_tables excludes system schema tables."""
+        """Test that list_tables excludes DuckLake metadata and system schema tables."""
         query_ops, fake_conn = query_with_mock_result
 
         # Mock DataFrame
@@ -493,7 +493,10 @@ class TestListTables:
 
         # Verify it excludes information_schema schema
         assert "information_schema" in sql_query.lower()
-        assert "!=" in sql_query or "<>" in sql_query
+        assert "pg_catalog" in sql_query.lower()
+        assert "memory" in sql_query.lower()
+        # Verify it excludes schemas starting with underscore (internal/metadata tables)
+        assert "\\_" in sql_query
 
     def test_list_tables_returns_sorted_results(
         self, query_with_mock_result: tuple[Any, MagicMock]
