@@ -202,12 +202,6 @@ class ParquEdit:
 
         Returns:
             list[str]: A list of table names in the catalog, sorted alphabetically.
-
-        Example:
-            >>> # doctest: +SKIP
-            >>> pe = ParquEdit()
-            >>> tables = pe.list_tables()
-            >>> print(tables)  # ['products', 'users']
         """
         with self._get_connection() as conn:
             query = QueryOperations(conn)

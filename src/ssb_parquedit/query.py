@@ -247,7 +247,8 @@ class QueryOperations:
     def list_tables(self) -> list[str]:
         """List all user-created tables in the DuckLake catalog.
 
-        Returns only tables created through DuckLake, excluding internal
+        Uses DuckLake's SHOW TABLES command to retrieve only tables
+        created through DuckLake, automatically excluding internal
         metadata and system tables.
 
         Returns:
@@ -258,14 +259,5 @@ class QueryOperations:
             >>> tables = query.list_tables()
             >>> print(tables)  # ['products', 'users']
         """
-        query = """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'memory')
-                AND table_type = 'BASE TABLE'
-                AND table_schema NOT LIKE '\\_%' ESCAPE '\\'
-                AND table_name NOT LIKE 'ducklake%'
-            ORDER BY table_name
-        """
-        result = self.conn.execute(query).df()
-        return cast(list[str], result["table_name"].tolist())
+        result = self.conn.execute("SHOW TABLES").df()
+        return cast(list[str], result["name"].tolist())
