@@ -1,6 +1,7 @@
 """Query operations for DuckDB tables."""
 
 from typing import Any
+from typing import cast
 
 from .utils import SchemaUtils
 from .utils import SQLSanitizer
@@ -242,3 +243,21 @@ class QueryOperations:
             return True
         except Exception:
             return False
+
+    def list_tables(self) -> list[str]:
+        """List all user-created tables in the DuckLake catalog.
+
+        Uses DuckLake's SHOW TABLES command to retrieve only tables
+        created through DuckLake, automatically excluding internal
+        metadata and system tables.
+
+        Returns:
+            list[str]: A list of user-created table names in the catalog.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> tables = query.list_tables()
+            >>> print(tables)  # ['products', 'users']
+        """
+        result = self.conn.execute("SHOW TABLES").df()
+        return cast(list[str], result["name"].tolist())

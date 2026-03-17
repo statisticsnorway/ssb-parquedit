@@ -196,3 +196,13 @@ class ParquEdit:
         with self._get_connection() as conn:
             query = QueryOperations(conn)
             return query.table_exists(table_name)
+
+    def list_tables(self) -> list[str]:
+        """List all tables in the current catalog.
+
+        Returns:
+            list[str]: A list of table names in the catalog, sorted alphabetically.
+        """
+        with self._get_connection() as conn:
+            query = QueryOperations(conn)
+            return query.list_tables()

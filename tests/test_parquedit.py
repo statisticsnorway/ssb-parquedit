@@ -162,3 +162,68 @@ def test_exists_calls_connection(sut: Any, db_config: dict[str, str]) -> None:
 
     # Verify that the connection was used
     mock_conn.__enter__.assert_called_once()
+
+
+# -------------------- List Tables Tests --------------------
+
+
+def test_list_tables_calls_connection(sut: Any, db_config: dict[str, str]) -> None:
+    """Test that list_tables creates and uses a connection."""
+    pe = sut(config=db_config)
+
+    # Mock the connection
+    mock_conn = MagicMock()
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=None)
+
+    with patch.object(pe, "_get_connection", return_value=mock_conn):
+        pe.list_tables()
+
+    # Verify that the connection was used
+    mock_conn.__enter__.assert_called_once()
+
+
+def test_list_tables_returns_list(sut: Any, db_config: dict[str, str]) -> None:
+    """Test that list_tables returns a list of table names."""
+    pe = sut(config=db_config)
+
+    # Mock the connection and QueryOperations
+    mock_conn = MagicMock()
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=None)
+
+    expected_tables = ["users", "products", "orders"]
+
+    with patch.object(pe, "_get_connection", return_value=mock_conn):
+        with patch("ssb_parquedit.parquedit.QueryOperations") as mock_query_class:
+            mock_query_instance = MagicMock()
+            mock_query_instance.list_tables.return_value = expected_tables
+            mock_query_class.return_value = mock_query_instance
+
+            result = pe.list_tables()
+
+            assert isinstance(result, list)
+            assert result == expected_tables
+
+
+def test_list_tables_returns_empty_list_when_no_tables(
+    sut: Any, db_config: dict[str, str]
+) -> None:
+    """Test that list_tables returns empty list when no tables exist."""
+    pe = sut(config=db_config)
+
+    # Mock the connection and QueryOperations
+    mock_conn = MagicMock()
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=None)
+
+    with patch.object(pe, "_get_connection", return_value=mock_conn):
+        with patch("ssb_parquedit.parquedit.QueryOperations") as mock_query_class:
+            mock_query_instance = MagicMock()
+            mock_query_instance.list_tables.return_value = []
+            mock_query_class.return_value = mock_query_instance
+
+            result = pe.list_tables()
+
+            assert isinstance(result, list)
+            assert len(result) == 0

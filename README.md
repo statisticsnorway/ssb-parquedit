@@ -25,6 +25,7 @@
 [poetry]: https://python-poetry.org/
 
 A Python package for manually editing tabular data stored as Parquet files on [DaplaLab](https://manual.dapla.ssb.no/) — Statistics Norway's cloud data platform. Built on top of [DuckDB](https://duckdb.org/) and the [DuckLake](https://ducklake.select/) catalog, it provides a clean, SQL-injection-safe Python interface for creating tables, inserting data, and querying results directly from Google Cloud Storage (GCS).
+Intended use on single-table editing. Does not support primary- and foreign keys.
 
 ---
 
@@ -199,6 +200,11 @@ active_adults = con.count("my_table", filters=[
 ```python
 if con.exists("my_table"):
     print("Table found")
+```
+
+### List all tables
+```python
+con.list_tables()
 ```
 
 ---
