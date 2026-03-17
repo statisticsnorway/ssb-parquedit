@@ -13,14 +13,12 @@ delete the .rst file afterwards.
 
 ```{eval-rst}
 ssb\_parquedit package
-=============================================================================
+======================
 
+ssb\_parquedit.parquedit module
+-------------------------------
 
-ssb\_parquedit.functions module
------------------------------------------------------------------------------
-
-.. automodule:: ssb_parquedit.functions
+.. automodule:: ssb_parquedit.parquedit
    :members:
-   :undoc-members:
    :show-inheritance:
-```
+   :undoc-members:

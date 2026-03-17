@@ -185,7 +185,14 @@ class ParquEdit:
             return query.count(table_name, filters)
 
     def exists(self, table_name: str) -> bool:
-        """Check if table exists. See QueryOperations.table_exists for details."""
+        """Check if a table exists in the database.
+
+        Args:
+            table_name: The name of the table to check for existence.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+        """
         with self._get_connection() as conn:
             query = QueryOperations(conn)
             return query.table_exists(table_name)
