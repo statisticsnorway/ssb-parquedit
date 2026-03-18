@@ -31,15 +31,16 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 
 ## Features
 
+- **Auto-configuration** — reads Dapla environment variables to build connection config automatically
+- **DuckLake catalog integration** — metadata stored in PostgreSQL, data stored in GCS
 - **Create tables** from a pandas DataFrame, a JSON Schema dict, or an existing GCS Parquet file
 - **Insert data** from a pandas DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `_id` (UUID)
 - **Query tables** with structured filters, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
 - **Count rows** with optional structured filter conditions
 - **Check table existence** safely
 - **Partition tables** by one or more columns
-- **DuckLake catalog integration** — metadata stored in PostgreSQL, data stored in GCS
 - **SQL injection prevention** — all user-supplied filter values are parameterized; column names, table names, and `ORDER BY` clauses are validated against strict allowlists
-- **Auto-configuration** — reads Dapla environment variables to build connection config automatically
+
 
 ---
 
@@ -76,21 +77,12 @@ poetry add ssb-parquedit
 
 ### Basic setup
 
-`ParquEdit` reads its connection configuration automatically from Dapla environment variables. You can also pass a custom config dict.
+`ParquEdit` reads its connection configuration automatically from Dapla environment variables. 
 ```python
 from ssb_parquedit import ParquEdit
 
 # Auto-configure from environment
 con = ParquEdit()
-
-# Or pass a custom config
-con = ParquEdit(config={
-    "dbname": "my-database",
-    "dbuser": "my-group@dapla-group-sa-t-57.iam",
-    "data_path": "gs://my-bucket/.parquedit_data",
-    "catalog_name": "my_catalog",
-    "metadata_schema": "my_schema",
-})
 ```
 
 ### Creating a table
@@ -211,7 +203,7 @@ con.list_tables()
 
 ## Security
 
-SSB Parquedit is designed with SQL injection prevention as a first-class concern. See [SQL_INJECTION_PREVENTION.md](https://github.com/statisticsnorway/ssb-parquedit/blob/main/SQL_INJECTION_PREVENTION.md) and [STRUCTURED_FILTERS.md](https://github.com/statisticsnorway/ssb-parquedit/blob/main/STRUCTURED_FILTERS.md) for a detailed description of the sanitization strategy.
+SSB Parquedit is designed with SQL injection prevention as a first-class concern. 
 
 Key points:
 - All filter **values** are passed as parameterized query parameters (never interpolated into SQL strings)
