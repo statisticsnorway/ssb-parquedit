@@ -77,7 +77,7 @@ poetry add ssb-parquedit
 
 ### Basic setup
 
-`ParquEdit` reads its connection configuration automatically from Dapla environment variables. 
+`ParquEdit` reads its connection configuration automatically from Dapla environment variables.
 ```python
 from ssb_parquedit import ParquEdit
 
@@ -203,7 +203,7 @@ con.list_tables()
 
 ## Security
 
-SSB Parquedit is designed with SQL injection prevention as a first-class concern. 
+SSB Parquedit is designed with SQL injection prevention as a first-class concern.
 
 Key points:
 - All filter **values** are passed as parameterized query parameters (never interpolated into SQL strings)
