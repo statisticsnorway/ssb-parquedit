@@ -64,6 +64,10 @@ def stub_external_modules(
                 df.dtypes = self.dtypes.copy()
                 return df
 
+            def __setitem__(self, col: str, value: Any) -> None:
+                """Set a column value."""
+                self._data[col] = value
+
             def __len__(self) -> int:
                 """Return the number of rows in the DataFrame."""
                 if self._data:
@@ -83,8 +87,8 @@ def stub_external_modules(
                 return FakePandas.Series(self._data.get(col, []))
 
         class Series:
-            def __init__(self, data: list[Any]) -> None:
-                self.dtype = object
+            def __init__(self, data: Any, dtype: Any = None) -> None:
+                self.dtype = dtype or object
                 self._data = data
 
             def astype(self, dtype: Any) -> "FakePandas.Series":

@@ -1,5 +1,6 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
 
+import uuid
 from typing import Any
 
 import pandas as pd
@@ -65,6 +66,8 @@ class DMLOperations:
         SchemaUtils.validate_table_name(table_name)
 
         df_copy = data.copy()
+
+        df_copy.insert(0, "_id", [str(uuid.uuid4()) for _ in range(len(df_copy))])
 
         # target table's column types by name,
         col_types = {
