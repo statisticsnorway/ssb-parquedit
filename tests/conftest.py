@@ -13,7 +13,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def stub_external_modules(
     monkeypatch: pytest.MonkeyPatch,
-) -> Generator[None, None, None]:
+) -> Generator[None]:
     """Stub external heavy dependencies (duckdb, gcsfs, pandas) so tests run hermetically.
 
     We inject minimal fakes into sys.modules prior to importing ssb_parquedit.parquedit.
