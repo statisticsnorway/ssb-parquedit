@@ -49,14 +49,19 @@ def stub_external_modules(
 
         class DataFrame:
             def __init__(self) -> None:
-                # Empty dict for dtypes attribute that has .items() method
                 self.dtypes: dict[Any, Any] = {}
                 self._data: dict[str, list[Any]] = {}
+
+            @property
+            def columns(self) -> list[str]:
+                """Return column names."""
+                return list(self._data.keys())
 
             def copy(self) -> "FakePandas.DataFrame":
                 """Return a shallow copy of the DataFrame."""
                 df = FakePandas.DataFrame()
                 df._data = self._data.copy()
+                df.dtypes = self.dtypes.copy()
                 return df
 
             def __len__(self) -> int:
@@ -67,16 +72,60 @@ def stub_external_modules(
 
             def insert(self, loc: int, column: str, value: Any) -> None:
                 """Insert a column into the DataFrame at the given location."""
-                # For our stub, just add it to the _data dict
                 self._data[column] = value if isinstance(value, list) else [value]
 
             def astype(self, dtype_dict: dict[str, Any]) -> "FakePandas.DataFrame":
                 """Return a copy with specified columns converted to new types."""
                 return self.copy()
 
+            def __getitem__(self, col: str) -> "FakePandas.Series":
+                """Return a Series for the given column."""
+                return FakePandas.Series(self._data.get(col, []))
+
+        class Series:
+            def __init__(self, data: list[Any]) -> None:
+                self.dtype = object
+                self._data = data
+
+            def astype(self, dtype: Any) -> "FakePandas.Series":
+                return FakePandas.Series(self._data)
+
+            def where(self, cond: Any, other: Any = None) -> "FakePandas.Series":
+                return FakePandas.Series(self._data)
+
+            def isna(self) -> "FakePandas.Series":
+                return FakePandas.Series([False] * len(self._data))
+
+            def notna(self) -> "FakePandas.Series":
+                return FakePandas.Series([True] * len(self._data))
+
+        @staticmethod
+        def to_numeric(series: Any, errors: str = "raise") -> "FakePandas.Series":
+            """Stub for pd.to_numeric."""
+            return FakePandas.Series([])
+
+    # Fake pyarrow module
+    class FakePyArrow:
+        class Table:
+            def __init__(self) -> None:
+                self.schema = FakePyArrow.Schema([])
+
+            @staticmethod
+            def from_pandas(
+                df: Any, preserve_index: bool = True
+            ) -> "FakePyArrow.Table":
+                t = FakePyArrow.Table()
+                t.schema = FakePyArrow.Schema(list(df.columns))
+                return t
+
+        class Schema:
+            def __init__(self, names: list[str]) -> None:
+                self.names = names
+
     monkeypatch.setitem(sys.modules, "duckdb", FakeDuckDB())
     monkeypatch.setitem(sys.modules, "gcsfs", FakeGCSFS())
     monkeypatch.setitem(sys.modules, "pandas", FakePandas())
+    monkeypatch.setitem(sys.modules, "pyarrow", FakePyArrow())
 
     yield
 
@@ -95,18 +144,16 @@ def sut() -> Any:
 def fake_conn() -> MagicMock:
     """A MagicMock simulating a DuckDB connection."""
     conn = MagicMock()
-    # Provide attributes/methods that ParquEdit expects
-    # - register_filesystem(fs)
-    # - sql(str)
-    # - execute(str)
-    # - register(name, obj)
-    # - close()
-    # Use wraps to capture SQL calls distinctly
     conn.sql = MagicMock()
-    conn.execute = MagicMock()
     conn.register = MagicMock()
     conn.register_filesystem = MagicMock()
     conn.close = MagicMock()
+
+    # DESCRIBE and other fetchall() calls return empty list by default
+    mock_result = MagicMock()
+    mock_result.fetchall.return_value = []
+    conn.execute.return_value = mock_result
+
     return conn
 
 
