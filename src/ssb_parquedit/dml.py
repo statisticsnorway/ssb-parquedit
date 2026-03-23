@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 import pandas as pd
+import pyarrow as pa
 
 from .utils import SchemaUtils
 
@@ -66,23 +67,28 @@ class DMLOperations:
 
         df_copy = data.copy()
 
-        # Insert _id as first column with string UUIDs
         df_copy.insert(0, "_id", [str(uuid.uuid4()) for _ in range(len(df_copy))])
 
-        # Convert StringDtype columns to object dtype for broader compatibility
-        if isinstance(df_copy, pd.DataFrame):
-            df_copy = df_copy.astype(
-                {
-                    col: object
-                    for col, dtype in df_copy.dtypes.items()
-                    if isinstance(dtype, pd.StringDtype)
-                }
-            )
+        # target table's column types by name,
+        col_types = {
+            row[0]: row[1]
+            for row in self.conn.execute(f"DESCRIBE {table_name}").fetchall()
+        }
 
-        self.conn.register("data", df_copy)
+        # force the pandas column to pure Python str, Arrow will infer int64 if early values look numeric
+        for col in df_copy.columns:
+            if col_types.get(col) == "VARCHAR":
+                df_copy[col] = df_copy[col].astype(str)
+            elif col_types.get(col) == "BIGINT":
+                df_copy[col] = pd.Series(
+                    pd.to_numeric(df_copy[col], errors="coerce"), dtype="Int64"
+                )
 
-        # Insert into table - table name is validated, so safe to interpolate
-        self.conn.execute(f"INSERT INTO {table_name} SELECT * FROM data")
+        arrow_table = pa.Table.from_pandas(df_copy, preserve_index=False)
+        self.conn.register("data", arrow_table)
+
+        cols = ", ".join(arrow_table.schema.names)
+        self.conn.execute(f"INSERT INTO {table_name} ({cols}) SELECT * FROM data")
 
     def _insert_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Insert data from a Parquet file into a table.

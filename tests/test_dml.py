@@ -100,6 +100,66 @@ class TestInsertDataFromDataFrame:
         # This is hard to verify directly with mocks, but we can check the register was called
         assert fake_conn.register.called
 
+    def test_insert_casts_varchar_columns(
+        self, sut_dml: Any, fake_conn: MagicMock
+    ) -> None:
+        """VARCHAR columns are cast to str before Arrow conversion."""
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = [
+            ("_id", "VARCHAR", "YES", None, None, None),
+            ("refnr", "VARCHAR", "NO", None, None, None),
+        ]
+        fake_conn.execute.return_value = mock_result
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+        df._data = {"refnr": [123, 456]}
+
+        dml_ops: Any = sut_dml(fake_conn)
+        dml_ops.insert_data("users", df)
+
+        assert fake_conn.register.called
+        assert fake_conn.execute.called
+
+    def test_insert_casts_bigint_columns(
+        self, sut_dml: Any, fake_conn: MagicMock
+    ) -> None:
+        """BIGINT columns are cast to Int64 before Arrow conversion."""
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = [
+            ("_id", "VARCHAR", "YES", None, None, None),
+            ("dybde", "BIGINT", "YES", None, None, None),
+        ]
+        fake_conn.execute.return_value = mock_result
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+        df._data = {"dybde": ["1", "2", "3"]}
+
+        dml_ops: Any = sut_dml(fake_conn)
+        dml_ops.insert_data("users", df)
+
+        assert fake_conn.register.called
+        assert fake_conn.execute.called
+
+    def test_insert_adds_id_column(self, sut_dml: Any, fake_conn: MagicMock) -> None:
+        """_id column is prepended with UUID values."""
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = [
+            ("_id", "VARCHAR", "YES", None, None, None),
+        ]
+        fake_conn.execute.return_value = mock_result
+
+        DF = sys.modules["pandas"].DataFrame
+        df = DF()
+
+        dml_ops: Any = sut_dml(fake_conn)
+        dml_ops.insert_data("users", df)
+
+        # Arrow table registered should include _id
+        register_call = fake_conn.register.call_args
+        assert register_call[0][0] == "data"
+
 
 class TestInsertDataFromParquet:
     """Test data insertion from Parquet file."""
