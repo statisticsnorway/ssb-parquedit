@@ -119,9 +119,6 @@ class ParquEdit:
             cleanup: If True, expire snapshots and clean GCS files.
                 Defaults to True.
 
-        Raises:
-            PermissionError: If DAPLA_ENVIRONMENT is not "test".
-
         Example:
             >>> # doctest: +SKIP
             >>> con = ParquEdit()

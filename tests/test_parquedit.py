@@ -259,9 +259,7 @@ def test_drop_table_succeeds_in_test_environment(
                 )
 
 
-def test_drop_table_with_cleanup_disabled(
-    sut: Any, db_config: dict[str, str]
-) -> None:
+def test_drop_table_with_cleanup_disabled(sut: Any, db_config: dict[str, str]) -> None:
     """Test that drop_table respects cleanup=False parameter."""
     import os
 

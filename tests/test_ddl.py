@@ -344,7 +344,8 @@ class TestDropTable:
     ) -> None:
         """Test that drop_table with cleanup=True attempts cleanup operations."""
         import os
-        from unittest.mock import patch, MagicMock as MockMock
+        from unittest.mock import MagicMock as MockMock
+        from unittest.mock import patch
 
         db_config_with_path = db_config.copy()
         db_config_with_path["data_path"] = "gs://test-bucket/test-path"
@@ -366,7 +367,10 @@ class TestDropTable:
                 ddl_ops.drop_table("users", cleanup=True)
 
                 # Verify DROP TABLE was called
-                assert any("DROP TABLE users" in str(call) for call in fake_conn.execute.call_args_list)
+                assert any(
+                    "DROP TABLE users" in str(call)
+                    for call in fake_conn.execute.call_args_list
+                )
                 # Verify GCS cleanup was attempted
                 mock_fs.rm.assert_called()
 
@@ -375,7 +379,8 @@ class TestDropTable:
     ) -> None:
         """Test that cleanup falls back to constructed path if location query fails."""
         import os
-        from unittest.mock import patch, MagicMock as MockMock
+        from unittest.mock import MagicMock as MockMock
+        from unittest.mock import patch
 
         db_config_with_path = db_config.copy()
         db_config_with_path["data_path"] = "gs://test-bucket/test-path"
@@ -410,7 +415,8 @@ class TestDropTable:
     ) -> None:
         """Test that cleanup gracefully handles missing GCS paths."""
         import os
-        from unittest.mock import patch, MagicMock as MockMock
+        from unittest.mock import MagicMock as MockMock
+        from unittest.mock import patch
 
         ddl_ops = sut_ddl(fake_conn, db_config)
 
@@ -426,14 +432,18 @@ class TestDropTable:
             ddl_ops.drop_table("users", cleanup=True)
 
             # Verify DROP TABLE was still called
-            assert any("DROP TABLE users" in str(call) for call in fake_conn.execute.call_args_list)
+            assert any(
+                "DROP TABLE users" in str(call)
+                for call in fake_conn.execute.call_args_list
+            )
 
     def test_drop_table_cleanup_handles_invalid_gcs_path_format(
         self, sut_ddl: Any, fake_conn: MagicMock, db_config: dict[str, str]
     ) -> None:
         """Test that cleanup handles invalid GCS path format."""
         import os
-        from unittest.mock import patch, MagicMock as MockMock
+        from unittest.mock import MagicMock as MockMock
+        from unittest.mock import patch
 
         db_config_invalid = db_config.copy()
         db_config_invalid["data_path"] = "/invalid/local/path"
@@ -450,4 +460,7 @@ class TestDropTable:
             ddl_ops.drop_table("users", cleanup=True)
 
             # Verify DROP TABLE was called
-            assert any("DROP TABLE users" in str(call) for call in fake_conn.execute.call_args_list)
+            assert any(
+                "DROP TABLE users" in str(call)
+                for call in fake_conn.execute.call_args_list
+            )

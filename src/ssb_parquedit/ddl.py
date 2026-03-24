@@ -4,8 +4,8 @@ import logging
 import re
 from typing import Any
 
-import pandas as pd
 import gcsfs
+import pandas as pd
 
 from .functions import get_dapla_environment
 from .utils import SchemaUtils
@@ -26,7 +26,9 @@ class DDLOperations:
     - Table descriptions/comments
     """
 
-    def __init__(self, connection: Any, db_config: dict[str, str] | None = None) -> None:
+    def __init__(
+        self, connection: Any, db_config: dict[str, str] | None = None
+    ) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
@@ -106,7 +108,6 @@ class DDLOperations:
         Raises:
             PermissionError: If DAPLA_ENVIRONMENT is not "test".
             ValueError: If table_name is invalid.
-            RuntimeError: If cleanup=True but db_config is not available.
 
         Returns:
             None
@@ -146,7 +147,9 @@ class DDLOperations:
 
         # Execute drop
         self.conn.execute(f"DROP TABLE {table_name}")
-        logger.warning(f"Dropped table: {table_name} from {environment.upper()} environment")
+        logger.warning(
+            f"Dropped table: {table_name} from {environment.upper()} environment"
+        )
 
         # Perform cleanup if enabled and location was retrieved
         if cleanup and table_location:
@@ -167,8 +170,8 @@ class DDLOperations:
         """
         try:
             result = self.conn.execute(
-                f"SELECT location FROM information_schema.tables WHERE table_name = ?"
-                f" AND table_schema = CURRENT_SCHEMA()",
+                "SELECT location FROM information_schema.tables WHERE table_name = ?"
+                " AND table_schema = CURRENT_SCHEMA()",
                 [table_name],
             )
             rows = result.fetchall()
@@ -198,11 +201,11 @@ class DDLOperations:
             # DuckLake/Delta Lake snapshot expiration
             # Note: After DROP TABLE, the table is gone from catalog but metadata files remain
             self.conn.execute(
-                f"CALL delta_catalog.expire_snapshots("
-                f"schema_name => CURRENT_SCHEMA(), "
-                f"table_name => ?, "
-                f"older_than => CURRENT_TIMESTAMP - INTERVAL 7 DAY"
-                f")",
+                "CALL delta_catalog.expire_snapshots("
+                "schema_name => CURRENT_SCHEMA(), "
+                "table_name => ?, "
+                "older_than => CURRENT_TIMESTAMP - INTERVAL 7 DAY"
+                ")",
                 [table_name],
             )
             logger.info(f"Expired snapshots for {table_name}")
@@ -228,7 +231,7 @@ class DDLOperations:
                 logger.warning(f"Invalid GCS path format: {table_location}")
                 return
 
-            bucket_name, path_prefix = match.groups()
+            _bucket_name, _path_prefix = match.groups()
 
             # Initialize GCS filesystem
             fs = gcsfs.GCSFileSystem()
