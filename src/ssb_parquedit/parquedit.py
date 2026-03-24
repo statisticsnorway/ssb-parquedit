@@ -63,7 +63,7 @@ class ParquEdit:
             )
 
         with self._get_connection() as conn:
-            ddl = DDLOperations(conn)
+            ddl = DDLOperations(conn, self._db_config)
             dml = DMLOperations(conn)
 
             if (
@@ -103,24 +103,34 @@ class ParquEdit:
 
             conn._conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
 
-    def drop_table(self, table_name: str) -> None:
-        """Drop a table from the DuckLake catalog.
+    def drop_table(self, table_name: str, cleanup: bool = True) -> None:
+        """Drop a table from the DuckLake catalog with optional cleanup.
 
         Table deletion is only allowed in the TEST environment to prevent
         accidental data loss in production. In PROD or other environments,
         this method will raise a PermissionError.
 
+        Optionally performs comprehensive cleanup:
+        - Expires snapshots (removes old transaction logs from metadata)
+        - Cleans GCS bucket (removes orphaned Parquet files)
+
         Args:
             table_name: Name of the table to drop.
+            cleanup: If True, expire snapshots and clean GCS files.
+                Defaults to True.
+
+        Raises:
+            PermissionError: If DAPLA_ENVIRONMENT is not "test".
 
         Example:
             >>> # doctest: +SKIP
             >>> con = ParquEdit()
-            >>> con.drop_table("temporary_table")  # Only works in TEST environment
+            >>> con.drop_table("temporary_table")  # Drop with cleanup
+            >>> con.drop_table("temp_table", cleanup=False)  # Drop only
         """
         with self._get_connection() as conn:
-            ddl = DDLOperations(conn)
-            ddl.drop_table(table_name)
+            ddl = DDLOperations(conn, self._db_config)
+            ddl.drop_table(table_name, cleanup=cleanup)
 
     # ============ DML Operations ============
 

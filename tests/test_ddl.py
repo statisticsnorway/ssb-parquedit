@@ -321,3 +321,133 @@ class TestDropTable:
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
             with pytest.raises(ValueError, match="Invalid table name"):
                 ddl_ops.drop_table("123invalid")
+
+    def test_drop_table_with_cleanup_disabled(
+        self, sut_ddl: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that drop_table with cleanup=False skips cleanup operations."""
+        import os
+        from unittest.mock import patch
+
+        ddl_ops = sut_ddl(fake_conn, db_config)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            ddl_ops.drop_table("users", cleanup=False)
+
+            # Verify DROP TABLE was called
+            fake_conn.execute.assert_called()
+            call_args = fake_conn.execute.call_args[0][0]
+            assert "DROP TABLE users" in call_args
+
+    def test_drop_table_with_cleanup_enabled(
+        self, sut_ddl: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that drop_table with cleanup=True attempts cleanup operations."""
+        import os
+        from unittest.mock import patch, MagicMock as MockMock
+
+        db_config_with_path = db_config.copy()
+        db_config_with_path["data_path"] = "gs://test-bucket/test-path"
+
+        ddl_ops = sut_ddl(fake_conn, db_config_with_path)
+
+        # Mock table location retrieval
+        fake_conn.execute.return_value = MockMock()
+        fake_conn.execute.return_value.fetchall.return_value = [
+            ("gs://test-bucket/test-path/users",)
+        ]
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            with patch("ssb_parquedit.ddl.gcsfs.GCSFileSystem") as mock_gcs:
+                mock_fs = MockMock()
+                mock_fs.exists.return_value = True
+                mock_gcs.return_value = mock_fs
+
+                ddl_ops.drop_table("users", cleanup=True)
+
+                # Verify DROP TABLE was called
+                assert any("DROP TABLE users" in str(call) for call in fake_conn.execute.call_args_list)
+                # Verify GCS cleanup was attempted
+                mock_fs.rm.assert_called()
+
+    def test_drop_table_cleanup_falls_back_to_constructed_path(
+        self, sut_ddl: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that cleanup falls back to constructed path if location query fails."""
+        import os
+        from unittest.mock import patch, MagicMock as MockMock
+
+        db_config_with_path = db_config.copy()
+        db_config_with_path["data_path"] = "gs://test-bucket/test-path"
+
+        ddl_ops = sut_ddl(fake_conn, db_config_with_path)
+
+        # Mock execute to fail for table location query but succeed for DROP
+        def execute_side_effect(*args: Any, **kwargs: Any) -> Any:
+            if "SELECT location" in str(args[0]):
+                raise Exception("Query failed")
+            return MockMock()
+
+        fake_conn.execute.side_effect = execute_side_effect
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            with patch("ssb_parquedit.ddl.gcsfs.GCSFileSystem") as mock_gcs:
+                mock_fs = MockMock()
+                mock_fs.exists.return_value = True
+                mock_gcs.return_value = mock_fs
+
+                # Should succeed and use fallback path: gs://test-bucket/test-path/users
+                ddl_ops.drop_table("users", cleanup=True)
+
+                # Verify GCS cleanup used fallback path
+                expected_path = "gs://test-bucket/test-path/users"
+                assert any(
+                    expected_path in str(call) for call in mock_fs.rm.call_args_list
+                )
+
+    def test_drop_table_cleanup_handles_missing_gcs_path(
+        self, sut_ddl: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that cleanup gracefully handles missing GCS paths."""
+        import os
+        from unittest.mock import patch, MagicMock as MockMock
+
+        ddl_ops = sut_ddl(fake_conn, db_config)
+
+        def execute_side_effect(*args: Any, **kwargs: Any) -> Any:
+            if "SELECT location" in str(args[0]):
+                raise Exception("Query failed")
+            return MockMock()
+
+        fake_conn.execute.side_effect = execute_side_effect
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            # Should succeed even though cleanup will fail due to no db_config data_path
+            ddl_ops.drop_table("users", cleanup=True)
+
+            # Verify DROP TABLE was still called
+            assert any("DROP TABLE users" in str(call) for call in fake_conn.execute.call_args_list)
+
+    def test_drop_table_cleanup_handles_invalid_gcs_path_format(
+        self, sut_ddl: Any, fake_conn: MagicMock, db_config: dict[str, str]
+    ) -> None:
+        """Test that cleanup handles invalid GCS path format."""
+        import os
+        from unittest.mock import patch, MagicMock as MockMock
+
+        db_config_invalid = db_config.copy()
+        db_config_invalid["data_path"] = "/invalid/local/path"
+
+        ddl_ops = sut_ddl(fake_conn, db_config_invalid)
+
+        fake_conn.execute.return_value = MockMock()
+        fake_conn.execute.return_value.fetchall.return_value = [
+            ("/invalid/local/path/users",)
+        ]
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            # Should succeed despite invalid path format
+            ddl_ops.drop_table("users", cleanup=True)
+
+            # Verify DROP TABLE was called
+            assert any("DROP TABLE users" in str(call) for call in fake_conn.execute.call_args_list)

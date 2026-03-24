@@ -253,7 +253,36 @@ def test_drop_table_succeeds_in_test_environment(
 
                 pe.drop_table("temporary_table")
 
-                mock_ddl_instance.drop_table.assert_called_once_with("temporary_table")
+                # Should be called with cleanup=True by default
+                mock_ddl_instance.drop_table.assert_called_once_with(
+                    "temporary_table", cleanup=True
+                )
+
+
+def test_drop_table_with_cleanup_disabled(
+    sut: Any, db_config: dict[str, str]
+) -> None:
+    """Test that drop_table respects cleanup=False parameter."""
+    import os
+
+    pe = sut(config=db_config)
+
+    # Mock the connection and DDLOperations
+    mock_conn = MagicMock()
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=None)
+
+    with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+        with patch.object(pe, "_get_connection", return_value=mock_conn):
+            with patch("ssb_parquedit.parquedit.DDLOperations") as mock_ddl_class:
+                mock_ddl_instance = MagicMock()
+                mock_ddl_class.return_value = mock_ddl_instance
+
+                pe.drop_table("temporary_table", cleanup=False)
+
+                mock_ddl_instance.drop_table.assert_called_once_with(
+                    "temporary_table", cleanup=False
+                )
 
 
 def test_drop_table_fails_in_prod_environment(
