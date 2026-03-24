@@ -118,7 +118,6 @@ class DDLOperations:
         # Execute drop
         self.conn.execute(f"DROP TABLE {table_name}")
 
-
     def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
         """Create an empty table from a DataFrame schema.
 

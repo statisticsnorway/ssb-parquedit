@@ -89,9 +89,6 @@ class DuckDBConnection:
 
         Returns:
             DuckDB relation with query results.
-
-        Raises:
-            PermissionError: If DROP operation is attempted in non-TEST environment.
         """
         # Check for DROP operations and enforce environment restrictions
         self._check_drop_operation(sql)
@@ -144,9 +141,6 @@ class DuckDBConnection:
 
         Returns:
             DuckDB relation with query results.
-
-        Raises:
-            PermissionError: If DROP operation is attempted in non-TEST environment.
         """
         # Check for DROP operations and enforce environment restrictions
         self._check_drop_operation(query)

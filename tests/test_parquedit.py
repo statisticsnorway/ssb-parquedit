@@ -253,9 +253,7 @@ def test_drop_table_succeeds_in_test_environment(
 
                 pe.drop_table("temporary_table")
 
-                mock_ddl_instance.drop_table.assert_called_once_with(
-                    "temporary_table"
-                )
+                mock_ddl_instance.drop_table.assert_called_once_with("temporary_table")
 
 
 def test_drop_table_fails_in_prod_environment(

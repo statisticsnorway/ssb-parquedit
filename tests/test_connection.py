@@ -357,7 +357,6 @@ class TestDropOperationEnforcement:
         """Test that DROP operations are logged in test environment."""
         import os
         from unittest.mock import patch
-        import logging
 
         conn = sut_connection(db_config, fake_conn)
 

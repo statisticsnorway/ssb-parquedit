@@ -113,10 +113,6 @@ class ParquEdit:
         Args:
             table_name: Name of the table to drop.
 
-        Raises:
-            PermissionError: If DAPLA_ENVIRONMENT is not "test".
-            ValueError: If table_name is invalid.
-
         Example:
             >>> # doctest: +SKIP
             >>> con = ParquEdit()
