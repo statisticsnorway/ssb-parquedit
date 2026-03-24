@@ -248,3 +248,76 @@ class TestCreateTableTypeErrors:
 
         with pytest.raises(TypeError, match="source must be a DataFrame"):
             ddl_ops.create_table("users", [1, 2, 3])
+
+
+class TestDropTable:
+    """Test table dropping with environment restrictions."""
+
+    def test_drop_table_succeeds_in_test_environment(
+        self, sut_ddl: Any, fake_conn: MagicMock
+    ) -> None:
+        """Test that drop_table succeeds when DAPLA_ENVIRONMENT=test."""
+        import os
+        from unittest.mock import patch
+
+        ddl_ops = sut_ddl(fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            ddl_ops.drop_table("users")
+
+            # Verify execute was called with DROP TABLE
+            fake_conn.execute.assert_called()
+            call_args = fake_conn.execute.call_args[0][0]
+            assert "DROP TABLE users" in call_args
+
+    def test_drop_table_fails_in_prod_environment(
+        self, sut_ddl: Any, fake_conn: MagicMock
+    ) -> None:
+        """Test that drop_table raises PermissionError when DAPLA_ENVIRONMENT=prod."""
+        import os
+        from unittest.mock import patch
+
+        ddl_ops = sut_ddl(fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            with pytest.raises(PermissionError, match="only allowed in TEST"):
+                ddl_ops.drop_table("users")
+
+    def test_drop_table_fails_when_environment_not_set(
+        self, sut_ddl: Any, fake_conn: MagicMock
+    ) -> None:
+        """Test that drop_table raises PermissionError when DAPLA_ENVIRONMENT is not set."""
+        import os
+        from unittest.mock import patch
+
+        ddl_ops = sut_ddl(fake_conn)
+
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(PermissionError, match="only allowed in TEST"):
+                ddl_ops.drop_table("users")
+
+    def test_drop_table_case_insensitive_test_env(
+        self, sut_ddl: Any, fake_conn: MagicMock
+    ) -> None:
+        """Test that TEST environment check is case-insensitive."""
+        import os
+        from unittest.mock import patch
+
+        ddl_ops = sut_ddl(fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "TEST"}):
+            ddl_ops.drop_table("users")
+            fake_conn.execute.assert_called()
+
+    def test_drop_table_validates_table_name(
+        self, sut_ddl: Any, fake_conn: MagicMock
+    ) -> None:
+        """Test that drop_table validates the table name."""
+        import os
+        from unittest.mock import patch
+
+        ddl_ops = sut_ddl(fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            with pytest.raises(ValueError, match="Invalid table name"):
+                ddl_ops.drop_table("123invalid")

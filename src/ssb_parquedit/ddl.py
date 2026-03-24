@@ -4,6 +4,7 @@ from typing import Any
 
 import pandas as pd
 
+from .functions import get_dapla_environment
 from .utils import SchemaUtils
 from .utils import SQLInjectionError
 from .utils import SQLSanitizer
@@ -76,6 +77,47 @@ class DDLOperations:
             part_columns = []
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
+
+    def drop_table(self, table_name: str) -> None:
+        """Drop a table from the DuckLake catalog.
+
+        Table deletion is only allowed in the TEST environment to prevent
+        accidental data loss in production. In PROD or other environments,
+        this method will raise a PermissionError.
+
+        Args:
+            table_name: Name of the table to drop.
+
+        Raises:
+            PermissionError: If DAPLA_ENVIRONMENT is not "test".
+            ValueError: If table_name is invalid.
+
+        Returns:
+            None
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> ddl = DDLOperations(conn)
+            >>> ddl.drop_table("temporary_table")  # Only in TEST environment
+        """
+        # Validate table name
+        try:
+            SchemaUtils.validate_table_name(table_name)
+        except ValueError as e:
+            raise ValueError(str(e)) from e
+
+        # Check environment
+        environment = get_dapla_environment()
+        if environment != "test":
+            raise PermissionError(
+                f"Table deletion is only allowed in TEST environment. "
+                f"Current environment: {environment or 'not set'}. "
+                f"Set DAPLA_ENVIRONMENT=test to enable table deletion."
+            )
+
+        # Execute drop
+        self.conn.execute(f"DROP TABLE {table_name}")
+
 
     def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
         """Create an empty table from a DataFrame schema.

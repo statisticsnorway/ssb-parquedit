@@ -227,3 +227,59 @@ def test_list_tables_returns_empty_list_when_no_tables(
 
             assert isinstance(result, list)
             assert len(result) == 0
+
+
+# -------------------- Drop Table Tests --------------------
+
+
+def test_drop_table_succeeds_in_test_environment(
+    sut: Any, db_config: dict[str, str]
+) -> None:
+    """Test that drop_table succeeds in TEST environment."""
+    import os
+
+    pe = sut(config=db_config)
+
+    # Mock the connection and DDLOperations
+    mock_conn = MagicMock()
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=None)
+
+    with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+        with patch.object(pe, "_get_connection", return_value=mock_conn):
+            with patch("ssb_parquedit.parquedit.DDLOperations") as mock_ddl_class:
+                mock_ddl_instance = MagicMock()
+                mock_ddl_class.return_value = mock_ddl_instance
+
+                pe.drop_table("temporary_table")
+
+                mock_ddl_instance.drop_table.assert_called_once_with(
+                    "temporary_table"
+                )
+
+
+def test_drop_table_fails_in_prod_environment(
+    sut: Any, db_config: dict[str, str]
+) -> None:
+    """Test that drop_table raises PermissionError in PROD environment."""
+    import os
+
+    pe = sut(config=db_config)
+
+    # Mock the connection and DDLOperations
+    mock_conn = MagicMock()
+    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
+    mock_conn.__exit__ = MagicMock(return_value=None)
+
+    with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+        with patch.object(pe, "_get_connection", return_value=mock_conn):
+            with patch("ssb_parquedit.parquedit.DDLOperations") as mock_ddl_class:
+                mock_ddl_instance = MagicMock()
+                # Make drop_table raise PermissionError
+                mock_ddl_instance.drop_table.side_effect = PermissionError(
+                    "Table deletion is only allowed in TEST environment"
+                )
+                mock_ddl_class.return_value = mock_ddl_instance
+
+                with pytest.raises(PermissionError, match="only allowed in TEST"):
+                    pe.drop_table("temporary_table")

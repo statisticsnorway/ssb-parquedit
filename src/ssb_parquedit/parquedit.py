@@ -103,6 +103,29 @@ class ParquEdit:
 
             conn._conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
 
+    def drop_table(self, table_name: str) -> None:
+        """Drop a table from the DuckLake catalog.
+
+        Table deletion is only allowed in the TEST environment to prevent
+        accidental data loss in production. In PROD or other environments,
+        this method will raise a PermissionError.
+
+        Args:
+            table_name: Name of the table to drop.
+
+        Raises:
+            PermissionError: If DAPLA_ENVIRONMENT is not "test".
+            ValueError: If table_name is invalid.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> con = ParquEdit()
+            >>> con.drop_table("temporary_table")  # Only works in TEST environment
+        """
+        with self._get_connection() as conn:
+            ddl = DDLOperations(conn)
+            ddl.drop_table(table_name)
+
     # ============ DML Operations ============
 
     def insert_data(
