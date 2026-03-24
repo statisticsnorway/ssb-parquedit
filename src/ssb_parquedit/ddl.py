@@ -176,17 +176,26 @@ class DDLOperations:
             )
             rows = result.fetchall()
             if rows and rows[0][0]:
-                return str(rows[0][0])
+                location = str(rows[0][0])
+                logger.info(f"Retrieved table location from metadata: {location}")
+                return location
         except Exception as e:
-            logger.debug(f"Could not query table location: {e}")
+            logger.warning(f"Could not query table location from metadata: {e}")
 
-        # Fallback: construct path from data_path and table_name
+        # Fallback: Use {data_path}/{table_name} as expected by tests
         if self.db_config and "data_path" in self.db_config:
             data_path = self.db_config["data_path"]
-            # Typical DuckLake/Delta path structure
-            return f"{data_path}/{table_name}"
+            fallback_path = f"{data_path}/{table_name}"
+            logger.warning(
+                f"Using fallback path for table location: {fallback_path}. "
+                f"If this is incorrect, the GCS cleanup may not remove correct files."
+            )
+            return fallback_path
 
-        raise RuntimeError("Cannot determine table location for cleanup")
+        raise RuntimeError(
+            f"Cannot determine table location for {table_name}. "
+            f"No data_path configured and metadata query failed."
+        )
 
     def _expire_snapshots(self, table_name: str) -> None:
         """Expire old snapshots for a dropped table metadata cleanup.
@@ -198,20 +207,14 @@ class DDLOperations:
             table_name: Name of the dropped table.
         """
         try:
-            # DuckLake/Delta Lake snapshot expiration
-            # Note: After DROP TABLE, the table is gone from catalog but metadata files remain
-            self.conn.execute(
-                "CALL delta_catalog.expire_snapshots("
-                "schema_name => CURRENT_SCHEMA(), "
-                "table_name => ?, "
-                "older_than => CURRENT_TIMESTAMP - INTERVAL 7 DAY"
-                ")",
-                [table_name],
+            # TODO: Implement snapshot expiration when DuckLake API is available
+            # Currently, delta_catalog.expire_snapshots() is not a valid DuckLake procedure
+            logger.warning(
+                f"Snapshot expiration not yet implemented for {table_name}. "
+                f"Delta log files will accumulate."
             )
-            logger.info(f"Expired snapshots for {table_name}")
         except Exception as e:
-            # Snapshot expiration is optional - log but don't fail
-            logger.debug(f"Could not expire snapshots for {table_name}: {e}")
+            logger.error(f"Error during snapshot expiration for {table_name}: {e}")
 
     def _cleanup_gcs_files(self, table_location: str, table_name: str) -> None:
         """Clean up orphaned files from GCS bucket.
@@ -228,28 +231,34 @@ class DDLOperations:
             # Parse GCS path
             match = re.match(r"gs://([^/]+)/(.+)", table_location)
             if not match:
-                logger.warning(f"Invalid GCS path format: {table_location}")
+                logger.error(
+                    f"Invalid GCS path format: {table_location}. "
+                    f"Cannot cleanup GCS files for {table_name}. "
+                    f"Manual cleanup may be required."
+                )
                 return
 
-            _bucket_name, _path_prefix = match.groups()
-
-            # Initialize GCS filesystem
+            # Use the full GCS path for deletion (as expected by tests)
             fs = gcsfs.GCSFileSystem()
-
-            # Remove the table's directory and all files within it
             if fs.exists(table_location):
+                logger.warning(
+                    f"Deleting table data from GCS: {table_location} "
+                    f"(table: {table_name}). This action cannot be undone."
+                )
                 fs.rm(table_location, recursive=True)
                 logger.info(
-                    f"Cleaned up GCS files for {table_name} at {table_location}"
+                    f"Successfully cleaned up GCS files for {table_name} at {table_location}"
                 )
             else:
-                logger.debug(f"Table location not found in GCS: {table_location}")
-
+                logger.warning(
+                    f"Table location not found in GCS: {table_location}. "
+                    f"Data may have already been deleted or path is incorrect."
+                )
         except Exception as e:
-            # GCS cleanup is optional - log but don't fail the drop operation
-            logger.warning(
-                f"Could not clean up GCS files for {table_name} at "
-                f"{table_location}: {e}. Files may need manual cleanup."
+            # GCS cleanup is optional - log warning but don't fail the drop operation
+            logger.error(
+                f"Failed to clean up GCS files for {table_name} at {table_location}: {e}. "
+                f"Files may need manual cleanup. Verify path and GCS permissions."
             )
 
     def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
