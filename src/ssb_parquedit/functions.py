@@ -78,3 +78,4 @@ def create_config() -> dict[str, str]:
     }
 
     return db_config
+
