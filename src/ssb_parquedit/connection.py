@@ -1,6 +1,7 @@
 """DuckDB connection management with DuckLake catalog support."""
 
 import logging
+import os
 import re
 from datetime import datetime
 from types import TracebackType
@@ -10,6 +11,7 @@ import duckdb
 import gcsfs
 
 from .functions import get_dapla_environment
+from .functions import repo_root_dir
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
@@ -42,9 +44,26 @@ class DuckDBConnection:
         self._owns_conn: bool = conn is None
         self._conn: duckdb.DuckDBPyConnection = conn or duckdb.connect()
 
+        self._conn.execute(
+            "SET custom_extension_repository = 'https://extensions.duckdb.org';"
+        )
+
         # Register GCS filesystem
         fs = gcsfs.GCSFileSystem()
         self._conn.register_filesystem(fs)
+
+        repo_dir = repo_root_dir()
+        ex_path = repo_dir.joinpath("extentions")
+        duckdb_ex = os.listdir(ex_path)
+
+        extensions = {}
+        for ex in duckdb_ex:
+            if not ex.startswith("."):
+                e = ex.split(".")[0]
+                extensions[e] = ex_path.joinpath(ex)
+
+        self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
+        self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
 
         # Load extensions
         for ext in ("ducklake", "postgres"):
@@ -59,7 +78,9 @@ class DuckDBConnection:
                 host=localhost
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
-             METADATA_SCHEMA {db_config["metadata_schema"]});
+             METADATA_SCHEMA {db_config["metadata_schema"]},
+             DATA_INLINING_ROW_LIMIT 300,
+             AUTOMATIC_MIGRATION TRUE);
             """)
         self._conn.sql(f"USE {db_config['catalog_name']}")
 
