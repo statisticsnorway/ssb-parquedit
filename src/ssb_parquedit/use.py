@@ -1,10 +1,10 @@
-#%%
+# %%
 from ssb_parquedit import ParquEdit
 
 # Auto-configure from environment
 con = ParquEdit()
 
-#%%
+# %%
 import pandas as pd
 
 df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
