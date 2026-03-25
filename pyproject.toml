@@ -26,6 +26,11 @@ Changelog = "https://github.com/statisticsnorway/ssb-parquedit/releases"
 [project.scripts]
 ssb-parquedit = "ssb_parquedit.__main__:main"
 
+[tool.hatch.build.targets.wheel]
+include = [
+    "src/ssb_parquedit/**",
+]
+
 [dependency-groups]
 lint = [
     "black[jupyter]>=25.11.0",

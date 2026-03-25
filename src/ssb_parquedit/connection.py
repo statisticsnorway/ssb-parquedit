@@ -1,9 +1,9 @@
 """DuckDB connection management with DuckLake catalog support."""
 
 import logging
-import os
 import re
 from datetime import datetime
+from importlib.resources import files
 from types import TracebackType
 from typing import Any
 
@@ -11,7 +11,6 @@ import duckdb
 import gcsfs
 
 from .functions import get_dapla_environment
-from .functions import repo_root_dir
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
@@ -52,15 +51,13 @@ class DuckDBConnection:
         fs = gcsfs.GCSFileSystem()
         self._conn.register_filesystem(fs)
 
-        repo_dir = repo_root_dir()
-        ex_path = repo_dir.joinpath("extentions")
-        duckdb_ex = os.listdir(ex_path)
-
-        extensions = {}
-        for ex in duckdb_ex:
-            if not ex.startswith("."):
-                e = ex.split(".")[0]
-                extensions[e] = ex_path.joinpath(ex)
+        # Load bundled extentions from package data
+        ex_dir = files("ssb_parquedit").joinpath("extentions")
+        extensions = {
+            f.name.split(".")[0]: str(f)
+            for f in ex_dir.iterdir()
+            if not f.name.startswith(".")
+        }
 
         self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
         self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
