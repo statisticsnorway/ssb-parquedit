@@ -246,3 +246,145 @@ class TestDuckDBConnectionClose:
         # Without external connection (creates own)
         conn2 = sut_connection(db_config)
         assert conn2.owns_connection is True
+
+
+class TestDropOperationEnforcement:
+    """Test DROP operation environment-based enforcement."""
+
+    def test_execute_blocks_drop_in_prod_environment(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that execute() blocks DROP TABLE in prod environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            with pytest.raises(PermissionError, match="only allowed in TEST"):
+                conn.execute("DROP TABLE users")
+
+    def test_execute_allows_drop_in_test_environment(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that execute() allows DROP TABLE in test environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            # Should not raise
+            conn.execute("DROP TABLE users")
+            # Verify execute was called
+            fake_conn.execute.assert_called()
+
+    def test_sql_blocks_drop_in_prod_environment(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that sql() blocks DROP TABLE in prod environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            with pytest.raises(PermissionError, match="only allowed in TEST"):
+                conn.sql("DROP TABLE users")
+
+    def test_sql_allows_drop_in_test_environment(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that sql() allows DROP TABLE in test environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            # Should not raise
+            conn.sql("DROP TABLE users")
+            # Verify sql was called
+            fake_conn.sql.assert_called()
+
+    def test_drop_view_also_blocked_in_prod(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that DROP VIEW is also blocked in prod environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            with pytest.raises(PermissionError, match="only allowed in TEST"):
+                conn.execute("DROP VIEW my_view")
+
+    def test_drop_database_also_blocked_in_prod(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that DROP DATABASE is also blocked in prod environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            with pytest.raises(PermissionError, match="only allowed in TEST"):
+                conn.execute("DROP DATABASE mydb")
+
+    def test_non_drop_operations_allowed_in_all_environments(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that non-DROP operations are allowed in all environments."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            # SELECT, INSERT, UPDATE, DELETE should all work
+            conn.execute("SELECT * FROM users")
+            conn.execute("INSERT INTO users VALUES (1, 'Alice')")
+            conn.execute("UPDATE users SET name = 'Bob'")
+            conn.execute("DELETE FROM users WHERE id = 1")
+
+            assert fake_conn.execute.call_count == 4
+
+    def test_drop_logs_in_test_environment(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that DROP operations are logged in test environment."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
+            with patch("ssb_parquedit.connection.logger") as mock_logger:
+                conn.execute("DROP TABLE users")
+                # Verify warning was logged
+                mock_logger.warning.assert_called_once()
+                # Verify log contains important info
+                log_msg = mock_logger.warning.call_args[0][0]
+                assert "DROP" in log_msg
+                assert "users" in log_msg
+                assert "TEST" in log_msg
+
+    def test_drop_case_insensitive(
+        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    ) -> None:
+        """Test that DROP keyword matching is case-insensitive."""
+        import os
+        from unittest.mock import patch
+
+        conn = sut_connection(db_config, fake_conn)
+
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
+            # Test various case variations
+            with pytest.raises(PermissionError):
+                conn.execute("drop table users")
+            with pytest.raises(PermissionError):
+                conn.execute("Drop Table users")
+            with pytest.raises(PermissionError):
+                conn.execute("DROP table USERS")

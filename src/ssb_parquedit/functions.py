@@ -45,6 +45,16 @@ def get_bucket_name() -> str:
     return bucket_name
 
 
+def get_dapla_environment() -> str:
+    """Retrieves the Dapla environment from environment variables.
+
+    Returns:
+        str: The value of DAPLA_ENVIRONMENT in lowercase, or an empty string if not set.
+    """
+    environment: str = os.getenv("DAPLA_ENVIRONMENT", "").lower()
+    return environment
+
+
 def create_config() -> dict[str, str]:
     """Create a default database configuration dictionary.
 

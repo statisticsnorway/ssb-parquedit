@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from ssb_parquedit.functions import create_config
 from ssb_parquedit.functions import get_bucket_name
+from ssb_parquedit.functions import get_dapla_environment
 from ssb_parquedit.functions import get_dapla_group
 from ssb_parquedit.functions import get_team_name
 
@@ -15,6 +16,20 @@ class TestGetDaplaGroup:
     def test_returns_empty_string_when_not_set(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             assert get_dapla_group() == ""
+
+
+class TestGetDaplaEnvironment:
+    def test_returns_env_variable_lowercased(self) -> None:
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "TEST"}):
+            assert get_dapla_environment() == "test"
+
+    def test_returns_prod_lowercased(self) -> None:
+        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "PROD"}):
+            assert get_dapla_environment() == "prod"
+
+    def test_returns_empty_string_when_not_set(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            assert get_dapla_environment() == ""
 
 
 class TestGetTeamName:
