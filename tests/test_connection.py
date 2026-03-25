@@ -341,6 +341,7 @@ class TestDropOperationEnforcement:
         from unittest.mock import patch
 
         conn = sut_connection(db_config, fake_conn)
+        fake_conn.execute.reset_mock()  # Reset after init to count only the test calls
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             # SELECT, INSERT, UPDATE, DELETE should all work
