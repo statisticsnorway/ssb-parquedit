@@ -143,7 +143,8 @@ con.create_table("my_table_5",
 # Insert from a DataFrame
 con.insert_data("my_table_1",
                  source=df)
-
+```
+```python
 # Insert from a GCS Parquet file
 con.insert_data("my_table_4",
                  source="gs://my-bucket/path/to/file.parquet")
