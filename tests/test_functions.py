@@ -51,7 +51,7 @@ class TestGetBucketName:
                 "DAPLA_ENVIRONMENT": "TEST",
             },
         ):
-            assert get_bucket_name() == "ssb-dapla-ffunk-data-hns-test"
+            assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-test"
 
     def test_environment_is_lowercased(self) -> None:
         with patch.dict(
@@ -61,13 +61,13 @@ class TestGetBucketName:
                 "DAPLA_ENVIRONMENT": "PROD",
             },
         ):
-            assert get_bucket_name() == "ssb-dapla-ffunk-data-hns-prod"
+            assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-prod"
 
     def test_returns_empty_environment_when_not_set(self) -> None:
         with patch.dict(
             os.environ, {"DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers"}, clear=True
         ):
-            assert get_bucket_name() == "ssb-dapla-ffunk-data-hns-"
+            assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-"
 
 
 class TestCreateConfig:
@@ -86,7 +86,7 @@ class TestCreateConfig:
             assert config["dbuser"] == "dapla-ffunk-developers@dapla-group-sa-t-57.iam"
             assert (
                 config["data_path"]
-                == "gs://ssb-dapla-ffunk-data-hns-test/.parquedit_data"
+                == "gs://ssb-dapla-ffunk-data-produkt-test/.parquedit_data"
             )
             assert config["catalog_name"] == "dapla_ffunk"
             assert config["metadata_schema"] == "dapla_ffunk"
