@@ -46,10 +46,8 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 
 ## Requirements
 
-- Python `>=3.11, <4.0`
-- Access to a DaplaLab environment with the following environment variables set:
-  - `DAPLA_GROUP_CONTEXT` — e.g. `dapla-ffunk-developers`
-  - `DAPLA_ENVIRONMENT` — e.g. `test` or `prod`
+- Python `>=3.12`
+- Access to a DaplaLab environment
 - A PostgreSQL instance reachable at `localhost` for DuckLake metadata storage
 - A GCS bucket following the naming convention `ssb-{team-name}-data-produkt-{environment}`
 
@@ -57,7 +55,7 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 
 | Package    | Version              |
 |------------|----------------------|
-| `duckdb`   | `==1.4.1`            |
+| `duckdb`   | `==1.5.1`            |
 | `pandas`   | `>=3.0.0, <4.0.0`   |
 | `polars`   | `>=1.38.1, <2.0.0`  |
 | `pyarrow`  | `>=23.0.1, <24.0.0` |
@@ -77,7 +75,7 @@ poetry add ssb-parquedit
 
 ### Basic setup
 
-`ParquEdit` reads its connection configuration automatically from Dapla environment variables.
+`ParquEdit` reads its connection configuration automatically from Dapla-environment variables.
 ```python
 from ssb_parquedit import ParquEdit
 
@@ -94,11 +92,20 @@ import pandas as pd
 df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
 
 # Create table from DataFrame (empty — schema only)
-con.create_table("my_table", source=df, product_name="my-product")
+con.create_table("my_table_1",
+                 source=df,
+                 product_name="my-product")
+```
 
+```python
 # Create and immediately populate with data
-con.create_table("my_table", source=df, product_name="my-product", fill=True)
+con.create_table("my_table_2",
+                 source=df,
+                 product_name="my-product",
+                 fill=True)
+```
 
+```python
 # Create from a JSON Schema
 schema = {
     "properties": {
@@ -106,45 +113,73 @@ schema = {
         "age":  {"type": "integer"},
     }
 }
-con.create_table("my_table", source=schema, product_name="my-product")
+con.create_table("my_table_3",
+                 source=schema,
+                 product_name="my-product")
+```
 
+```python
 # Create from an existing GCS Parquet file (schema inferred from file)
-con.create_table("my_table", source="gs://my-bucket/path/to/file.parquet", product_name="my-product")
+con.create_table("my_table_4",
+                 source="gs://my-bucket/path/to/file.parquet",
+                 product_name="my-product")
 
-# Create with partitioning
-con.create_table("my_table", source=df, product_name="my-product", part_columns=["age"])
+```
+
+```python
+# Create with partitioning and immediately populate with data
+con.create_table("my_table_5",
+                 source=df,
+                 product_name="my-product",
+                 part_columns=["age"],
+                 fill=True)
 ```
 
 > **Note:** `product_name` is required and is stored as a comment on the table. Table names must be lowercase, start with a letter or underscore, and contain only lowercase letters, numbers, and underscores (max 20 characters).
 
-### Inserting data
+
+### Inserting data in an existing table
 ```python
 # Insert from a DataFrame
-con.insert_data("my_table", source=df)
-
-# Insert from a GCS Parquet file
-con.insert_data("my_table", source="gs://my-bucket/path/to/file.parquet")
+con.insert_data("my_table_1",
+                 source=df)
 ```
-
+```python
+# Insert from a GCS Parquet file
+con.insert_data("my_table_4",
+                 source="gs://my-bucket/path/to/file.parquet")
+```
 Each inserted row is automatically assigned a unique `_id` (UUID string).
 
 ### Querying data
 ```python
 # View all rows (returns pandas DataFrame by default)
-result = con.view("my_table")
+result = con.view("my_table_1")
+```
 
+```python
 # Limit and offset (pagination)
-result = con.view("my_table", limit=10, offset=20)
-
+result = con.view("my_table_1",
+                  limit=10,
+                  offset=2)
+```
+```python
 # Select specific columns
-result = con.view("my_table", columns=["name", "age"])
-
+result = con.view("my_table_1",
+                  columns=["name", "age"])
+```
+```python
 # Sort results
-result = con.view("my_table", order_by="age DESC")
-
+result = con.view("my_table_1",
+                   order_by="age DESC")
+```
+```python
 # Return as polars or pyarrow
-result = con.view("my_table", output_format="polars")
-result = con.view("my_table", output_format="pyarrow")
+result = con.view("my_table_1",
+                   output_format="polars")
+
+result = con.view("my_table_1",
+                   output_format="pyarrow")
 ```
 
 ### Filtering
@@ -152,45 +187,58 @@ result = con.view("my_table", output_format="pyarrow")
 Filters are structured dicts — **never raw SQL strings** — ensuring SQL injection safety.
 ```python
 # Single condition
-con.view("my_table", filters={"column": "age", "operator": ">", "value": 25})
+con.view("my_table_1",
+         filters={"column": "age", "operator": ">", "value": 25})
+```
 
+```python
 # Multiple conditions (implicit AND)
-con.view("my_table", filters=[
-    {"column": "age", "operator": ">", "value": 25},
-    {"column": "name", "operator": "LIKE", "value": "A%"},
-])
-
+con.view("my_table_1",
+        filters=[
+            {"column": "age", "operator": ">", "value": 25},
+            {"column": "name", "operator": "LIKE", "value": "A%"},
+        ])
+```
+```python
 # Explicit AND / OR
-con.view("my_table", filters={
-    "or": [
-        {"column": "name", "operator": "=", "value": "Alice"},
-        {"column": "name", "operator": "=", "value": "Bob"},
-    ]
-})
-
+con.view("my_table_1",
+        filters={
+            "or": [
+                {"column": "name", "operator": "=", "value": "Alice"},
+                {"column": "name", "operator": "=", "value": "Bob"},
+            ]
+        })
+```
+```python
 # IN operator
-con.view("my_table", filters={"column": "age", "operator": "IN", "value": [25, 30, 35]})
-
+con.view("my_table_1",
+          filters={"column": "age", "operator": "IN", "value": [25, 30, 35]})
+```
+```python
 # BETWEEN operator
-con.view("my_table", filters={"column": "age", "operator": "BETWEEN", "value": [20, 40]})
-
+con.view("my_table_1",
+          filters={"column": "age", "operator": "BETWEEN", "value": [20, 40]})
+```
+```python
 # NULL checks
-con.view("my_table", filters={"column": "name", "operator": "IS NOT NULL"})
+con.view("my_table_1",
+          filters={"column": "name", "operator": "IS NOT NULL"})
 ```
 
 Supported operators: `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `LIKE`, `IN`, `NOT IN`, `BETWEEN`, `IS NULL`, `IS NOT NULL`.
 
 ### Counting rows
 ```python
-total = con.count("my_table")
-active_adults = con.count("my_table", filters=[
-    {"column": "age", "operator": ">=", "value": 18},
-])
+total = con.count("my_table_1")
+active_adults = con.count("my_table_1",
+                            filters=[
+                                {"column": "age", "operator": ">=", "value": 18},
+                            ])
 ```
 
 ### Checking table existence
 ```python
-if con.exists("my_table"):
+if con.exists("my_table_1"):
     print("Table found")
 ```
 
