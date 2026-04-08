@@ -139,5 +139,3 @@ class TestDropTable:
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             with pytest.raises(PermissionError, match="only allowed in TEST"):
                 ddl_ops.drop_table("users")
-
-

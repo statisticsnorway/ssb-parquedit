@@ -151,5 +151,3 @@ class TestDropOperationEnforcement:
             conn.execute("DROP TABLE users")
             # Verify execute was called
             fake_conn.execute.assert_called()
-
-

@@ -137,6 +137,7 @@ class TestCount:
         assert fake_conn.execute.called
         assert result == 42
 
+
 class TestTableExists:
     """Test table existence check."""
 

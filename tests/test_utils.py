@@ -1,4 +1,5 @@
 """Tests for SQLSanitizer and SchemaUtils utility classes."""
+
 # NOTE: Private helper methods (_build_comparison_condition, etc.) are covered
 # implicitly via the public build_where_from_filters API and not tested separately.
 
@@ -329,7 +330,6 @@ class TestTranslate:
         assert SchemaUtils.translate({"type": "string", "format": "date"}) == "DATE"
 
 
-
 class TestJsonschemaToducKdb:
     """Test JSON Schema to DuckDB DDL conversion."""
 
@@ -350,14 +350,12 @@ class TestJsonschemaToducKdb:
         assert ddl.strip().endswith(");")
 
 
-
 class TestValidateTableName:
     """Test table name validation."""
 
     def test_valid_table_name_lowercase(self) -> None:
         """Test valid lowercase table name."""
         SchemaUtils.validate_table_name("users")
-
 
 
 class TestPandasToDuckdb:

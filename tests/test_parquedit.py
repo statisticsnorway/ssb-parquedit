@@ -17,7 +17,6 @@ def test_init_stores_db_config(sut: Any, db_config: dict[str, str]) -> None:
     assert pe._db_config == db_config
 
 
-
 # -------------------- Create Table Tests --------------------
 
 
@@ -31,9 +30,7 @@ def test_create_table_requires_short_name(sut: Any, db_config: dict[str, str]) -
     with pytest.raises(ValueError, match="'product_name' must have a value"):
         pe.create_table("users", df)
 
-
-
-# -------------------- View Tests --------------------
+    # -------------------- View Tests --------------------
     """Test that create_table works with DataFrame source."""
     pe = sut(config=db_config)
 
@@ -91,12 +88,9 @@ def test_count_calls_connection(sut: Any, db_config: dict[str, str]) -> None:
     # Verify that the connection was used
     mock_conn.__enter__.assert_called_once()
 
+    # -------------------- List Tables Tests --------------------
 
-# -------------------- List Tables Tests --------------------
-
-
-
-# -------------------- Drop Table Tests --------------------
+    # -------------------- Drop Table Tests --------------------
     """Test that list_tables returns a list of table names."""
     pe = sut(config=db_config)
 
@@ -147,6 +141,5 @@ def test_drop_table_succeeds_in_test_environment(
                 mock_ddl_instance.drop_table.assert_called_once_with(
                     "temporary_table", cleanup=True
                 )
-
 
                 pe.drop_table("temporary_table")
