@@ -3,7 +3,6 @@
 import logging
 import re
 from datetime import datetime
-from importlib.resources import files
 from types import TracebackType
 from typing import Any
 
@@ -43,24 +42,9 @@ class DuckDBConnection:
         self._owns_conn: bool = conn is None
         self._conn: duckdb.DuckDBPyConnection = conn or duckdb.connect()
 
-        self._conn.execute(
-            "SET custom_extension_repository = 'https://extensions.duckdb.org';"
-        )
-
         # Register GCS filesystem
         fs = gcsfs.GCSFileSystem()
         self._conn.register_filesystem(fs)
-
-        # Load bundled extentions from package data
-        ex_dir = files("ssb_parquedit").joinpath("extentions")
-        extensions = {
-            f.name.split(".")[0]: str(f)
-            for f in ex_dir.iterdir()
-            if not f.name.startswith(".")
-        }
-
-        self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
-        self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
 
         # Load extensions
         for ext in ("ducklake", "postgres"):
