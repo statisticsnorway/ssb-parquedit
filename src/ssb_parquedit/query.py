@@ -117,11 +117,6 @@ class QueryOperations:
 
         SchemaUtils.validate_table_name(table_name)
 
-        # Validate and sanitize SQL clauses to prevent injection
-        SQLSanitizer.validate_order_by_clause(order_by)
-        if columns:
-            SQLSanitizer.validate_column_list(columns)
-
         # Build parameterized WHERE clause from filters
         where_parameterized, where_params = SQLSanitizer.build_where_from_filters(
             filters

@@ -7,10 +7,7 @@ from typing import Any
 import gcsfs
 import pandas as pd
 
-from .functions import get_dapla_environment
 from .utils import SchemaUtils
-from .utils import SQLInjectionError
-from .utils import SQLSanitizer
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
@@ -92,10 +89,6 @@ class DDLOperations:
     def drop_table(self, table_name: str, cleanup: bool = True) -> None:
         """Drop a table from the DuckLake catalog with optional cleanup.
 
-        Table deletion is only allowed in the TEST environment to prevent
-        accidental data loss in production. In PROD or other environments,
-        this method will raise a PermissionError.
-
         Optionally performs comprehensive cleanup:
         - Expires snapshots (removes old transaction logs from metadata)
         - Cleans GCS bucket (removes orphaned Parquet files)
@@ -106,7 +99,6 @@ class DDLOperations:
                 Defaults to True. Requires db_config to be set.
 
         Raises:
-            PermissionError: If DAPLA_ENVIRONMENT is not "test".
             ValueError: If table_name is invalid.
 
         Returns:
@@ -124,15 +116,6 @@ class DDLOperations:
         except ValueError as e:
             raise ValueError(str(e)) from e
 
-        # Check environment
-        environment = get_dapla_environment()
-        if environment != "test":
-            raise PermissionError(
-                f"Table deletion is only allowed in TEST environment. "
-                f"Current environment: {environment or 'not set'}. "
-                f"Set DAPLA_ENVIRONMENT=test to enable table deletion."
-            )
-
         # Get table location before dropping (if cleanup is enabled)
         table_location = None
         if cleanup:
@@ -147,9 +130,7 @@ class DDLOperations:
 
         # Execute drop
         self.conn.execute(f"DROP TABLE {table_name}")
-        logger.warning(
-            f"Dropped table: {table_name} from {environment.upper()} environment"
-        )
+        logger.warning(f"Dropped table: {table_name}")
 
         # Perform cleanup if enabled and location was retrieved
         if cleanup and table_location:
@@ -318,15 +299,6 @@ class DDLOperations:
         Args:
             table_name: Name of the table to partition.
             part_columns: List of column names to partition by.
-
-        Raises:
-            SQLInjectionError: If any column name is invalid.
         """
-        try:
-            SQLSanitizer.validate_column_list(part_columns)
-        except SQLInjectionError as e:
-            # Re-raise for å gjøre unntaket synlig for linter
-            raise SQLInjectionError(str(e)) from e
-
         cols = ", ".join(part_columns)
         self.conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols});")
