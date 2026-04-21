@@ -124,7 +124,9 @@ class SQLSanitizer:
         value = condition.get("value")
 
         if not isinstance(column, str):
-            raise ValueError("Filter condition must include a 'column' key with a string value")
+            raise ValueError(
+                "Filter condition must include a 'column' key with a string value"
+            )
 
         # Dispatch to appropriate handler based on operator
         comparison_ops = ("=", "!=", "<>", "<", ">", "<=", ">=")
