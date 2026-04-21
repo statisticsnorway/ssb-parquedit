@@ -1,15 +1,11 @@
 """DuckDB connection management with DuckLake catalog support."""
 
 import logging
-import re
-from datetime import datetime
 from types import TracebackType
 from typing import Any
 
 import duckdb
 import gcsfs
-
-from .functions import get_dapla_environment
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
@@ -79,11 +75,7 @@ class DuckDBConnection:
         self.close()
 
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
-        """Execute SQL statement with DROP operation enforcement.
-
-        Enforces environment-based restrictions on DROP operations:
-        - In TEST environment: DROP operations are allowed and logged
-        - In other environments: DROP operations are blocked with PermissionError
+        """Execute SQL statement.
 
         Args:
             sql: SQL statement to execute.
@@ -92,51 +84,12 @@ class DuckDBConnection:
         Returns:
             DuckDB relation with query results.
         """
-        # Check for DROP operations and enforce environment restrictions
-        self._check_drop_operation(sql)
-
         if parameters is not None:
             return self._conn.execute(sql, parameters)
         return self._conn.execute(sql)
 
-    def _check_drop_operation(self, sql: str) -> None:
-        """Check for DROP operations and enforce/log them based on environment.
-
-        Args:
-            sql: SQL statement to check.
-
-        Raises:
-            PermissionError: If DROP operation is attempted in non-TEST environment.
-        """
-        # Pattern to match DROP TABLE, DROP VIEW, etc.
-        drop_pattern = r"\bDROP\s+(TABLE|VIEW|DATABASE|SCHEMA)\b"
-        if re.search(drop_pattern, sql, re.IGNORECASE):
-            environment = get_dapla_environment()
-
-            if environment != "test":
-                raise PermissionError(
-                    f"DROP operations are only allowed in TEST environment. "
-                    f"Current environment: {environment or 'not set'}. "
-                    f"Set DAPLA_ENVIRONMENT=test to enable DROP operations."
-                )
-
-            # Log the DROP operation in TEST environment
-            table_match = re.search(
-                r"\bDROP\s+(?:TABLE|VIEW|DATABASE|SCHEMA)\s+(\w+)",
-                sql,
-                re.IGNORECASE,
-            )
-            object_name = table_match.group(1) if table_match else "unknown"
-
-            logger.warning(
-                f"DROP operation executed in {environment.upper()} environment | "
-                f"Object: {object_name} | Timestamp: {datetime.now().isoformat()}"
-            )
-
     def sql(self, query: str) -> Any:
-        """Execute SQL query with DROP operation enforcement.
-
-        Enforces environment-based restrictions on DROP operations.
+        """Execute SQL query.
 
         Args:
             query: SQL query to execute.
@@ -144,9 +97,6 @@ class DuckDBConnection:
         Returns:
             DuckDB relation with query results.
         """
-        # Check for DROP operations and enforce environment restrictions
-        self._check_drop_operation(query)
-
         return self._conn.sql(query)
 
     def register(self, name: str, obj: Any) -> None:

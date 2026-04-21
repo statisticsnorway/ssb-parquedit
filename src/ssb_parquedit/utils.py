@@ -3,109 +3,12 @@
 import re
 from collections.abc import Callable
 from typing import Any
-from typing import ClassVar
-from typing import cast
 
 import pandas as pd
 
 
-class SQLInjectionError(ValueError):
-    """Raised when potentially dangerous SQL patterns are detected."""
-
-    pass
-
-
 class SQLSanitizer:
-    """Sanitization utilities for SQL clauses to prevent injection attacks."""
-
-    # Dangerous SQL keywords that shouldn't appear in WHERE or ORDER BY clauses
-    DANGEROUS_KEYWORDS: ClassVar[set[str]] = {
-        "DROP",
-        "DELETE",
-        "TRUNCATE",
-        "INSERT",
-        "UPDATE",
-        "CREATE",
-        "ALTER",
-        "EXEC",
-        "EXECUTE",
-        "UNION",
-        "SELECT",
-        "SCRIPT",
-        "JAVASCRIPT",
-        "DECLARE",
-        "CAST",
-        "--",
-        "/*",
-        "*/",
-    }
-
-    @staticmethod
-    def validate_order_by_clause(order_by: str | None) -> None:
-        """Validate ORDER BY clause for potential SQL injection patterns.
-
-        Args:
-            order_by: ORDER BY clause string.
-
-        Raises:
-            SQLInjectionError: If dangerous SQL patterns are detected or invalid format.
-
-        Note:
-            ORDER BY cannot use parameter binding for column names, so validation
-            is more strict. Only alphanumeric column names and ASC/DESC are allowed.
-        """
-        if order_by is None:
-            return
-
-        order_by_upper = order_by.upper().strip()
-
-        # Check for dangerous keywords and patterns
-        for keyword in SQLSanitizer.DANGEROUS_KEYWORDS:
-            # Use word boundaries to avoid false positives (e.g., 'UPDATE' in 'UPDATED_AT')
-            if re.search(r"\b" + re.escape(keyword) + r"\b", order_by_upper):
-                raise SQLInjectionError(
-                    f"Potentially dangerous SQL keyword '{keyword}' detected in ORDER BY clause"
-                )
-
-        # Check for comment sequences
-        if "--" in order_by or "/*" in order_by or "*/" in order_by:
-            raise SQLInjectionError("SQL comment sequences detected in ORDER BY clause")
-
-        # ORDER BY should only contain column names, ASC, DESC, and commas
-        # Pattern: column_name [ASC|DESC], column_name [ASC|DESC], ...
-        # Each term: optional_whitespace, column_name, optional_whitespace, optional_ASC/DESC
-        term_pattern = r"[a-zA-Z_]\w*(?:\s+(?:ASC|DESC))?"
-        full_pattern = rf"^\s*{term_pattern}(?:\s*,\s*{term_pattern})*\s*$"
-        if not re.match(full_pattern, order_by, re.IGNORECASE):
-            raise SQLInjectionError(
-                f"Invalid ORDER BY clause format: {order_by}. "
-                "Only column names, ASC/DESC, and basic operators allowed."
-            )
-
-    @staticmethod
-    def validate_column_list(columns: list[str] | None) -> list[str]:
-        """Validate a list of column names.
-
-        Args:
-            columns: List of column names to validate.
-
-        Returns:
-            Validated column list.
-
-        Raises:
-            SQLInjectionError: If any column name is invalid.
-        """
-        if columns is None:
-            return []
-
-        for col in columns:
-            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
-                raise SQLInjectionError(
-                    f"Invalid column name: {col}. "
-                    "Column names must start with a letter or underscore "
-                    "and contain only alphanumeric characters and underscores."
-                )
-        return columns
+    """Utilities for building parameterized SQL WHERE clauses from structured filter conditions."""
 
     @staticmethod
     def _build_comparison_condition(
@@ -199,23 +102,6 @@ class SQLSanitizer:
         return f"{column} BETWEEN ? AND ?"
 
     @staticmethod
-    def _validate_column_name(column: Any) -> None:
-        """Validate column name format.
-
-        Args:
-            column: Column name to validate.
-
-        Raises:
-            SQLInjectionError: If column name is invalid.
-        """
-        if not column or not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", column):
-            raise SQLInjectionError(
-                f"Invalid column name: {column}. "
-                "Column names must start with a letter or underscore "
-                "and contain only alphanumeric characters and underscores."
-            )
-
-    @staticmethod
     def _process_single_condition(condition: Any, params: list[Any]) -> str:
         """Process a single filter condition and return WHERE clause fragment.
 
@@ -237,33 +123,33 @@ class SQLSanitizer:
         operator = condition.get("operator", "").upper()
         value = condition.get("value")
 
-        # Validate column name
-        SQLSanitizer._validate_column_name(column)
-        # After validation, column is guaranteed to be a str
-        column_str = cast(str, column)
+        if not isinstance(column, str):
+            raise ValueError(
+                "Filter condition must include a 'column' key with a string value"
+            )
 
         # Dispatch to appropriate handler based on operator
         comparison_ops = ("=", "!=", "<>", "<", ">", "<=", ">=")
         if operator in comparison_ops:
             return SQLSanitizer._build_comparison_condition(
-                column_str, operator, value, params
+                column, operator, value, params
             )
 
         if operator == "LIKE":
-            return SQLSanitizer._build_like_condition(column_str, value, params)
+            return SQLSanitizer._build_like_condition(column, value, params)
 
         in_ops = ("IN", "NOT IN")
         if operator in in_ops:
-            return SQLSanitizer._build_in_condition(column_str, operator, value, params)
+            return SQLSanitizer._build_in_condition(column, operator, value, params)
 
         if operator == "BETWEEN":
-            return SQLSanitizer._build_between_condition(column_str, value, params)
+            return SQLSanitizer._build_between_condition(column, value, params)
 
         if operator == "IS NULL":
-            return f"{column_str} IS NULL"
+            return f"{column} IS NULL"
 
         if operator == "IS NOT NULL":
-            return f"{column_str} IS NOT NULL"
+            return f"{column} IS NOT NULL"
 
         raise ValueError(
             f"Unsupported operator: {operator}. "
