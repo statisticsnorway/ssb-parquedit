@@ -20,6 +20,7 @@ class DuckDBConnection:
     and Postgres extension loading, and catalog attachment.
 
     Example:
+        >>> # doctest: +SKIP
         >>> config = {
         ...     "dbname": "mydb",
         ...     "dbuser": "user",
@@ -48,16 +49,16 @@ class DuckDBConnection:
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
         """
-        self._conn: duckdb.DuckDBPyConnection = duckdb.connect()
+        _raw = duckdb.connect()
 
         fs = gcsfs.GCSFileSystem()
-        self._conn.register_filesystem(fs)
+        _raw.register_filesystem(fs)
 
         for ext in ("ducklake", "postgres"):
-            self._conn.sql(f"INSTALL {ext}")
-            self._conn.sql(f"LOAD {ext}")
+            _raw.sql(f"INSTALL {ext}")
+            _raw.sql(f"LOAD {ext}")
 
-        self._conn.sql(f"""
+        _raw.sql(f"""
             ATTACH 'ducklake:postgres:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
@@ -68,7 +69,9 @@ class DuckDBConnection:
              DATA_INLINING_ROW_LIMIT 300,
              AUTOMATIC_MIGRATION TRUE);
             """)
-        self._conn.sql(f"USE {db_config['catalog_name']}")
+        _raw.sql(f"USE {db_config['catalog_name']}")
+
+        self._conn: duckdb.DuckDBPyConnection | None = _raw
 
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute a SQL statement with DROP operation enforcement.
@@ -88,6 +91,7 @@ class DuckDBConnection:
             RuntimeError: If the connection has been closed.
 
         Example:
+            >>> # doctest: +SKIP
             >>> conn.execute("SELECT count(*) FROM my_table")
             >>> conn.execute("SELECT * FROM my_table WHERE id = ?", [42])
         """
@@ -152,6 +156,7 @@ class DuckDBConnection:
             RuntimeError: If the connection has been closed.
 
         Example:
+            >>> # doctest: +SKIP
             >>> conn.sql("CALL ducklake_flush_inlined_data('my_catalog')")
         """
         if self._conn is None:
@@ -174,6 +179,7 @@ class DuckDBConnection:
             RuntimeError: If the connection has been closed.
 
         Example:
+            >>> # doctest: +SKIP
             >>> conn.register("staging", df)
             >>> conn.execute("INSERT INTO my_table SELECT * FROM staging")
         """
@@ -188,6 +194,7 @@ class DuckDBConnection:
         ``register``, or ``raw`` will raise a ``RuntimeError``.
 
         Example:
+            >>> # doctest: +SKIP
             >>> conn.close()
         """
         if self._conn is not None:
@@ -209,6 +216,7 @@ class DuckDBConnection:
             RuntimeError: If the connection has been closed.
 
         Example:
+            >>> # doctest: +SKIP
             >>> import ibis
             >>> ibis_conn = ibis.duckdb.connect(conn=ducklake_conn.raw)
         """

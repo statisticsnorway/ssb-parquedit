@@ -107,8 +107,8 @@ class ParquEdit:
                     if isinstance(dtype, pd.StringDtype)
                 }
             )
-            conn._conn.register("data", source_converted)
-            conn._conn.execute(
+            conn.register("data", source_converted)
+            conn.execute(
                 f"CREATE TABLE {table_name} AS "
                 f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
             )
@@ -122,14 +122,14 @@ class ParquEdit:
 
         if part_columns and len(part_columns) > 0:
             columns_str = ",".join(part_columns)
-            conn._conn.execute(
+            conn.execute(
                 f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
             )
 
         if fill:
             dml.insert_data(table_name, source)
 
-        conn._conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
+        conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
 
     def drop_table(self, table_name: str, cleanup: bool = True) -> None:
         """Drop a table from the DuckLake catalog with optional cleanup.
@@ -153,9 +153,9 @@ class ParquEdit:
             >>> con.drop_table("temporary_table")  # Drop with cleanup
             >>> con.drop_table("temp_table", cleanup=False)  # Drop only
         """
-        with self._get_connection() as conn:
-            ddl = DDLOperations(conn, self._db_config)
-            ddl.drop_table(table_name, cleanup=cleanup)
+        conn = self._get_connection()
+        ddl = DDLOperations(conn, self._db_config)
+        ddl.drop_table(table_name, cleanup=cleanup)
 
     # ============ DML Operations ============
 

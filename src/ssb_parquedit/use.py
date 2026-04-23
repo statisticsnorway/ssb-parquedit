@@ -18,7 +18,7 @@ con.insert_data("inline_table", source=df)
 con.view("inline_table")
 # %%
 conn = ParquEdit()
-internal_conn = conn._get_connection()._conn
+internal_conn = conn._get_connection().raw
 internal_conn.execute("SELECT * FROM inline_table").df()
 # %%
 internal_conn.execute("CALL ducklake_merge_adjacent_files('dapla_ffunk')")
@@ -36,7 +36,6 @@ from ssb_parquedit import ParquEdit
 # Auto-configure from environment
 conn = ParquEdit()
 internal_conn = conn._get_connection().raw
-internal_conn = conn._get_connection()._conn
 # %%
 internal_conn.sql("SELECT * from inline_table")
 # %%

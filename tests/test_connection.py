@@ -22,101 +22,81 @@ def sut_connection() -> Any:
 class TestDuckDBConnectionInit:
     """Test DuckDB connection initialization."""
 
-    def test_init_with_no_existing_connection(
+    def test_init_creates_connection(
         self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
-        """Test initialization when no connection is provided (owns connection)."""
+        """Test that initialization creates an internal DuckDB connection."""
         conn = sut_connection(db_config)
 
-        # Should own the connection
-        assert conn.owns_connection is True
-        # _owns_conn should be True
-        assert conn._owns_conn is True
-
-    def test_init_with_existing_connection(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
-    ) -> None:
-        """Test initialization with existing connection (doesn't own it)."""
-        conn = sut_connection(db_config, fake_conn)
-
-        # Should not own the connection
-        assert conn.owns_connection is False
-        # _owns_conn should be False
-        assert conn._owns_conn is False
+        assert conn._conn is not None
 
     def test_init_registers_gcs_filesystem(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that GCS filesystem is registered during init."""
-        sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
-        # Should call register_filesystem
-        assert fake_conn.register_filesystem.called
+        assert conn._conn.register_filesystem.called
 
     def test_init_loads_extensions(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that extensions are loaded during init."""
-        sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
-        # Should install and load ducklake and postgres extensions
         expected_calls = [
             call("INSTALL ducklake"),
             call("LOAD ducklake"),
             call("INSTALL postgres"),
             call("LOAD postgres"),
         ]
-        fake_conn.sql.assert_has_calls(expected_calls, any_order=False)
+        conn._conn.sql.assert_has_calls(expected_calls, any_order=False)
 
     def test_init_attaches_catalog(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that catalog is attached during init."""
-        sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
-        # Should contain ATTACH call with catalog config
         attach_called = any(
             "ATTACH 'ducklake:postgres" in str(call_args[0])
-            for (call_args, _) in fake_conn.sql.call_args_list
+            for (call_args, _) in conn._conn.sql.call_args_list
         )
         assert attach_called, "ATTACH catalog call not found"
 
     def test_init_uses_catalog(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that catalog is used (USE command)."""
-        sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
-        # Should contain USE command
         use_called = any(
             f"USE {db_config['catalog_name']}" in str(call_args[0])
-            for (call_args, _) in fake_conn.sql.call_args_list
+            for (call_args, _) in conn._conn.sql.call_args_list
         )
         assert use_called, "USE catalog call not found"
 
     def test_catalog_config_includes_data_path(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that catalog config includes DATA_PATH."""
-        sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
-        # Should include DATA_PATH in ATTACH
         data_path_found = any(
             db_config["data_path"] in str(call_args[0])
-            for (call_args, _) in fake_conn.sql.call_args_list
+            for (call_args, _) in conn._conn.sql.call_args_list
         )
         assert data_path_found, "DATA_PATH not found in catalog config"
 
     def test_catalog_config_includes_metadata_schema(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that catalog config includes METADATA_SCHEMA."""
-        sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
-        # Should include METADATA_SCHEMA in ATTACH
         schema_found = any(
             db_config["metadata_schema"] in str(call_args[0])
-            for (call_args, _) in fake_conn.sql.call_args_list
+            for (call_args, _) in conn._conn.sql.call_args_list
         )
         assert schema_found, "METADATA_SCHEMA not found in catalog config"
 
@@ -125,37 +105,37 @@ class TestDuckDBConnectionExecute:
     """Test execute method."""
 
     def test_execute_without_parameters(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test execute method without parameters."""
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         conn.execute("SELECT * FROM users")
 
         # When parameters is None, only the SQL is passed
-        fake_conn.execute.assert_called_with("SELECT * FROM users")
+        conn._conn.execute.assert_called_with("SELECT * FROM users")
 
     def test_execute_with_parameters(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test execute method with parameters."""
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         params = [42, "test"]
         conn.execute("SELECT * FROM users WHERE id = ? AND name = ?", params)
 
-        fake_conn.execute.assert_called_with(
+        conn._conn.execute.assert_called_with(
             "SELECT * FROM users WHERE id = ? AND name = ?", params
         )
 
     def test_execute_returns_result(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that execute returns the result from underlying connection."""
+        conn = sut_connection(db_config)
         fake_result = MagicMock()
-        fake_conn.execute.return_value = fake_result
+        conn._conn.execute.return_value = fake_result
 
-        conn = sut_connection(db_config, fake_conn)
         result = conn.execute("SELECT 1")
 
         assert result == fake_result
@@ -165,26 +145,27 @@ class TestDuckDBConnectionSql:
     """Test sql method."""
 
     def test_sql_executes_query(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test sql method executes query."""
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
+        conn._conn.sql.reset_mock()  # clear calls made during init
 
         conn.sql("SELECT * FROM users")
 
         assert any(
             "SELECT * FROM users" in str(call_args[0])
-            for (call_args, _) in fake_conn.sql.call_args_list
+            for (call_args, _) in conn._conn.sql.call_args_list
         )
 
     def test_sql_returns_result(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that sql returns the result from underlying connection."""
+        conn = sut_connection(db_config)
         fake_result = MagicMock()
-        fake_conn.sql.return_value = fake_result
+        conn._conn.sql.return_value = fake_result
 
-        conn = sut_connection(db_config, fake_conn)
         result = conn.sql("SELECT 1")
 
         assert result == fake_result
@@ -194,15 +175,15 @@ class TestDuckDBConnectionRegister:
     """Test register method for virtual tables."""
 
     def test_register_python_Any(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test registering a Python object as virtual table."""
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         obj = MagicMock()
         conn.register("my_table", obj)
 
-        fake_conn.register.assert_called_with("my_table", obj)
+        conn._conn.register.assert_called_with("my_table", obj)
 
 
 class TestDuckDBConnectionClose:
@@ -211,137 +192,134 @@ class TestDuckDBConnectionClose:
     def test_close_when_owns_connection(
         self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
-        """Test that close calls underlying close when connection is owned."""
-        # Don't pass fake_conn so ownership is True
+        """Test that close calls underlying close and nullifies _conn."""
         conn = sut_connection(db_config)
+        inner = conn._conn  # save reference before close
 
         conn.close()
 
-        # Check that the owned connection's close was called
-        conn._conn.close.assert_called_once()
+        inner.close.assert_called_once()
+        assert conn._conn is None
 
-    def test_close_when_does_not_own_connection(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    def test_close_is_idempotent(
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
-        """Test that close does not call underlying close when connection is not owned."""
-        # Create with existing connection
-        conn = sut_connection(db_config, fake_conn)
-
-        # Reset the mock since init already called sql methods
-        fake_conn.reset_mock()
-
+        """Test that calling close twice does not raise."""
+        conn = sut_connection(db_config)
         conn.close()
+        conn.close()  # should not raise
 
-        # close() should not have been called since we don't own the connection
-        fake_conn.close.assert_not_called()
-
-    def test_owns_connection_property(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+    def test_raw_returns_underlying_connection(
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
-        """Test owns_connection property reflects ownership."""
-        # With external connection
-        conn1 = sut_connection(db_config, fake_conn)
-        assert conn1.owns_connection is False
+        """Test that raw property returns the underlying DuckDB connection."""
+        conn = sut_connection(db_config)
+        assert conn.raw is conn._conn
 
-        # Without external connection (creates own)
-        conn2 = sut_connection(db_config)
-        assert conn2.owns_connection is True
+    def test_raw_raises_after_close(
+        self, sut_connection: Any, db_config: dict[str, str]
+    ) -> None:
+        """Test that raw raises RuntimeError after connection is closed."""
+        conn = sut_connection(db_config)
+        conn.close()
+        with pytest.raises(RuntimeError, match="Connection is closed"):
+            _ = conn.raw
 
 
 class TestDropOperationEnforcement:
     """Test DROP operation environment-based enforcement."""
 
     def test_execute_blocks_drop_in_prod_environment(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that execute() blocks DROP TABLE in prod environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             with pytest.raises(PermissionError, match="only allowed in TEST"):
                 conn.execute("DROP TABLE users")
 
     def test_execute_allows_drop_in_test_environment(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that execute() allows DROP TABLE in test environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
             # Should not raise
             conn.execute("DROP TABLE users")
             # Verify execute was called
-            fake_conn.execute.assert_called()
+            conn._conn.execute.assert_called()
 
     def test_sql_blocks_drop_in_prod_environment(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that sql() blocks DROP TABLE in prod environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             with pytest.raises(PermissionError, match="only allowed in TEST"):
                 conn.sql("DROP TABLE users")
 
     def test_sql_allows_drop_in_test_environment(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that sql() allows DROP TABLE in test environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
             # Should not raise
             conn.sql("DROP TABLE users")
             # Verify sql was called
-            fake_conn.sql.assert_called()
+            conn._conn.sql.assert_called()
 
     def test_drop_view_also_blocked_in_prod(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that DROP VIEW is also blocked in prod environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             with pytest.raises(PermissionError, match="only allowed in TEST"):
                 conn.execute("DROP VIEW my_view")
 
     def test_drop_database_also_blocked_in_prod(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that DROP DATABASE is also blocked in prod environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             with pytest.raises(PermissionError, match="only allowed in TEST"):
                 conn.execute("DROP DATABASE mydb")
 
     def test_non_drop_operations_allowed_in_all_environments(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that non-DROP operations are allowed in all environments."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
-        fake_conn.execute.reset_mock()  # Reset after init to count only the test calls
+        conn = sut_connection(db_config)
+        conn._conn.execute.reset_mock()  # Reset after init to count only the test calls
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             # SELECT, INSERT, UPDATE, DELETE should all work
@@ -350,16 +328,16 @@ class TestDropOperationEnforcement:
             conn.execute("UPDATE users SET name = 'Bob'")
             conn.execute("DELETE FROM users WHERE id = 1")
 
-            assert fake_conn.execute.call_count == 4
+            assert conn._conn.execute.call_count == 4
 
     def test_drop_logs_in_test_environment(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that DROP operations are logged in test environment."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "test"}):
             with patch("ssb_parquedit.connection.logger") as mock_logger:
@@ -373,13 +351,13 @@ class TestDropOperationEnforcement:
                 assert "TEST" in log_msg
 
     def test_drop_case_insensitive(
-        self, sut_connection: Any, db_config: dict[str, str], fake_conn: MagicMock
+        self, sut_connection: Any, db_config: dict[str, str]
     ) -> None:
         """Test that DROP keyword matching is case-insensitive."""
         import os
         from unittest.mock import patch
 
-        conn = sut_connection(db_config, fake_conn)
+        conn = sut_connection(db_config)
 
         with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "prod"}):
             # Test various case variations
