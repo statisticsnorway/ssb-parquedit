@@ -16,7 +16,6 @@ _CLOSED_MSG = "Connection is closed."
 
 
 class DuckDBConnection:
-    _conn: duckdb.DuckDBPyConnection | None = None
     """Manages DuckDB connection with DuckLake catalog integration.
 
     Handles connection lifecycle, GCS filesystem registration, DuckLake
@@ -35,6 +34,8 @@ class DuckDBConnection:
         >>> conn.execute("SELECT 1")
         >>> conn.close()
     """
+
+    _conn: duckdb.DuckDBPyConnection | None = None
 
     def __init__(self, db_config: dict[str, str]) -> None:
         """Initialize DuckDB connection with DuckLake catalog.
