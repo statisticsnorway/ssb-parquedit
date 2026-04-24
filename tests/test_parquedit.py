@@ -74,14 +74,12 @@ def test_create_table_with_dataframe(sut: Any, db_config: dict[str, str]) -> Non
     mock_conn = MagicMock()
     mock_inner_conn = MagicMock()
     mock_conn._conn = mock_inner_conn
-    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
-    mock_conn.__exit__ = MagicMock(return_value=None)
 
-    with patch.object(pe, "_get_connection", return_value=mock_conn):
+    with patch.object(pe, "_get_connection", return_value=mock_conn) as mock_get:
         pe.create_table("users", df, product_name="my_product")
 
-    # Verify that the connection was used
-    mock_conn.__enter__.assert_called_once()
+    # Verify that _get_connection was called
+    mock_get.assert_called_once()
 
 
 # -------------------- Insert Data Tests --------------------
@@ -93,18 +91,16 @@ def test_insert_data_calls_connection(sut: Any, db_config: dict[str, str]) -> No
 
     # Mock the connection
     mock_conn = MagicMock()
-    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
-    mock_conn.__exit__ = MagicMock(return_value=None)
 
-    with patch.object(pe, "_get_connection", return_value=mock_conn):
+    with patch.object(pe, "_get_connection", return_value=mock_conn) as mock_get:
         # Just test that _get_connection is called, not the full flow
         try:
             pe.insert_data("users", "gs://bucket/data.parquet")
         except Exception:
             pass  # We expect this to fail since we're mocking
 
-    # Verify that the connection was used
-    mock_conn.__enter__.assert_called_once()
+    # Verify that _get_connection was called
+    mock_get.assert_called_once()
 
 
 # -------------------- View Tests --------------------
@@ -116,14 +112,12 @@ def test_view_calls_connection(sut: Any, db_config: dict[str, str]) -> None:
 
     # Mock the connection
     mock_conn = MagicMock()
-    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
-    mock_conn.__exit__ = MagicMock(return_value=None)
 
-    with patch.object(pe, "_get_connection", return_value=mock_conn):
+    with patch.object(pe, "_get_connection", return_value=mock_conn) as mock_get:
         pe.view("users", limit=10)
 
-    # Verify that the connection was used
-    mock_conn.__enter__.assert_called_once()
+    # Verify that _get_connection was called
+    mock_get.assert_called_once()
 
 
 # -------------------- Count Tests --------------------
@@ -135,14 +129,12 @@ def test_count_calls_connection(sut: Any, db_config: dict[str, str]) -> None:
 
     # Mock the connection
     mock_conn = MagicMock()
-    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
-    mock_conn.__exit__ = MagicMock(return_value=None)
 
-    with patch.object(pe, "_get_connection", return_value=mock_conn):
+    with patch.object(pe, "_get_connection", return_value=mock_conn) as mock_get:
         pe.count("users")
 
-    # Verify that the connection was used
-    mock_conn.__enter__.assert_called_once()
+    # Verify that _get_connection was called
+    mock_get.assert_called_once()
 
 
 # -------------------- Exists Tests --------------------
@@ -154,14 +146,12 @@ def test_exists_calls_connection(sut: Any, db_config: dict[str, str]) -> None:
 
     # Mock the connection
     mock_conn = MagicMock()
-    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
-    mock_conn.__exit__ = MagicMock(return_value=None)
 
-    with patch.object(pe, "_get_connection", return_value=mock_conn):
+    with patch.object(pe, "_get_connection", return_value=mock_conn) as mock_get:
         pe.exists("users")
 
-    # Verify that the connection was used
-    mock_conn.__enter__.assert_called_once()
+    # Verify that _get_connection was called
+    mock_get.assert_called_once()
 
 
 # -------------------- List Tables Tests --------------------
@@ -173,14 +163,12 @@ def test_list_tables_calls_connection(sut: Any, db_config: dict[str, str]) -> No
 
     # Mock the connection
     mock_conn = MagicMock()
-    mock_conn.__enter__ = MagicMock(return_value=mock_conn)
-    mock_conn.__exit__ = MagicMock(return_value=None)
 
-    with patch.object(pe, "_get_connection", return_value=mock_conn):
+    with patch.object(pe, "_get_connection", return_value=mock_conn) as mock_get:
         pe.list_tables()
 
-    # Verify that the connection was used
-    mock_conn.__enter__.assert_called_once()
+    # Verify that _get_connection was called
+    mock_get.assert_called_once()
 
 
 def test_list_tables_returns_list(sut: Any, db_config: dict[str, str]) -> None:

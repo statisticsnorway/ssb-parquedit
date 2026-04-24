@@ -1,5 +1,6 @@
 """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
+import logging
 from typing import Any
 from typing import cast
 
@@ -11,6 +12,8 @@ from .dml import DMLOperations
 from .functions import create_config
 from .query import QueryOperations
 
+logger = logging.getLogger(__name__)
+
 
 class ParquEdit:
     """A class for managing DuckDB tables with DuckLake catalog integration.
@@ -21,12 +24,46 @@ class ParquEdit:
     """
 
     def __init__(self, config: dict[str, str] | None = None) -> None:
-        """Initialize ParquEdit."""
+        """Initialize ParquEdit with optional database configuration.
+
+        Args:
+            config: Optional database configuration dict. If None, configuration
+                is auto-detected from the Dapla environment variables.
+        """
         self._db_config = config if config is not None else create_config()
+        self._conn: DuckDBConnection | None = None
 
     def _get_connection(self) -> DuckDBConnection:
-        """Create a new connection."""
-        return DuckDBConnection(self._db_config)
+        """Returnerer cached connection, oppretter ved første kall."""
+        if self._conn is None:
+            self._conn = DuckDBConnection(self._db_config)
+            logger.debug("Duck DB connection created. ")
+
+        return self._conn
+
+    def close(self) -> None:
+        """Lukk connection eksplisitt."""
+        if self._conn is not None:
+            self._conn.close()
+            logger.debug("Duck DB connection closed. ")
+            self._conn = None
+
+    def __enter__(self) -> "ParquEdit":
+        """Open a persistent connection when used as a context manager.
+
+        Returns:
+            ParquEdit: This instance with an active connection.
+        """
+        self._get_connection()  # eager init ved context manager-bruk
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        """Close the connection when exiting the context manager."""
+        self.close()
+
+    def __del__(self) -> None:
+        """Close the connection when the instance is garbage-collected."""
+        self.close()  # best-effort fallback
 
     # ============ DDL Operations ============
 
@@ -62,46 +99,43 @@ class ParquEdit:
                 "'product_name' must have a value, please provide the valid product-name for your table"
             )
 
-        with self._get_connection() as conn:
-            ddl = DDLOperations(conn, self._db_config)
-            dml = DMLOperations(conn)
+        conn = self._get_connection()
+        ddl = DDLOperations(conn, self._db_config)
+        dml = DMLOperations(conn)
 
-            if (
-                isinstance(source, pd.DataFrame)
-                or source.__class__.__name__ == "DataFrame"
-            ):
-                # DuckDB does not support pandas' nullable StringDtype — convert to object dtype first
-                df = cast(pd.DataFrame, source)
-                source_converted = df.astype(
-                    {
-                        col: object
-                        for col, dtype in df.dtypes.items()
-                        if isinstance(dtype, pd.StringDtype)
-                    }
-                )
-                conn._conn.register("data", source_converted)
-                conn._conn.execute(
-                    f"CREATE TABLE {table_name} AS "
-                    f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
-                )
+        if isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
+            # DuckDB does not support pandas' nullable StringDtype — convert to object dtype first
+            df = cast(pd.DataFrame, source)
+            source_converted = df.astype(
+                {
+                    col: object
+                    for col, dtype in df.dtypes.items()
+                    if isinstance(dtype, pd.StringDtype)
+                }
+            )
+            conn.register("data", source_converted)
+            conn.execute(
+                f"CREATE TABLE {table_name} AS "
+                f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
+            )
 
-            elif isinstance(source, dict):
-                ddl.create_table(table_name, source, part_columns)
-            elif isinstance(source, str):
-                ddl.create_table(table_name, source)
-            else:
-                ddl.create_table(table_name, source, part_columns)
+        elif isinstance(source, dict):
+            ddl.create_table(table_name, source, part_columns)
+        elif isinstance(source, str):
+            ddl.create_table(table_name, source)
+        else:
+            ddl.create_table(table_name, source, part_columns)
 
-            if part_columns and len(part_columns) > 0:
-                columns_str = ",".join(part_columns)
-                conn._conn.execute(
-                    f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
-                )
+        if part_columns and len(part_columns) > 0:
+            columns_str = ",".join(part_columns)
+            conn.execute(
+                f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
+            )
 
-            if fill:
-                dml.insert_data(table_name, source)
+        if fill:
+            dml.insert_data(table_name, source)
 
-            conn._conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
+        conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
 
     def drop_table(self, table_name: str, cleanup: bool = True) -> None:
         """Drop a table from the DuckLake catalog with optional cleanup.
@@ -125,9 +159,9 @@ class ParquEdit:
             >>> con.drop_table("temporary_table")  # Drop with cleanup
             >>> con.drop_table("temp_table", cleanup=False)  # Drop only
         """
-        with self._get_connection() as conn:
-            ddl = DDLOperations(conn, self._db_config)
-            ddl.drop_table(table_name, cleanup=cleanup)
+        conn = self._get_connection()
+        ddl = DDLOperations(conn, self._db_config)
+        ddl.drop_table(table_name, cleanup=cleanup)
 
     # ============ DML Operations ============
 
@@ -142,9 +176,10 @@ class ParquEdit:
                 Can be a pandas DataFrame, a dictionary mapping column names
                 to values, or a string file path to a data file.
         """
-        with self._get_connection() as conn:
-            dml = DMLOperations(conn)
-            dml.insert_data(table_name, source)
+        conn = self._get_connection()
+
+        dml = DMLOperations(conn)
+        dml.insert_data(table_name, source)
 
     # ============ Query Operations ============
 
@@ -178,17 +213,17 @@ class ParquEdit:
         Returns:
             Any: Query results in the specified output format.
         """
-        with self._get_connection() as conn:
-            query = QueryOperations(conn)
-            return query.view(
-                table_name,
-                limit=limit,
-                offset=offset,
-                columns=columns,
-                filters=filters,
-                order_by=order_by,
-                output_format=output_format,
-            )
+        conn = self._get_connection()
+        query = QueryOperations(conn)
+        return query.view(
+            table_name,
+            limit=limit,
+            offset=offset,
+            columns=columns,
+            filters=filters,
+            order_by=order_by,
+            output_format=output_format,
+        )
 
     def count(
         self,
@@ -206,9 +241,10 @@ class ParquEdit:
         Returns:
             int: The number of rows matching the given filters.
         """
-        with self._get_connection() as conn:
-            query = QueryOperations(conn)
-            return query.count(table_name, filters)
+        conn = self._get_connection()
+
+        query = QueryOperations(conn)
+        return query.count(table_name, filters)
 
     def exists(self, table_name: str) -> bool:
         """Check if a table exists in the database.
@@ -219,9 +255,10 @@ class ParquEdit:
         Returns:
             bool: True if the table exists, False otherwise.
         """
-        with self._get_connection() as conn:
-            query = QueryOperations(conn)
-            return query.table_exists(table_name)
+        conn = self._get_connection()
+
+        query = QueryOperations(conn)
+        return query.table_exists(table_name)
 
     def list_tables(self) -> list[str]:
         """List all tables in the current catalog.
@@ -229,6 +266,7 @@ class ParquEdit:
         Returns:
             list[str]: A list of table names in the catalog, sorted alphabetically.
         """
-        with self._get_connection() as conn:
-            query = QueryOperations(conn)
-            return query.list_tables()
+        conn = self._get_connection()
+
+        query = QueryOperations(conn)
+        return query.list_tables()

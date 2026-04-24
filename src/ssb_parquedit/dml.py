@@ -1,5 +1,6 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
 
+import logging
 import uuid
 from typing import Any
 
@@ -7,6 +8,8 @@ import pandas as pd
 import pyarrow as pa
 
 from .utils import SchemaUtils
+
+logger = logging.getLogger(__name__)
 
 
 class DMLOperations:
@@ -88,7 +91,10 @@ class DMLOperations:
         self.conn.register("data", arrow_table)
 
         cols = ", ".join(arrow_table.schema.names)
+
+        logger.debug("Inserting %d rows into '%s'", len(data), table_name)
         self.conn.execute(f"INSERT INTO {table_name} ({cols}) SELECT * FROM data")
+        logger.debug("Insert complete: %d rows -> '%s'", len(data), table_name)
 
     def _insert_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Insert data from a Parquet file into a table.

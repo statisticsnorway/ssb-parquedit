@@ -1,10 +1,13 @@
 """Query operations for DuckDB tables."""
 
+import logging
 from typing import Any
 from typing import cast
 
 from .utils import SchemaUtils
 from .utils import SQLSanitizer
+
+logger = logging.getLogger(__name__)
 
 
 class QueryOperations:
