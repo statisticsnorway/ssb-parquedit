@@ -16,6 +16,7 @@ _CLOSED_MSG = "Connection is closed."
 
 
 class DuckDBConnection:
+    _conn: duckdb.DuckDBPyConnection | None = None
     """Manages DuckDB connection with DuckLake catalog integration.
 
     Handles connection lifecycle, GCS filesystem registration, DuckLake
@@ -51,29 +52,28 @@ class DuckDBConnection:
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
         """
-        _raw = duckdb.connect()
+        self._conn = duckdb.connect()
 
         fs = gcsfs.GCSFileSystem()
-        _raw.register_filesystem(fs)
+
+        self._conn.register_filesystem(fs)
 
         for ext in ("ducklake", "postgres"):
-            _raw.sql(f"INSTALL {ext}")
-            _raw.sql(f"LOAD {ext}")
+            self._conn.sql(f"INSTALL {ext}")
+            self._conn.sql(f"LOAD {ext}")
 
-        _raw.sql(f"""
+        self._conn.sql(f"""
             ATTACH 'ducklake:postgres:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
                 host=localhost
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
-             METADATA_SCHEMA {db_config["metadata_schema"]},
-             DATA_INLINING_ROW_LIMIT 300,
-             AUTOMATIC_MIGRATION TRUE);
+            METADATA_SCHEMA {db_config["metadata_schema"]},
+            DATA_INLINING_ROW_LIMIT 300,
+            AUTOMATIC_MIGRATION TRUE);
             """)
-        _raw.sql(f"USE {db_config['catalog_name']}")
-
-        self._conn: duckdb.DuckDBPyConnection | None = _raw
+        self._conn.sql(f"USE {db_config['catalog_name']}")
 
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute a SQL statement with DROP operation enforcement.
