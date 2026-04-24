@@ -12,6 +12,8 @@ from .functions import get_dapla_environment
 
 logger = logging.getLogger(__name__)
 
+_CLOSED_MSG = "Connection is closed."
+
 
 class DuckDBConnection:
     """Manages DuckDB connection with DuckLake catalog integration.
@@ -96,7 +98,7 @@ class DuckDBConnection:
             >>> conn.execute("SELECT * FROM my_table WHERE id = ?", [42])
         """
         if self._conn is None:
-            raise RuntimeError("Connection is closed.")
+            raise RuntimeError(_CLOSED_MSG)
         self._check_drop_operation(sql)
         if parameters is not None:
             return self._conn.execute(sql, parameters)
@@ -160,7 +162,7 @@ class DuckDBConnection:
             >>> conn.sql("CALL ducklake_flush_inlined_data('my_catalog')")
         """
         if self._conn is None:
-            raise RuntimeError("Connection is closed.")
+            raise RuntimeError(_CLOSED_MSG)
         self._check_drop_operation(query)
         return self._conn.sql(query)
 
@@ -184,7 +186,7 @@ class DuckDBConnection:
             >>> conn.execute("INSERT INTO my_table SELECT * FROM staging")
         """
         if self._conn is None:
-            raise RuntimeError("Connection is closed.")
+            raise RuntimeError(_CLOSED_MSG)
         self._conn.register(name, obj)
 
     def close(self) -> None:
@@ -221,5 +223,5 @@ class DuckDBConnection:
             >>> ibis_conn = ibis.duckdb.connect(conn=ducklake_conn.raw)
         """
         if self._conn is None:
-            raise RuntimeError("Connection is closed.")
+            raise RuntimeError(_CLOSED_MSG)
         return self._conn
