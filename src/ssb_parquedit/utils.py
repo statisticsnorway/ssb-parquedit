@@ -1,5 +1,6 @@
 """Utility functions for schema translation and validation."""
 
+import logging
 import re
 from collections.abc import Callable
 from typing import Any
@@ -7,6 +8,8 @@ from typing import ClassVar
 from typing import cast
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class SQLInjectionError(ValueError):

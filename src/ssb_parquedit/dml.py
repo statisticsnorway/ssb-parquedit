@@ -1,5 +1,6 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
 
+import logging
 import uuid
 from typing import Any
 
@@ -7,6 +8,8 @@ import pandas as pd
 import pyarrow as pa
 
 from .utils import SchemaUtils
+
+logger = logging.getLogger(__name__)
 
 
 class DMLOperations:

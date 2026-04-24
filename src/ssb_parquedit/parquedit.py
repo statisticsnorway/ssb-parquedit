@@ -1,5 +1,6 @@
 """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
+import logging
 from typing import Any
 from typing import cast
 
@@ -10,6 +11,8 @@ from .ddl import DDLOperations
 from .dml import DMLOperations
 from .functions import create_config
 from .query import QueryOperations
+
+logger = logging.getLogger(__name__)
 
 
 class ParquEdit:
@@ -34,12 +37,15 @@ class ParquEdit:
         """Returnerer cached connection, oppretter ved første kall."""
         if self._conn is None:
             self._conn = DuckDBConnection(self._db_config)
+            logger.debug("Duck DB connection created. ")
+
         return self._conn
 
     def close(self) -> None:
         """Lukk connection eksplisitt."""
         if self._conn is not None:
             self._conn.close()
+            logger.debug("Duck DB connection closed. ")
             self._conn = None
 
     def __enter__(self) -> "ParquEdit":
