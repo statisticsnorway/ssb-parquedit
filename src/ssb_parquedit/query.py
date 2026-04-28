@@ -114,9 +114,9 @@ class QueryOperations:
             >>> query.view("users", limit=10, output_format="pyarrow")
         """
         if output_format not in ("pandas", "polars", "pyarrow"):
-            raise ValueError(
-                f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
-            )
+            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
+            logger.error(msg)
+            raise ValueError(msg)
 
         SchemaUtils.validate_table_name(table_name)
 
@@ -171,9 +171,9 @@ class QueryOperations:
         elif output_format == "pyarrow":
             return result.arrow()
         else:  # pragma: no cover
-            raise ValueError(
-                f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
-            )
+            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
+            logger.error(msg)
+            raise ValueError(msg )
 
     def count(
         self,

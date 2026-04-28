@@ -56,7 +56,9 @@ class DMLOperations:
         elif isinstance(source, str):
             self._insert_from_parquet(table_name, parquet_path=source)
         else:
-            raise TypeError("source must be a DataFrame or gs:// Parquet path")
+            msg = "source must be a DataFrame or gs:// Parquet path"
+            logger.error(msg)
+            raise TypeError(msg)
 
     def _insert_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
         """Insert data from a DataFrame into a table.

@@ -95,9 +95,9 @@ class ParquEdit:
             ValueError: If product_name is None or empty.
         """
         if product_name is None or product_name == "":
-            raise ValueError(
-                "'product_name' must have a value, please provide the valid product-name for your table"
-            )
+            msg = "'product_name' must have a value, please provide the valid product-name for your table"
+            logger.error(msg)
+            raise ValueError(msg)
 
         conn = self._get_connection()
         ddl = DDLOperations(conn, self._db_config)
