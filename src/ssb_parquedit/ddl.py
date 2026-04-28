@@ -3,6 +3,7 @@
 import logging
 import re
 from typing import Any
+from typing import cast
 
 import gcsfs
 import pandas as pd
@@ -268,20 +269,19 @@ class DDLOperations:
             table_name: Name of the table to create.
             data: DataFrame whose schema will be used.
         """
-        # Register the DataFrame with DuckDB
-        self.conn.register("_temp_df", data)
-
-        # Create an empty table with the schema from the DataFrame
-        ddl = f"""
-        CREATE TABLE {table_name} AS
-        SELECT
-            CAST(NULL AS VARCHAR) AS _id,
-            *
-        FROM _temp_df
-        WHERE 1 = 2
-        """
-
-        self.conn.execute(ddl)
+        df = cast(pd.DataFrame, data)
+        source_converted = df.astype(
+            {
+                col: object
+                for col, dtype in df.dtypes.items()
+                if isinstance(dtype, pd.StringDtype)
+            }
+        )
+        self.conn.register("data", source_converted)
+        self.conn.execute(
+            f"CREATE TABLE {table_name} AS "
+            f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
+        )
 
     def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Create an empty table from a Parquet file schema.
