@@ -2,7 +2,6 @@
 
 import logging
 from typing import Any
-from typing import cast
 
 import pandas as pd
 
@@ -95,36 +94,15 @@ class ParquEdit:
             ValueError: If product_name is None or empty.
         """
         if product_name is None or product_name == "":
-            raise ValueError(
-                "'product_name' must have a value, please provide the valid product-name for your table"
-            )
+            msg = "'product_name' must have a value, please provide the valid product-name for your table"
+            logger.error(msg)
+            raise ValueError(msg)
 
         conn = self._get_connection()
         ddl = DDLOperations(conn, self._db_config)
         dml = DMLOperations(conn)
 
-        if isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame":
-            # DuckDB does not support pandas' nullable StringDtype — convert to object dtype first
-            df = cast(pd.DataFrame, source)
-            source_converted = df.astype(
-                {
-                    col: object
-                    for col, dtype in df.dtypes.items()
-                    if isinstance(dtype, pd.StringDtype)
-                }
-            )
-            conn.register("data", source_converted)
-            conn.execute(
-                f"CREATE TABLE {table_name} AS "
-                f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
-            )
-
-        elif isinstance(source, dict):
-            ddl.create_table(table_name, source, part_columns)
-        elif isinstance(source, str):
-            ddl.create_table(table_name, source)
-        else:
-            ddl.create_table(table_name, source, part_columns)
+        ddl.create_table(table_name, source, part_columns)
 
         if part_columns and len(part_columns) > 0:
             columns_str = ",".join(part_columns)

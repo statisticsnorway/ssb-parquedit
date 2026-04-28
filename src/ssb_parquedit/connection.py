@@ -99,6 +99,7 @@ class DuckDBConnection:
             >>> conn.execute("SELECT * FROM my_table WHERE id = ?", [42])
         """
         if self._conn is None:
+            logger.error(_CLOSED_MSG)
             raise RuntimeError(_CLOSED_MSG)
         self._check_drop_operation(sql)
         if parameters is not None:
@@ -125,11 +126,13 @@ class DuckDBConnection:
             environment = get_dapla_environment()
 
             if environment != "test":
-                raise PermissionError(
+                msg = (
                     f"DROP operations are only allowed in TEST environment. "
                     f"Current environment: {environment or 'not set'}. "
                     f"Set DAPLA_ENVIRONMENT=test to enable DROP operations."
                 )
+                logger.error(msg)
+                raise PermissionError(msg)
 
             table_match = re.search(
                 r"\bDROP\s+(?:TABLE|VIEW|DATABASE|SCHEMA)\s+(\w+)",
@@ -163,6 +166,7 @@ class DuckDBConnection:
             >>> conn.sql("CALL ducklake_flush_inlined_data('my_catalog')")
         """
         if self._conn is None:
+            logger.error(_CLOSED_MSG)
             raise RuntimeError(_CLOSED_MSG)
         self._check_drop_operation(query)
         return self._conn.sql(query)
@@ -187,6 +191,7 @@ class DuckDBConnection:
             >>> conn.execute("INSERT INTO my_table SELECT * FROM staging")
         """
         if self._conn is None:
+            logger.error(_CLOSED_MSG)
             raise RuntimeError(_CLOSED_MSG)
         self._conn.register(name, obj)
 
@@ -224,5 +229,6 @@ class DuckDBConnection:
             >>> ibis_conn = ibis.duckdb.connect(conn=ducklake_conn.raw)
         """
         if self._conn is None:
+            logger.error(_CLOSED_MSG)
             raise RuntimeError(_CLOSED_MSG)
         return self._conn

@@ -3,6 +3,7 @@
 import logging
 import re
 from typing import Any
+from typing import cast
 
 import gcsfs
 import pandas as pd
@@ -68,7 +69,8 @@ class DDLOperations:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
             # Re-raise for å gjøre unntaket synlig for lint
-            raise ValueError(str(e)) from e
+            logger.error(str(e))
+            raise
 
         # Check if source is a DataFrame (handle both real and mock pandas DataFrames)
         if isinstance(source, dict):
@@ -80,9 +82,9 @@ class DDLOperations:
         ):
             self._create_from_dataframe(table_name, source)
         else:
-            raise TypeError(
-                "source must be a DataFrame, JSON Schema dict, or gs:// Parquet path"
-            )
+            msg = "source must be a DataFrame, JSON Schema dict, or gs:// Parquet path"
+            logger.error(msg)
+            raise TypeError(msg)
 
         if part_columns is None:
             part_columns = []
@@ -122,16 +124,19 @@ class DDLOperations:
         try:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
-            raise ValueError(str(e)) from e
+            logger.error(str(e))
+            raise
 
         # Check environment
         environment = get_dapla_environment()
         if environment != "test":
-            raise PermissionError(
-                f"Table deletion is only allowed in TEST environment. "
+            msg = (
+                "Table deletion is only allowed in TEST environment. "
                 f"Current environment: {environment or 'not set'}. "
-                f"Set DAPLA_ENVIRONMENT=test to enable table deletion."
+                "Set DAPLA_ENVIRONMENT=test to enable table deletion."
             )
+            logger.error(msg)
+            raise PermissionError(msg)
 
         # Get table location before dropping (if cleanup is enabled)
         table_location = None
@@ -192,10 +197,12 @@ class DDLOperations:
             )
             return fallback_path
 
-        raise RuntimeError(
+        msg = (
             f"Cannot determine table location for {table_name}. "
-            f"No data_path configured and metadata query failed."
+            "No data_path configured and metadata query failed."
         )
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     def _expire_snapshots(self, table_name: str) -> None:
         """Expire old snapshots for a dropped table metadata cleanup.
@@ -268,20 +275,19 @@ class DDLOperations:
             table_name: Name of the table to create.
             data: DataFrame whose schema will be used.
         """
-        # Register the DataFrame with DuckDB
-        self.conn.register("_temp_df", data)
-
-        # Create an empty table with the schema from the DataFrame
-        ddl = f"""
-        CREATE TABLE {table_name} AS
-        SELECT
-            CAST(NULL AS VARCHAR) AS _id,
-            *
-        FROM _temp_df
-        WHERE 1 = 2
-        """
-
-        self.conn.execute(ddl)
+        df = cast(pd.DataFrame, data)
+        source_converted = df.astype(
+            {
+                col: object
+                for col, dtype in df.dtypes.items()
+                if isinstance(dtype, pd.StringDtype)
+            }
+        )
+        self.conn.register("data", source_converted)
+        self.conn.execute(
+            f"CREATE TABLE {table_name} AS "
+            f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
+        )
 
     def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Create an empty table from a Parquet file schema.
@@ -326,7 +332,8 @@ class DDLOperations:
             SQLSanitizer.validate_column_list(part_columns)
         except SQLInjectionError as e:
             # Re-raise for å gjøre unntaket synlig for linter
-            raise SQLInjectionError(str(e)) from e
+            logger.error(str(e))
+            raise
 
         cols = ", ".join(part_columns)
         self.conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols});")

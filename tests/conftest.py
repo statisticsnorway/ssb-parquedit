@@ -8,128 +8,140 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# ---- Module-level fakes (defined once, reused across all fixtures) ----
+
+
+class _FakeDataFrame:
+    def __init__(self) -> None:
+        self.dtypes: dict[Any, Any] = {}
+        self._data: dict[str, list[Any]] = {}
+
+    @property
+    def columns(self) -> list[str]:
+        """Return column names."""
+        return list(self._data.keys())
+
+    def copy(self) -> "_FakeDataFrame":
+        """Return a shallow copy of the DataFrame."""
+        df = _FakeDataFrame()
+        df._data = self._data.copy()
+        df.dtypes = self.dtypes.copy()
+        return df
+
+    def __setitem__(self, col: str, value: Any) -> None:
+        """Set a column value."""
+        self._data[col] = value
+
+    def __len__(self) -> int:
+        """Return the number of rows in the DataFrame."""
+        if self._data:
+            return len(next(iter(self._data.values())))
+        return 0
+
+    def insert(self, loc: int, column: str, value: Any) -> None:
+        """Insert a column into the DataFrame at the given location."""
+        self._data[column] = value if isinstance(value, list) else [value]
+
+    def astype(self, dtype_dict: dict[str, Any]) -> "_FakeDataFrame":
+        """Return a copy with specified columns converted to new types."""
+        return self.copy()
+
+    def __getitem__(self, col: str) -> "_FakeSeries":
+        """Return a Series for the given column."""
+        return _FakeSeries(self._data.get(col, []))
+
+
+class _FakeSeries:
+    def __init__(self, data: Any, dtype: Any = None) -> None:
+        self.dtype = dtype or object
+        self._data = data
+
+    def astype(self, dtype: Any) -> "_FakeSeries":
+        return _FakeSeries(self._data)
+
+    def where(self, cond: Any, other: Any = None) -> "_FakeSeries":
+        return _FakeSeries(self._data)
+
+    def isna(self) -> "_FakeSeries":
+        return _FakeSeries([False] * len(self._data))
+
+    def notna(self) -> "_FakeSeries":
+        return _FakeSeries([True] * len(self._data))
+
+
+class _FakePandas:
+    DataFrame = _FakeDataFrame
+    Series = _FakeSeries
+
+    class StringDtype:
+        """Fake StringDtype for pandas mocking."""
+
+        pass
+
+    @staticmethod
+    def to_numeric(series: Any, errors: str = "raise") -> "_FakeSeries":
+        """Stub for pd.to_numeric."""
+        return _FakeSeries([])
+
+
+class _FakeDuckDB:
+    class DuckDBPyConnection:  # only for type hints; runtime uses MagicMock
+        pass
+
+    def connect(self) -> MagicMock:
+        conn = MagicMock()
+        conn.sql = MagicMock()
+        conn.execute = MagicMock()
+        conn.register = MagicMock()
+        conn.register_filesystem = MagicMock()
+        conn.close = MagicMock()
+        return conn
+
+
+class _FakeGCSFS:
+    class GCSFileSystem:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self.created = True
+
+
+class _FakePyArrowSchema:
+    def __init__(self, names: list[str]) -> None:
+        self.names = names
+
+
+class _FakePyArrowTable:
+    def __init__(self) -> None:
+        self.schema = _FakePyArrowSchema([])
+
+    @staticmethod
+    def from_pandas(df: Any, preserve_index: bool = True) -> "_FakePyArrowTable":
+        t = _FakePyArrowTable()
+        t.schema = _FakePyArrowSchema(list(df.columns))
+        return t
+
+
+class _FakePyArrow:
+    Table = _FakePyArrowTable
+    Schema = _FakePyArrowSchema
+
 
 # ---- Test scaffolding: stub external modules before importing the SUT ----
+
+
 @pytest.fixture(autouse=True)
 def stub_external_modules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[None]:
     """Stub external heavy dependencies (duckdb, gcsfs, pandas) so tests run hermetically.
 
-    We inject minimal fakes into sys.modules prior to importing ssb_parquedit.parquedit.
+    We inject module-level fakes into sys.modules prior to importing ssb_parquedit.parquedit.
+    Using module-level classes ensures the same class object is reused across fixtures,
+    so isinstance checks pass correctly.
     """
-
-    # Fake duckdb module with minimal API surface
-    class FakeDuckDB:
-        class DuckDBPyConnection:  # only for type hints; runtime uses MagicMock
-            pass
-
-        def connect(self) -> MagicMock:
-            # Return a MagicMock connection to simulate owned connections
-            conn = MagicMock()
-            conn.sql = MagicMock()
-            conn.execute = MagicMock()
-            conn.register = MagicMock()
-            conn.register_filesystem = MagicMock()
-            conn.close = MagicMock()
-            return conn
-
-    # Fake gcsfs module with a GCSFileSystem type
-    class FakeGCSFS:
-        class GCSFileSystem:
-            def __init__(self, *args: object, **kwargs: object) -> None:
-                self.created = True
-
-    # Fake pandas with just a DataFrame type for isinstance checks
-    class FakePandas:
-        class StringDtype:
-            """Fake StringDtype for pandas mocking."""
-
-            pass
-
-        class DataFrame:
-            def __init__(self) -> None:
-                self.dtypes: dict[Any, Any] = {}
-                self._data: dict[str, list[Any]] = {}
-
-            @property
-            def columns(self) -> list[str]:
-                """Return column names."""
-                return list(self._data.keys())
-
-            def copy(self) -> "FakePandas.DataFrame":
-                """Return a shallow copy of the DataFrame."""
-                df = FakePandas.DataFrame()
-                df._data = self._data.copy()
-                df.dtypes = self.dtypes.copy()
-                return df
-
-            def __setitem__(self, col: str, value: Any) -> None:
-                """Set a column value."""
-                self._data[col] = value
-
-            def __len__(self) -> int:
-                """Return the number of rows in the DataFrame."""
-                if self._data:
-                    return len(next(iter(self._data.values())))
-                return 0
-
-            def insert(self, loc: int, column: str, value: Any) -> None:
-                """Insert a column into the DataFrame at the given location."""
-                self._data[column] = value if isinstance(value, list) else [value]
-
-            def astype(self, dtype_dict: dict[str, Any]) -> "FakePandas.DataFrame":
-                """Return a copy with specified columns converted to new types."""
-                return self.copy()
-
-            def __getitem__(self, col: str) -> "FakePandas.Series":
-                """Return a Series for the given column."""
-                return FakePandas.Series(self._data.get(col, []))
-
-        class Series:
-            def __init__(self, data: Any, dtype: Any = None) -> None:
-                self.dtype = dtype or object
-                self._data = data
-
-            def astype(self, dtype: Any) -> "FakePandas.Series":
-                return FakePandas.Series(self._data)
-
-            def where(self, cond: Any, other: Any = None) -> "FakePandas.Series":
-                return FakePandas.Series(self._data)
-
-            def isna(self) -> "FakePandas.Series":
-                return FakePandas.Series([False] * len(self._data))
-
-            def notna(self) -> "FakePandas.Series":
-                return FakePandas.Series([True] * len(self._data))
-
-        @staticmethod
-        def to_numeric(series: Any, errors: str = "raise") -> "FakePandas.Series":
-            """Stub for pd.to_numeric."""
-            return FakePandas.Series([])
-
-    # Fake pyarrow module
-    class FakePyArrow:
-        class Table:
-            def __init__(self) -> None:
-                self.schema = FakePyArrow.Schema([])
-
-            @staticmethod
-            def from_pandas(
-                df: Any, preserve_index: bool = True
-            ) -> "FakePyArrow.Table":
-                t = FakePyArrow.Table()
-                t.schema = FakePyArrow.Schema(list(df.columns))
-                return t
-
-        class Schema:
-            def __init__(self, names: list[str]) -> None:
-                self.names = names
-
-    monkeypatch.setitem(sys.modules, "duckdb", FakeDuckDB())
-    monkeypatch.setitem(sys.modules, "gcsfs", FakeGCSFS())
-    monkeypatch.setitem(sys.modules, "pandas", FakePandas())
-    monkeypatch.setitem(sys.modules, "pyarrow", FakePyArrow())
+    monkeypatch.setitem(sys.modules, "duckdb", _FakeDuckDB())
+    monkeypatch.setitem(sys.modules, "gcsfs", _FakeGCSFS())
+    monkeypatch.setitem(sys.modules, "pandas", _FakePandas)  # class, not instance
+    monkeypatch.setitem(sys.modules, "pyarrow", _FakePyArrow())
 
     yield
 

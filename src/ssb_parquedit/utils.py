@@ -66,13 +66,15 @@ class SQLSanitizer:
         for keyword in SQLSanitizer.DANGEROUS_KEYWORDS:
             # Use word boundaries to avoid false positives (e.g., 'UPDATE' in 'UPDATED_AT')
             if re.search(r"\b" + re.escape(keyword) + r"\b", order_by_upper):
-                raise SQLInjectionError(
-                    f"Potentially dangerous SQL keyword '{keyword}' detected in ORDER BY clause"
-                )
+                msg = f"Potentially dangerous SQL keyword '{keyword}' detected in ORDER BY clause"
+                logger.error(msg)
+                raise SQLInjectionError(msg)
 
         # Check for comment sequences
         if "--" in order_by or "/*" in order_by or "*/" in order_by:
-            raise SQLInjectionError("SQL comment sequences detected in ORDER BY clause")
+            msg = "SQL comment sequences detected in ORDER BY clause"
+            logger.error(msg)
+            raise SQLInjectionError(msg)
 
         # ORDER BY should only contain column names, ASC, DESC, and commas
         # Pattern: column_name [ASC|DESC], column_name [ASC|DESC], ...
@@ -80,10 +82,12 @@ class SQLSanitizer:
         term_pattern = r"[a-zA-Z_]\w*(?:\s+(?:ASC|DESC))?"
         full_pattern = rf"^\s*{term_pattern}(?:\s*,\s*{term_pattern})*\s*$"
         if not re.match(full_pattern, order_by, re.IGNORECASE):
-            raise SQLInjectionError(
+            msg = (
                 f"Invalid ORDER BY clause format: {order_by}. "
                 "Only column names, ASC/DESC, and basic operators allowed."
             )
+            logger.error(msg)
+            raise SQLInjectionError(msg)
 
     @staticmethod
     def validate_column_list(columns: list[str] | None) -> list[str]:
@@ -103,11 +107,13 @@ class SQLSanitizer:
 
         for col in columns:
             if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
-                raise SQLInjectionError(
+                msg = (
                     f"Invalid column name: {col}. "
                     "Column names must start with a letter or underscore "
                     "and contain only alphanumeric characters and underscores."
                 )
+                logger.error(msg)
+                raise SQLInjectionError(msg)
         return columns
 
     @staticmethod
@@ -129,7 +135,9 @@ class SQLSanitizer:
             ValueError: If value is None.
         """
         if value is None:
-            raise ValueError(f"Operator '{operator}' requires a non-null value")
+            msg = f"Operator '{operator}' requires a non-null value"
+            logger.error(msg)
+            raise ValueError(msg)
         params.append(value)
         return f"{column} {operator} ?"
 
@@ -149,7 +157,9 @@ class SQLSanitizer:
             ValueError: If value is not a string.
         """
         if not isinstance(value, str):
-            raise ValueError("LIKE operator requires a string value")
+            msg = "LIKE operator requires a string value"
+            logger.error(msg)
+            raise ValueError(msg)
         params.append(value)
         return f"{column} LIKE ?"
 
@@ -172,9 +182,13 @@ class SQLSanitizer:
             ValueError: If value is not a list/tuple or is empty.
         """
         if not isinstance(value, (list, tuple)):
-            raise ValueError(f"{operator} operator requires a list/tuple value")
+            msg = f"{operator} operator requires a list/tuple value"
+            logger.error(msg)
+            raise ValueError(msg)
         if not value:
-            raise ValueError(f"{operator} operator requires a non-empty list")
+            msg = f"{operator} operator requires a non-empty list"
+            logger.error(msg)
+            raise ValueError(msg)
         placeholders = ", ".join("?" * len(value))
         params.extend(value)
         return f"{column} {operator} ({placeholders})"
@@ -195,6 +209,8 @@ class SQLSanitizer:
             ValueError: If value is not a 2-element list/tuple.
         """
         if not isinstance(value, (list, tuple)) or len(value) != 2:
+            msg = "BETWEEN operator requires a list/tuple with 2 values [min, max]"
+            logger.error(msg)
             raise ValueError(
                 "BETWEEN operator requires a list/tuple with 2 values [min, max]"
             )
