@@ -135,7 +135,7 @@ class SQLSanitizer:
             ValueError: If value is None.
         """
         if value is None:
-            msg = f"Operator '{operator}' requires a non-null value
+            msg = f"Operator '{operator}' requires a non-null value"
             logger.error(msg)
             raise ValueError(msg)
         params.append(value)
@@ -157,7 +157,7 @@ class SQLSanitizer:
             ValueError: If value is not a string.
         """
         if not isinstance(value, str):
-            msg = "LIKE operator requires a string value")
+            msg = "LIKE operator requires a string value"
             logger.error(msg)
             raise ValueError(msg)
         params.append(value)
