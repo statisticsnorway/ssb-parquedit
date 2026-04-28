@@ -173,7 +173,7 @@ class QueryOperations:
         else:  # pragma: no cover
             msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
             logger.error(msg)
-            raise ValueError(msg )
+            raise ValueError(msg)
 
     def count(
         self,

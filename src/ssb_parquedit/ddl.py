@@ -125,17 +125,17 @@ class DDLOperations:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
             logger.error(str(e))
-            raise            
+            raise
 
         # Check environment
         environment = get_dapla_environment()
         if environment != "test":
             msg = (
-                    "Table deletion is only allowed in TEST environment. "
-                    f"Current environment: {environment or 'not set'}. "
-                    "Set DAPLA_ENVIRONMENT=test to enable table deletion."
-                )
-            logger.error(msg)    
+                "Table deletion is only allowed in TEST environment. "
+                f"Current environment: {environment or 'not set'}. "
+                "Set DAPLA_ENVIRONMENT=test to enable table deletion."
+            )
+            logger.error(msg)
             raise PermissionError(msg)
 
         # Get table location before dropping (if cleanup is enabled)
@@ -197,11 +197,11 @@ class DDLOperations:
             )
             return fallback_path
 
-        msg = (            
+        msg = (
             f"Cannot determine table location for {table_name}. "
             "No data_path configured and metadata query failed."
-            )
-        logger.error(msg)    
+        )
+        logger.error(msg)
         raise RuntimeError(msg)
 
     def _expire_snapshots(self, table_name: str) -> None:

@@ -125,7 +125,7 @@ class DuckDBConnection:
         if re.search(drop_pattern, sql, re.IGNORECASE):
             environment = get_dapla_environment()
 
-            if environment != "test":  
+            if environment != "test":
                 msg = (
                     f"DROP operations are only allowed in TEST environment. "
                     f"Current environment: {environment or 'not set'}. "

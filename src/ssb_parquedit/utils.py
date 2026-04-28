@@ -82,11 +82,11 @@ class SQLSanitizer:
         term_pattern = r"[a-zA-Z_]\w*(?:\s+(?:ASC|DESC))?"
         full_pattern = rf"^\s*{term_pattern}(?:\s*,\s*{term_pattern})*\s*$"
         if not re.match(full_pattern, order_by, re.IGNORECASE):
-            msg = (                
+            msg = (
                 f"Invalid ORDER BY clause format: {order_by}. "
                 "Only column names, ASC/DESC, and basic operators allowed."
-                )
-            logger.error(msg)    
+            )
+            logger.error(msg)
             raise SQLInjectionError(msg)
 
     @staticmethod
@@ -187,7 +187,7 @@ class SQLSanitizer:
             raise ValueError(msg)
         if not value:
             msg = f"{operator} operator requires a non-empty list"
-            logger.error(msg)            
+            logger.error(msg)
             raise ValueError(msg)
         placeholders = ", ".join("?" * len(value))
         params.extend(value)
