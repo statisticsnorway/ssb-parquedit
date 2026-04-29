@@ -5,7 +5,6 @@ from typing import Any
 from typing import cast
 
 from .utils import SchemaUtils
-from .utils import SQLSanitizer
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,6 @@ class QueryOperations:
         limit: int | None = None,
         offset: int = 0,
         columns: list[str] | None = None,
-        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: str = "pandas",
     ) -> Any:
@@ -44,15 +42,8 @@ class QueryOperations:
             limit: Maximum number of rows to return. None returns all rows.
             offset: Number of rows to skip. Defaults to 0. Useful for pagination.
             columns: List of column names to select. None selects all columns (*).
-            filters: Structured filter conditions. Can be:
-                - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
-                - Dict with 'and'/'or': {"and": [condition1, condition2]}
-                - Single dict condition: {"column": "age", "operator": ">", "value": 25}
-                Operators supported: =, !=, <>, <, >, <=, >=, LIKE, IN, NOT IN,
-                BETWEEN, IS NULL, IS NOT NULL
             order_by: ORDER BY clause (without the ORDER BY keyword).
                 Example: "created_at DESC" or "name ASC, age DESC"
-                Only column names and ASC/DESC keywords are allowed.
             output_format: Format for the returned data. Options are:
                 - "pandas" (default): Returns pd.DataFrame
                 - "polars": Returns pl.DataFrame (requires polars library)
@@ -71,32 +62,6 @@ class QueryOperations:
 
             >>> # Select specific columns
             >>> query.view("users", columns=["id", "name"], limit=10)
-
-            >>> # Filter with structured filters (RECOMMENDED)
-            >>> query.view("users", filters={"column": "age", "operator": ">", "value": 25})
-
-            >>> # Multiple conditions with AND
-            >>> query.view("users", filters=[
-            ...     {"column": "age", "operator": ">", "value": 25},
-            ...     {"column": "status", "operator": "=", "value": "active"}
-            ... ])
-
-            >>> # Multiple conditions with OR
-            >>> query.view("users", filters={
-            ...     "or": [
-            ...         {"column": "status", "operator": "=", "value": "admin"},
-            ...         {"column": "status", "operator": "=", "value": "moderator"}
-            ...     ]
-            ... })
-
-            >>> # Filter with LIKE operator
-            >>> query.view("users", filters={"column": "name", "operator": "LIKE", "value": "%john%"})
-
-            >>> # Filter with IN operator
-            >>> query.view("users", filters={"column": "id", "operator": "IN", "value": [1, 2, 3]})
-
-            >>> # Filter with BETWEEN
-            >>> query.view("users", filters={"column": "age", "operator": "BETWEEN", "value": [18, 65]})
 
             >>> # Sort results
             >>> query.view("users", order_by="created_at DESC", limit=10)
@@ -120,48 +85,23 @@ class QueryOperations:
 
         SchemaUtils.validate_table_name(table_name)
 
-        # Validate and sanitize SQL clauses to prevent injection
-        SQLSanitizer.validate_order_by_clause(order_by)
-        if columns:
-            SQLSanitizer.validate_column_list(columns)
-
-        # Build parameterized WHERE clause from filters
-        where_parameterized, where_params = SQLSanitizer.build_where_from_filters(
-            filters
-        )
-
         # Build SELECT clause
         if columns:
             select_clause = ", ".join(columns)
         else:
             select_clause = "*"
 
-        # Build query with parameterized LIMIT and OFFSET
         query = f"SELECT {select_clause} FROM {table_name}"
-        params: list[Any] = []
 
-        # Add WHERE clause (now parameterized)
-        if where_parameterized:
-            query += f" WHERE {where_parameterized}"
-            params.extend(where_params)
-
-        # Add ORDER BY clause
         if order_by:
             query += f" ORDER BY {order_by}"
 
-        # Add LIMIT and OFFSET with parameter binding
         if limit is not None:
-            query += " LIMIT ?"
-            params.append(limit)
+            query += f" LIMIT {limit}"
         if offset > 0:
-            query += " OFFSET ?"
-            params.append(offset)
+            query += f" OFFSET {offset}"
 
-        # Execute with parameterized values
-        if params:
-            result = self.conn.execute(query, params)
-        else:
-            result = self.conn.execute(query)
+        result = self.conn.execute(query)
 
         # Convert to requested format
         if output_format == "pandas":
@@ -178,50 +118,23 @@ class QueryOperations:
     def count(
         self,
         table_name: str,
-        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> int:
         """Count rows in a table.
 
         Args:
             table_name: Name of the table.
-            filters: Structured filter conditions. Can be:
-                - List of dicts: [{"column": "age", "operator": ">", "value": 25}, ...]
-                - Dict with 'and'/'or': {"and": [condition1, condition2]}
-                - Single dict condition: {"column": "age", "operator": ">", "value": 25}
 
         Returns:
-            int: Number of rows matching the condition.
+            int: Number of rows in the table.
 
         Example:
             >>> # doctest: +SKIP
-            >>> # Count all rows
-            >>> total = query.count("users") # doctest: +SKIP
-
-            >>> # Count with structured filters (RECOMMENDED)
-            >>> active = query.count("users", filters={"column": "status", "operator": "=", "value": "active"}) # doctest: +SKIP
-
-            >>> # Count with complex filters
-            >>> recent = query.count("users", filters=[
-            ...     {"column": "created_at", "operator": ">", "value": "2024-01-01"},
-            ...     {"column": "age", "operator": ">", "value": 18}
-            ... ])
+            >>> total = query.count("users")
         """
         SchemaUtils.validate_table_name(table_name)
 
-        # Build parameterized WHERE clause from filters
-        where_parameterized, where_params = SQLSanitizer.build_where_from_filters(
-            filters
-        )
-
         query = f"SELECT COUNT(*) as count FROM {table_name}"
-        if where_parameterized:
-            query += f" WHERE {where_parameterized}"
-
-        result = (
-            self.conn.execute(query, where_params).df()
-            if where_params
-            else self.conn.execute(query).df()
-        )
+        result = self.conn.execute(query).df()
         return int(result["count"].iloc[0])
 
     def table_exists(self, table_name: str) -> bool:

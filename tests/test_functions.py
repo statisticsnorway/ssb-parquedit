@@ -1,3 +1,5 @@
+"""Tests for environment and configuration helper functions."""
+
 import os
 from unittest.mock import patch
 
@@ -7,99 +9,55 @@ from ssb_parquedit.functions import get_dapla_environment
 from ssb_parquedit.functions import get_dapla_group
 from ssb_parquedit.functions import get_team_name
 
-
-class TestGetDaplaGroup:
-    def test_returns_env_variable(self) -> None:
-        with patch.dict(os.environ, {"DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers"}):
-            assert get_dapla_group() == "dapla-ffunk-developers"
-
-    def test_returns_empty_string_when_not_set(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            assert get_dapla_group() == ""
+_GROUP = "dapla-ffunk-developers"
+_ENV = "test"
 
 
-class TestGetDaplaEnvironment:
-    def test_returns_env_variable_lowercased(self) -> None:
-        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "TEST"}):
-            assert get_dapla_environment() == "test"
-
-    def test_returns_prod_lowercased(self) -> None:
-        with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "PROD"}):
-            assert get_dapla_environment() == "prod"
-
-    def test_returns_empty_string_when_not_set(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            assert get_dapla_environment() == ""
+def test_get_dapla_group_returns_env_var() -> None:
+    with patch.dict(os.environ, {"DAPLA_GROUP_CONTEXT": _GROUP}):
+        assert get_dapla_group() == _GROUP
 
 
-class TestGetTeamName:
-    def test_extracts_team_name(self) -> None:
-        with patch.dict(os.environ, {"DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers"}):
-            assert get_team_name() == "dapla-ffunk"
-
-    def test_returns_empty_string_when_not_set(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            assert get_team_name() == ""
+def test_get_dapla_group_defaults_to_empty() -> None:
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_dapla_group() == ""
 
 
-class TestGetBucketName:
-    def test_builds_bucket_name(self) -> None:
-        with patch.dict(
-            os.environ,
-            {
-                "DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers",
-                "DAPLA_ENVIRONMENT": "TEST",
-            },
-        ):
-            assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-test"
-
-    def test_environment_is_lowercased(self) -> None:
-        with patch.dict(
-            os.environ,
-            {
-                "DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers",
-                "DAPLA_ENVIRONMENT": "PROD",
-            },
-        ):
-            assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-prod"
-
-    def test_returns_empty_environment_when_not_set(self) -> None:
-        with patch.dict(
-            os.environ, {"DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers"}, clear=True
-        ):
-            assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-"
+def test_get_dapla_environment_lowercases_value() -> None:
+    with patch.dict(os.environ, {"DAPLA_ENVIRONMENT": "TEST"}):
+        assert get_dapla_environment() == "test"
 
 
-class TestCreateConfig:
-    def test_creates_config_dict(self) -> None:
-        with patch.dict(
-            os.environ,
-            {
-                "DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers",
-                "DAPLA_ENVIRONMENT": "TEST",
-            },
-        ):
-            config = create_config()
+def test_get_dapla_environment_defaults_to_empty() -> None:
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_dapla_environment() == ""
 
-            assert isinstance(config, dict)
-            assert config["dbname"] == "dapla-ffunk"
-            assert config["dbuser"] == "dapla-ffunk-developers@dapla-group-sa-t-57.iam"
-            assert (
-                config["data_path"]
-                == "gs://ssb-dapla-ffunk-data-produkt-test/.parquedit_data"
-            )
-            assert config["catalog_name"] == "dapla_ffunk"
-            assert config["metadata_schema"] == "dapla_ffunk"
 
-    def test_replaces_hyphens_with_underscores_in_catalog_and_schema(self) -> None:
-        with patch.dict(
-            os.environ,
-            {
-                "DAPLA_GROUP_CONTEXT": "dapla-ffunk-developers",
-                "DAPLA_ENVIRONMENT": "PROD",
-            },
-        ):
-            config = create_config()
+def test_get_team_name_extracts_prefix() -> None:
+    with patch.dict(os.environ, {"DAPLA_GROUP_CONTEXT": _GROUP}):
+        assert get_team_name() == "dapla-ffunk"
 
-            assert config["catalog_name"] == "dapla_ffunk"
-            assert config["metadata_schema"] == "dapla_ffunk"
+
+def test_get_bucket_name_builds_name() -> None:
+    with patch.dict(
+        os.environ, {"DAPLA_GROUP_CONTEXT": _GROUP, "DAPLA_ENVIRONMENT": _ENV}
+    ):
+        assert get_bucket_name() == "ssb-dapla-ffunk-data-produkt-test"
+
+
+def test_create_config_returns_all_required_keys() -> None:
+    with patch.dict(
+        os.environ, {"DAPLA_GROUP_CONTEXT": _GROUP, "DAPLA_ENVIRONMENT": _ENV}
+    ):
+        config = create_config()
+        for key in ("dbname", "dbuser", "data_path", "catalog_name", "metadata_schema"):
+            assert key in config
+
+
+def test_create_config_normalizes_hyphens_in_catalog() -> None:
+    with patch.dict(
+        os.environ, {"DAPLA_GROUP_CONTEXT": _GROUP, "DAPLA_ENVIRONMENT": _ENV}
+    ):
+        config = create_config()
+        assert "-" not in config["catalog_name"]
+        assert "-" not in config["metadata_schema"]

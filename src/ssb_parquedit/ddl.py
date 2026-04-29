@@ -10,8 +10,6 @@ import pandas as pd
 
 from .functions import get_dapla_environment
 from .utils import SchemaUtils
-from .utils import SQLInjectionError
-from .utils import SQLSanitizer
 
 # Configure module-level logger
 logger = logging.getLogger(__name__)
@@ -324,16 +322,6 @@ class DDLOperations:
         Args:
             table_name: Name of the table to partition.
             part_columns: List of column names to partition by.
-
-        Raises:
-            SQLInjectionError: If any column name is invalid.
         """
-        try:
-            SQLSanitizer.validate_column_list(part_columns)
-        except SQLInjectionError as e:
-            # Re-raise for å gjøre unntaket synlig for linter
-            logger.error(str(e))
-            raise
-
         cols = ", ".join(part_columns)
-        self.conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols});")
+        self.conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols})")

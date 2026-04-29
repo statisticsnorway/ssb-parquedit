@@ -167,7 +167,6 @@ class ParquEdit:
         limit: int | None = None,
         offset: int = 0,
         columns: list[str] | None = None,
-        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
         order_by: str | None = None,
         output_format: str = "pandas",
     ) -> Any:
@@ -180,9 +179,6 @@ class ParquEdit:
                 Defaults to 0.
             columns: List of column names to include. Defaults
                 to None, which returns all columns.
-            filters: Filter
-                conditions to apply. Can be a single filter dict or a list of
-                filter dicts. Defaults to None.
             order_by: Column name to sort results by. Defaults
                 to None.
             output_format: Format of the returned data. Defaults to
@@ -198,7 +194,6 @@ class ParquEdit:
             limit=limit,
             offset=offset,
             columns=columns,
-            filters=filters,
             order_by=order_by,
             output_format=output_format,
         )
@@ -206,23 +201,19 @@ class ParquEdit:
     def count(
         self,
         table_name: str,
-        filters: dict[str, Any] | list[dict[str, Any]] | None = None,
     ) -> int:
         """Count the number of rows in a table.
 
         Args:
             table_name: The name of the table to count rows in.
-            filters: Filter
-                conditions to apply before counting. Can be a single filter
-                dict or a list of filter dicts. Defaults to None.
 
         Returns:
-            int: The number of rows matching the given filters.
+            int: The number of rows in the table.
         """
         conn = self._get_connection()
 
         query = QueryOperations(conn)
-        return query.count(table_name, filters)
+        return query.count(table_name)
 
     def exists(self, table_name: str) -> bool:
         """Check if a table exists in the database.
