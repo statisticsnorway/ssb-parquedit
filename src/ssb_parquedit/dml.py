@@ -2,7 +2,8 @@
 
 import logging
 import uuid
-from typing import Any
+from typing import Any, Literal
+import os
 
 import pandas as pd
 import pyarrow as pa
@@ -11,6 +12,7 @@ from .utils import SchemaUtils
 
 logger = logging.getLogger(__name__)
 
+VALID_UPDATE_CAUSES = Literal["OTHER_SOURCE", "REVIEW", "OWNER", "MARGINAL_UNIT", "DUPLICATE", "OTHER"]
 
 class DMLOperations:
     """DML operations for inserting, updating, and deleting table data.
@@ -118,3 +120,77 @@ class DMLOperations:
         """
 
         self.conn.execute(sql, [parquet_path])
+
+    def _validate_table_and_columns(self, table_name: str, changes: dict):
+        # 1) fetch all table names and check
+        valid_tables = {
+            row[0] for row in self.conn.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+            """).fetchall()
+        }
+        if table_name not in valid_tables:
+            raise ValueError(f"Table '{table_name}' does not exist")
+
+        # 2) fetch all columns for table and check
+        valid_columns = {
+            row[0] for row in self.conn.execute("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = ?
+            """, [table_name]).fetchall()
+        }
+        missing = set(changes.keys()) - valid_columns
+        if missing:
+            raise ValueError(f"Missing columns in '{table_name}': {missing}")
+
+    def update_data(self, table_name: str, row_id: int, changes: dict[str, Any], cause: str, comment: str) -> int:
+        # validate cause — specific to update
+        if cause not in VALID_UPDATE_CAUSES.__args__:
+            raise ValueError(f"Invalid cause: '{cause}'. Must be one of: {VALID_UPDATE_CAUSES.__args__}")
+
+        # validate table and columns — shared
+        self._validate_table_and_columns(table_name, changes)
+
+        set_clause = ", ".join(f"{col} = ?" for col in changes.keys())
+        values = list(changes.values()) + [row_id]
+
+        try:
+            self.conn.execute("BEGIN")
+
+            #result = self.conn.execute(f"""
+            #    UPDATE {table_name}
+            #    SET {set_clause}
+            #    WHERE rowid = ?
+            #    RETURNING *
+            #""", values).fetchall()
+
+            #rows_affected = len(result)
+
+            # safety net — rowid should always be unique
+            #if rows_affected != 1:
+            #    raise ValueError(f"Expected 1 row affected, got {rows_affected} for rowid {row_id} in '{table_name}'")
+
+            self.conn.execute(f"""
+            UPDATE {table_name}
+            SET {set_clause}
+            WHERE rowid = ?
+            """, values)
+
+            dapla_user = os.getenv("DAPLA_USER")[:3]
+
+            extra_info = {
+                "change_event_reason": cause,
+                "comment": comment,
+            }
+
+            #self.conn.execute("CALL set_commit_message(?, ?)", ["system", cause])
+            self.conn.execute("CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info])
+
+            self.conn.execute("COMMIT")
+
+        except Exception as e:
+            self.conn.execute("ROLLBACK")
+            raise e
+
+        #return rows_affected            
