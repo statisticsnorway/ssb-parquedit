@@ -240,9 +240,9 @@ class ParquEdit:
         query = QueryOperations(conn)
         return query.list_tables()
 
-    def update_data(self, table_name: str, row_id: int, changes: dict[str, Any], cause: str, comment: str) -> None:
+    def edit(self, table_name: str, row_id: int, changes: dict[str, Any], change_event_reason: str, change_comment: str) -> None:
 
         conn = self._get_connection()
 
         dml = DMLOperations(conn)
-        dml.update_data(table_name, row_id, changes, cause, comment)
+        dml.edit(table_name, row_id, changes, change_event_reason, change_comment)

@@ -4,11 +4,16 @@ import logging
 import uuid
 from typing import Any, Literal
 import os
+from datetime import datetime
+import zoneinfo
 
 import pandas as pd
 import pyarrow as pa
 
+from ssb_parquedit.functions import get_dapla_user
+
 from .utils import SchemaUtils
+from .query import QueryOperations
 
 logger = logging.getLogger(__name__)
 
@@ -144,10 +149,10 @@ class DMLOperations:
         if missing:
             raise ValueError(f"Missing columns in '{table_name}': {missing}")
 
-    def update_data(self, table_name: str, row_id: int, changes: dict[str, Any], cause: str, comment: str) -> int:
+    def edit(self, table_name: str, row_id: int, changes: dict[str, Any], change_event_reason: str, change_comment: str) -> int:
         # validate cause — specific to update
-        if cause not in VALID_UPDATE_CAUSES.__args__:
-            raise ValueError(f"Invalid cause: '{cause}'. Must be one of: {VALID_UPDATE_CAUSES.__args__}")
+        if change_event_reason not in VALID_UPDATE_CAUSES.__args__:
+            raise ValueError(f"Invalid cause: '{change_event_reason}'. Must be one of: {VALID_UPDATE_CAUSES.__args__}")
 
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
@@ -177,12 +182,19 @@ class DMLOperations:
             WHERE rowid = ?
             """, values)
 
-            dapla_user = os.getenv("DAPLA_USER")[:3]
+            dapla_user = get_dapla_user()
 
-            extra_info = {
-                "change_event_reason": cause,
-                "comment": comment,
-            }
+            query = QueryOperations(self.conn)
+
+            extra_info = str({
+                "change_event_reason": change_event_reason,
+                "changed_by": dapla_user,
+                "change_comment": change_comment,
+                "change_datetime": str(datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))),
+                "statistics_name": query._get_product_name(table_name)
+            })
+            print(extra_info)
+
 
             #self.conn.execute("CALL set_commit_message(?, ?)", ["system", cause])
             self.conn.execute("CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info])

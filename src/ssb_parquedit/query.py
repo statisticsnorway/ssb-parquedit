@@ -4,6 +4,7 @@ import logging
 from typing import Any
 from typing import cast
 
+from .functions import create_config
 from .utils import SchemaUtils
 
 logger = logging.getLogger(__name__)
@@ -177,3 +178,17 @@ class QueryOperations:
         """
         result = self.conn.execute("SHOW TABLES").df()
         return cast(list[str], result["name"].tolist())
+
+    def _get_product_name(self, table_name: str) -> str:
+
+        config: dict[str, str] = create_config()
+
+        query=f"""
+            SELECT value
+            FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_tag
+            WHERE object_id = (SELECT table_id
+            FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_table
+            WHERE table_name = '{table_name}')
+        """
+        result = self.conn.execute(query).df()
+        return str(result["value"].iloc[0])
