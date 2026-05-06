@@ -81,3 +81,13 @@ def create_config() -> dict[str, str]:
     }
 
     return db_config
+
+def get_dapla_user() -> str:
+    """Retrieve the Dapla user from the environment variable.
+
+    Returns:
+        str: The value of the DAPLA_USER environment variable,
+             or None if the variable is not set.
+    """
+    dapla_user: str = os.getenv("DAPLA_USER", "")
+    return dapla_user
