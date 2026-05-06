@@ -53,7 +53,7 @@ class ParquEdit:
         Returns:
             ParquEdit: This instance with an active connection.
         """
-        self._get_connection()  # eager init ved context manager-bruk
+        self._get_connection()
         return self
 
     def __exit__(self, *args: object) -> None:
@@ -62,7 +62,7 @@ class ParquEdit:
 
     def __del__(self) -> None:
         """Close the connection when the instance is garbage-collected."""
-        self.close()  # best-effort fallback
+        self.close()
 
     # ============ DDL Operations ============
 
@@ -128,8 +128,7 @@ class ParquEdit:
 
         Args:
             table_name: Name of the table to drop.
-            cleanup: If True, expire snapshots and clean GCS files.
-                Defaults to True.
+            cleanup: If True, expire snapshots and clean GCS files. Defaults to True.
 
         Example:
             >>> # doctest: +SKIP
@@ -150,9 +149,8 @@ class ParquEdit:
 
         Args:
             table_name: The name of the table to insert data into.
-            source: The data to insert.
-                Can be a pandas DataFrame, a dictionary mapping column names
-                to values, or a string file path to a data file.
+            source: The data to insert. Can be a pandas DataFrame, a dictionary
+                mapping column names to values, or a string file path to a data file.
         """
         conn = self._get_connection()
 
@@ -164,6 +162,7 @@ class ParquEdit:
     def view(
         self,
         table_name: str,
+        where: str | None = None,
         limit: int | None = None,
         offset: int = 0,
         columns: list[str] | None = None,
@@ -174,15 +173,12 @@ class ParquEdit:
 
         Args:
             table_name: The name of the table to query.
+            where: Optional SQL WHERE clause to filter results. Defaults to None.
             limit: Maximum number of rows to return. Defaults to None.
-            offset: Number of rows to skip before returning results.
-                Defaults to 0.
-            columns: List of column names to include. Defaults
-                to None, which returns all columns.
-            order_by: Column name to sort results by. Defaults
-                to None.
-            output_format: Format of the returned data. Defaults to
-                "pandas".
+            offset: Number of rows to skip before returning results. Defaults to 0.
+            columns: List of column names to include. Defaults to None, which returns all columns.
+            order_by: Column name to sort results by. Defaults to None.
+            output_format: Format of the returned data. Defaults to 'pandas'.
 
         Returns:
             Any: Query results in the specified output format.
@@ -191,6 +187,7 @@ class ParquEdit:
         query = QueryOperations(conn)
         return query.view(
             table_name,
+            where=where,
             limit=limit,
             offset=offset,
             columns=columns,
@@ -240,9 +237,24 @@ class ParquEdit:
         query = QueryOperations(conn)
         return query.list_tables()
 
-    def edit(self, table_name: str, row_id: int, changes: dict[str, Any], change_event_reason: str, change_comment: str) -> None:
+    def edit(
+        self,
+        table_name: str,
+        rowid: int,
+        changes: dict[str, Any],
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Edit a single row in a table by its row ID.
 
+        Args:
+            table_name: The name of the table to edit.
+            rowid: The ID of the row to update.
+            changes: A dictionary mapping column names to their new values.
+            change_event_reason: A short reason code describing the type of change event.
+            change_comment: A human-readable comment describing the change.
+        """
         conn = self._get_connection()
 
         dml = DMLOperations(conn)
-        dml.edit(table_name, row_id, changes, change_event_reason, change_comment)
+        dml.edit(table_name, rowid, changes, change_event_reason, change_comment)

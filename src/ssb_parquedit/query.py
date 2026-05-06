@@ -30,6 +30,7 @@ class QueryOperations:
     def view(
         self,
         table_name: str,
+        where: str | None = None,
         limit: int | None = None,
         offset: int = 0,
         columns: list[str] | None = None,
@@ -40,11 +41,11 @@ class QueryOperations:
 
         Args:
             table_name: Name of the table to view.
+            where: Filter condition(s).
             limit: Maximum number of rows to return. None returns all rows.
             offset: Number of rows to skip. Defaults to 0. Useful for pagination.
             columns: List of column names to select. None selects all columns (*).
-            order_by: ORDER BY clause (without the ORDER BY keyword).
-                Example: "created_at DESC" or "name ASC, age DESC"
+            order_by: ORDER BY clause (without the ORDER BY keyword). Example: "created_at DESC" or "name ASC, age DESC".
             output_format: Format for the returned data. Options are:
                 - "pandas" (default): Returns pd.DataFrame
                 - "polars": Returns pl.DataFrame (requires polars library)
@@ -88,11 +89,14 @@ class QueryOperations:
 
         # Build SELECT clause
         if columns:
-            select_clause = ", ".join(columns)
+            select_clause = "rowid, ".join(columns)
         else:
-            select_clause = "*"
+            select_clause = "rowid, *"
 
         query = f"SELECT {select_clause} FROM {table_name}"
+
+        if where:
+            query += f" WHERE {where}"
 
         if order_by:
             query += f" ORDER BY {order_by}"
@@ -105,16 +109,17 @@ class QueryOperations:
         result = self.conn.execute(query)
 
         # Convert to requested format
+        if output_format not in ["pandas", "polars", "pyarrow"]:
+            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
+            logger.error(msg)
+            raise ValueError(msg)
+
         if output_format == "pandas":
             return result.df()
         elif output_format == "polars":
             return result.pl()
         elif output_format == "pyarrow":
             return result.arrow()
-        else:  # pragma: no cover
-            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
-            logger.error(msg)
-            raise ValueError(msg)
 
     def count(
         self,
@@ -183,7 +188,7 @@ class QueryOperations:
 
         config: dict[str, str] = create_config()
 
-        query=f"""
+        query = f"""
             SELECT value
             FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_tag
             WHERE object_id = (SELECT table_id
