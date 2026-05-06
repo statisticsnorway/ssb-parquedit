@@ -3,7 +3,7 @@
 import logging
 import uuid
 from typing import Any, Literal
-import os
+import json
 from datetime import datetime
 import zoneinfo
 
@@ -186,17 +186,14 @@ class DMLOperations:
 
             query = QueryOperations(self.conn)
 
-            extra_info = str({
+            extra_info = json.dumps({
                 "change_event_reason": change_event_reason,
                 "changed_by": dapla_user,
                 "change_comment": change_comment,
                 "change_datetime": str(datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))),
                 "statistics_name": query._get_product_name(table_name)
             })
-            print(extra_info)
 
-
-            #self.conn.execute("CALL set_commit_message(?, ?)", ["system", cause])
             self.conn.execute("CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info])
 
             self.conn.execute("COMMIT")
