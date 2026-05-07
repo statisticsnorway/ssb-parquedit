@@ -33,13 +33,17 @@ class DMLOperations:
     """
 
     # def __init__(self, connection) -> None:
-    def __init__(self, connection: Any) -> None:
+    def __init__(
+        self, connection: Any, db_config: dict[str, str] | None = None
+    ) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
             connection: DuckDBConnection instance.
+            db_config: Optional database configuration dict. If None, defaults to an empty dict.
         """
         self.conn = connection
+        self.db_config = db_config or {}
 
     def insert_data(self, table_name: str, source: Any) -> None:
         """Populate an existing table with data.
@@ -205,7 +209,7 @@ class DMLOperations:
 
             dapla_user = get_dapla_user()
 
-            query = QueryOperations(self.conn)
+            query = QueryOperations(self.conn, self.db_config)
 
             extra_info = json.dumps(
                 {
