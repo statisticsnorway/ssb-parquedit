@@ -297,8 +297,7 @@ class DDLOperations:
         # Use parameterized query for the file path to prevent injection
         ddl = f"""
         CREATE TABLE {table_name} AS
-        SELECT
-            CAST(NULL AS VARCHAR) AS _id,
+        SELECT            
             *
         FROM read_parquet(?)
         WHERE 1 = 2
