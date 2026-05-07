@@ -64,6 +64,31 @@ class ParquEdit:
         """Close the connection when the instance is garbage-collected."""
         self.close()
 
+    # ============ Alternative constructors ============
+
+    @classmethod
+    def from_connection(
+        cls,
+        connection: DuckDBConnection,
+        db_config: dict[str, str] | None = None,
+    ) -> "ParquEdit":
+        """Opprett en ParquEdit-instans fra en eksisterende tilkobling.
+
+        Nyttig for testing og avanserte brukstilfeller der tilkoblingen
+        opprettes og konfigureres utenfor ParquEdit.
+
+        Args:
+            connection: En allerede opprettet DuckDBConnection.
+            db_config: Valgfri konfigurasjon. Defaults to {}.
+
+        Returns:
+            ParquEdit: En instans koblet til den gitte tilkoblingen.
+        """
+        instance = cls.__new__(cls)
+        instance._conn = connection
+        instance._db_config = db_config or {}
+        return instance
+
     # ============ DDL Operations ============
 
     def create_table(
@@ -256,5 +281,5 @@ class ParquEdit:
         """
         conn = self._get_connection()
 
-        dml = DMLOperations(conn)
+        dml = DMLOperations(conn, self._db_config)
         dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
