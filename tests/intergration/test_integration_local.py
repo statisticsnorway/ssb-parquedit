@@ -1,9 +1,9 @@
 # tests/integration/test_integration_local.py
-import pyarrow as pa
-import pyarrow.parquet as pq
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from ssb_parquedit.parquedit import ParquEdit
@@ -11,17 +11,20 @@ from ssb_parquedit.parquedit import ParquEdit
 
 @pytest.fixture
 def byer_tabell(pe: ParquEdit) -> ParquEdit:
-    """Hjelpefixture – oppretter og populerer en standardtabell."""
-    df = pd.DataFrame({
-        "id": [1, 2, 3],
-        "navn": ["Oslo", "Bergen", "Tromsø"],
-        "innbyggere": [700000, 285000, 75000],
-    })
+    """Hjelpefixture - oppretter og populerer en standardtabell."""
+    df = pd.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "navn": ["Oslo", "Bergen", "Tromsø"],
+            "innbyggere": [700000, 285000, 75000],
+        }
+    )
     pe.create_table("byer", source=df, product_name="test_produkt", fill=True)
     return pe
 
 
 # ============ create / exists / count ============
+
 
 def test_create_table_exists(pe: ParquEdit) -> None:
     df = pd.DataFrame({"id": [1], "navn": ["Oslo"]})
@@ -37,7 +40,8 @@ def test_list_tables(byer_tabell: ParquEdit) -> None:
     assert "byer" in byer_tabell.list_tables()
 
 
-# ============ view – grunnleggende ============
+# ============ view - grunnleggende ============
+
 
 def test_view_returns_all_rows(byer_tabell: ParquEdit) -> None:
     result = byer_tabell.view("byer")
@@ -49,7 +53,8 @@ def test_view_default_includes_rowid(byer_tabell: ParquEdit) -> None:
     assert "rowid" in result.columns
 
 
-# ============ view – where ============
+# ============ view - where ============
+
 
 def test_view_where_filters_rows(byer_tabell: ParquEdit) -> None:
     result = byer_tabell.view("byer", where="id > 1")
@@ -79,7 +84,8 @@ def test_view_where_compound_condition(byer_tabell: ParquEdit) -> None:
     assert result["navn"].iloc[0] == "Bergen"
 
 
-# ============ view – kombinasjoner ============
+# ============ view - kombinasjoner ============
+
 
 def test_view_where_with_limit(byer_tabell: ParquEdit) -> None:
     result = byer_tabell.view("byer", where="id > 0", limit=2)
@@ -96,7 +102,8 @@ def test_view_where_with_offset(byer_tabell: ParquEdit) -> None:
     assert result["navn"].iloc[0] == "Bergen"
 
 
-# ============ view – columns-bug ============
+# ============ view- columns-bug ============
+
 
 def test_view_columns_subset_includes_rowid(byer_tabell: ParquEdit) -> None:
     """Gjenskaper select_clause-buggen: 'rowid, '.join(columns) er feil."""
@@ -108,6 +115,7 @@ def test_view_columns_subset_includes_rowid(byer_tabell: ParquEdit) -> None:
 
 
 # ============ insert ============
+
 
 def test_insert_data(pe: ParquEdit) -> None:
     df = pd.DataFrame({"id": [1], "navn": ["Oslo"]})
@@ -143,12 +151,14 @@ def test_create_table_fill_from_parquet(pe: ParquEdit, tmp_storage: str) -> None
 
 # ============ drop ============
 
+
 def test_drop_table(byer_tabell: ParquEdit) -> None:
     byer_tabell.drop_table("byer", cleanup=False)
     assert not byer_tabell.exists("byer")
 
 
 # ============ rowid ============
+
 
 def test_view_returns_rowid(byer_tabell: ParquEdit) -> None:
     """view() skal alltid inkludere rowid-kolonne."""
@@ -163,13 +173,13 @@ def test_rowid_is_unique(byer_tabell: ParquEdit) -> None:
 
 
 def test_rowid_is_integer(byer_tabell: ParquEdit) -> None:
-    """rowid skal være av heltallstype."""
+    """Rowid skal være av heltallstype."""
     result = byer_tabell.view("byer")
     assert pd.api.types.is_integer_dtype(result["rowid"])
 
 
 def test_rowid_usable_in_where(byer_tabell: ParquEdit) -> None:
-    """rowid skal kunne brukes som filter i where-parameteren."""
+    """Rowid skal kunne brukes som filter i where-parameteren."""
     alle = byer_tabell.view("byer")
     første_rowid = alle["rowid"].iloc[0]
 

@@ -1,4 +1,4 @@
-"""Fixtures for local integration tests – ekte DuckDB, ingen mocks."""
+"""Fixtures for local integration tests - ekte DuckDB, ingen mocks."""
 
 import shutil
 import tempfile
@@ -10,16 +10,17 @@ import pytest
 from ssb_parquedit.connection import DuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
 
-
 # ============ Deaktiver autouse-stubs fra tests/conftest.py ============
 
+
 @pytest.fixture(autouse=True)
-def stub_external_modules() -> Generator[None, None, None]:
-    """Overstyr stub-fixture fra tests/conftest.py – integrasjonstester bruker ekte libs."""
+def stub_external_modules() -> Generator[None]:
+    """Overstyr stub-fixture fra tests/conftest.py integrasjonstester bruker ekte libs."""
     yield
 
 
 # ============ Lokalt testmiljø ============
+
 
 class LocalDuckDBConnection(DuckDBConnection):
     """Testversjon av DuckDBConnection.
@@ -30,6 +31,15 @@ class LocalDuckDBConnection(DuckDBConnection):
     """
 
     def __init__(self, data_path: str) -> None:
+        """Initialiser lokal DuckDB-tilkobling med SQLite-katalog.
+
+        Omgår foreldre-__init__ og kobler til en lokal DuckLake-instans
+        backed av SQLite og lokal filstorage i stedet for PostgreSQL og GCS.
+
+        Args:
+            data_path: Lokal mappe som brukes til både SQLite-katalog
+                (catalog.db) og Parquet-datafiler (data/).
+        """
         self._conn = duckdb.connect()
         self._conn.sql("INSTALL sqlite; LOAD sqlite;")
         self._conn.sql("INSTALL ducklake; LOAD ducklake;")
@@ -42,7 +52,7 @@ class LocalDuckDBConnection(DuckDBConnection):
 
 
 @pytest.fixture(autouse=True)
-def dapla_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def dapla_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
     """Setter miljøvariabler for alle integrasjonstester."""
     monkeypatch.setenv("DAPLA_ENVIRONMENT", "test")
     monkeypatch.setenv("DAPLA_GROUP_CONTEXT", "dapla-ffunk-developers")
@@ -51,14 +61,14 @@ def dapla_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
 
 
 @pytest.fixture()
-def tmp_storage() -> Generator[str, None, None]:
+def tmp_storage() -> Generator[str]:
     d = tempfile.mkdtemp(prefix="parquedit_test_")
     yield d
     shutil.rmtree(d, ignore_errors=True)
 
 
 @pytest.fixture()
-def conn(tmp_storage: str) -> Generator[LocalDuckDBConnection, None, None]:
+def conn(tmp_storage: str) -> Generator[LocalDuckDBConnection]:
     c = LocalDuckDBConnection(data_path=tmp_storage)
     yield c
     c.close()

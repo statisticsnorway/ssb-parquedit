@@ -182,7 +182,6 @@ class QueryOperations:
         result = self.conn.execute("SHOW TABLES").df()
         return cast(list[str], result["name"].tolist())
 
-
     def _get_product_name(self, table_name: str) -> str:
         config = self.db_config
         schema = config.get("metadata_schema", config["catalog_name"])
