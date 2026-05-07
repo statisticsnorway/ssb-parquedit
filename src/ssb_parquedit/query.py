@@ -89,7 +89,7 @@ class QueryOperations:
 
         # Build SELECT clause
         if columns:
-            select_clause = "rowid, ".join(columns)
+            select_clause = "rowid, " + ", ".join(columns)
         else:
             select_clause = "rowid, *"
 
@@ -107,12 +107,6 @@ class QueryOperations:
             query += f" OFFSET {offset}"
 
         result = self.conn.execute(query)
-
-        # Convert to requested format
-        if output_format not in ["pandas", "polars", "pyarrow"]:
-            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
-            logger.error(msg)
-            raise ValueError(msg)
 
         if output_format == "pandas":
             return result.df()
