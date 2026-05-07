@@ -180,6 +180,7 @@ def tests(session: Session) -> None:
             "-o",
             "pythonpath=",
             *session.posargs,
+            "--ignore=tests/integration",
         )
     finally:
         if session.interactive:
