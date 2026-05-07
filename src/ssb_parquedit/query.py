@@ -19,17 +19,22 @@ class QueryOperations:
     - Table existence checks
     """
 
-    def __init__(self, connection: Any) -> None:
+    def __init__(
+        self, connection: Any, db_config: dict[str, str] | None = None
+    ) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
             connection: DuckDBConnection instance.
+            db_config: Optional database configuration dict. If None, configuration is auto-detected from the Dapla environment variables.
         """
         self.conn = connection
+        self.db_config = db_config or create_config()
 
     def view(
         self,
         table_name: str,
+        where: str | None = None,
         limit: int | None = None,
         offset: int = 0,
         columns: list[str] | None = None,
@@ -40,11 +45,11 @@ class QueryOperations:
 
         Args:
             table_name: Name of the table to view.
+            where: Filter condition(s).
             limit: Maximum number of rows to return. None returns all rows.
             offset: Number of rows to skip. Defaults to 0. Useful for pagination.
             columns: List of column names to select. None selects all columns (*).
-            order_by: ORDER BY clause (without the ORDER BY keyword).
-                Example: "created_at DESC" or "name ASC, age DESC"
+            order_by: ORDER BY clause (without the ORDER BY keyword). Example: "created_at DESC" or "name ASC, age DESC".
             output_format: Format for the returned data. Options are:
                 - "pandas" (default): Returns pd.DataFrame
                 - "polars": Returns pl.DataFrame (requires polars library)
@@ -88,11 +93,14 @@ class QueryOperations:
 
         # Build SELECT clause
         if columns:
-            select_clause = ", ".join(columns)
+            select_clause = "rowid, " + ", ".join(columns)
         else:
-            select_clause = "*"
+            select_clause = "rowid, *"
 
         query = f"SELECT {select_clause} FROM {table_name}"
+
+        if where:
+            query += f" WHERE {where}"
 
         if order_by:
             query += f" ORDER BY {order_by}"
@@ -104,17 +112,12 @@ class QueryOperations:
 
         result = self.conn.execute(query)
 
-        # Convert to requested format
         if output_format == "pandas":
             return result.df()
         elif output_format == "polars":
             return result.pl()
         elif output_format == "pyarrow":
             return result.arrow()
-        else:  # pragma: no cover
-            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
-            logger.error(msg)
-            raise ValueError(msg)
 
     def count(
         self,
@@ -180,15 +183,19 @@ class QueryOperations:
         return cast(list[str], result["name"].tolist())
 
     def _get_product_name(self, table_name: str) -> str:
+        config = self.db_config
+        schema = config.get("metadata_schema", config["catalog_name"])
 
-        config: dict[str, str] = create_config()
-
-        query=f"""
-            SELECT value
-            FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_tag
-            WHERE object_id = (SELECT table_id
-            FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_table
-            WHERE table_name = '{table_name}')
+        query = f"""
+            SELECT t.value
+            FROM __ducklake_metadata_{config["catalog_name"]}.{schema}.ducklake_tag t
+            JOIN __ducklake_metadata_{config["catalog_name"]}.{schema}.ducklake_table tb
+                ON t.object_id = tb.table_id
+            WHERE tb.table_name = '{table_name}'
+            AND t.key = 'comment'
+            AND t.end_snapshot IS NULL
         """
         result = self.conn.execute(query).df()
+        if result.empty:
+            return ""
         return str(result["value"].iloc[0])

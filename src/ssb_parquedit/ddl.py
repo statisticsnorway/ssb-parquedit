@@ -282,10 +282,7 @@ class DDLOperations:
             }
         )
         self.conn.register("data", source_converted)
-        self.conn.execute(
-            f"CREATE TABLE {table_name} AS "
-            f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
-        )
+        self.conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2")
 
     def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Create an empty table from a Parquet file schema.
@@ -298,7 +295,6 @@ class DDLOperations:
         ddl = f"""
         CREATE TABLE {table_name} AS
         SELECT
-            CAST(NULL AS VARCHAR) AS _id,
             *
         FROM read_parquet(?)
         WHERE 1 = 2

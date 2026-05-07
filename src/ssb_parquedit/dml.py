@@ -1,23 +1,27 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
 
-import logging
-import uuid
-from typing import Any, Literal
 import json
-from datetime import datetime
+import logging
 import zoneinfo
+from datetime import datetime
+from typing import Any
+from typing import Literal
+from typing import get_args
 
 import pandas as pd
 import pyarrow as pa
 
 from ssb_parquedit.functions import get_dapla_user
 
-from .utils import SchemaUtils
 from .query import QueryOperations
+from .utils import SchemaUtils
 
 logger = logging.getLogger(__name__)
 
-VALID_UPDATE_CAUSES = Literal["OTHER_SOURCE", "REVIEW", "OWNER", "MARGINAL_UNIT", "DUPLICATE", "OTHER"]
+VALID_UPDATE_CAUSES = Literal[
+    "OTHER_SOURCE", "REVIEW", "OWNER", "MARGINAL_UNIT", "DUPLICATE", "OTHER"
+]
+
 
 class DMLOperations:
     """DML operations for inserting, updating, and deleting table data.
@@ -29,13 +33,17 @@ class DMLOperations:
     """
 
     # def __init__(self, connection) -> None:
-    def __init__(self, connection: Any) -> None:
+    def __init__(
+        self, connection: Any, db_config: dict[str, str] | None = None
+    ) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
             connection: DuckDBConnection instance.
+            db_config: Optional database configuration dict. If None, defaults to an empty dict.
         """
         self.conn = connection
+        self.db_config = db_config or {}
 
     def insert_data(self, table_name: str, source: Any) -> None:
         """Populate an existing table with data.
@@ -79,8 +87,6 @@ class DMLOperations:
 
         df_copy = data.copy()
 
-        df_copy.insert(0, "_id", [str(uuid.uuid4()) for _ in range(len(df_copy))])
-
         # target table's column types by name,
         col_types = {
             row[0]: row[1]
@@ -119,87 +125,110 @@ class DMLOperations:
         sql = f"""
         INSERT INTO {table_name}
         SELECT
-            uuid()::VARCHAR AS _id,
             *
         FROM read_parquet(?)
         """
 
         self.conn.execute(sql, [parquet_path])
 
-    def _validate_table_and_columns(self, table_name: str, changes: dict):
+    def _validate_table_and_columns(
+        self, table_name: str, changes: dict[str, Any]
+    ) -> None:
         # 1) fetch all table names and check
-        valid_tables = {
-            row[0] for row in self.conn.execute("""
+        valid_tables = {row[0] for row in self.conn.execute("""
                 SELECT table_name
                 FROM information_schema.tables
-            """).fetchall()
-        }
+            """).fetchall()}
         if table_name not in valid_tables:
             raise ValueError(f"Table '{table_name}' does not exist")
 
         # 2) fetch all columns for table and check
         valid_columns = {
-            row[0] for row in self.conn.execute("""
+            row[0]
+            for row in self.conn.execute(
+                """
                 SELECT column_name
                 FROM information_schema.columns
                 WHERE table_name = ?
-            """, [table_name]).fetchall()
+            """,
+                [table_name],
+            ).fetchall()
         }
         missing = set(changes.keys()) - valid_columns
         if missing:
             raise ValueError(f"Missing columns in '{table_name}': {missing}")
 
-    def edit(self, table_name: str, row_id: int, changes: dict[str, Any], change_event_reason: str, change_comment: str) -> int:
+    def edit(
+        self,
+        table_name: str,
+        rowid: int,
+        changes: dict[str, Any],
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Edit a single row in a table by its row ID.
+
+        Updates the specified columns for the row matching the given rowid.
+        The change is wrapped in a transaction and committed with metadata
+        including the change reason, comment, user, and timestamp.
+
+        Args:
+            table_name: The name of the table to edit.
+            rowid: The rowid of the row to update.
+            changes: A dictionary mapping column names to their new values.
+            change_event_reason: A reason code describing the type of change. Must be one of the valid update causes defined in VALID_UPDATE_CAUSES.
+            change_comment: A human-readable comment describing the change.
+
+        Raises:
+            ValueError: If change_event_reason is not a valid update cause.
+            Exception: Re-raises any exception that occurs during the transaction after rolling back.
+        """
         # validate cause — specific to update
-        if change_event_reason not in VALID_UPDATE_CAUSES.__args__:
-            raise ValueError(f"Invalid cause: '{change_event_reason}'. Must be one of: {VALID_UPDATE_CAUSES.__args__}")
+        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
+            raise ValueError(
+                f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            )
 
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
         set_clause = ", ".join(f"{col} = ?" for col in changes.keys())
-        values = list(changes.values()) + [row_id]
+        values = [*list(changes.values()), rowid]
 
         try:
             self.conn.execute("BEGIN")
 
-            #result = self.conn.execute(f"""
-            #    UPDATE {table_name}
-            #    SET {set_clause}
-            #    WHERE rowid = ?
-            #    RETURNING *
-            #""", values).fetchall()
-
-            #rows_affected = len(result)
-
-            # safety net — rowid should always be unique
-            #if rows_affected != 1:
-            #    raise ValueError(f"Expected 1 row affected, got {rows_affected} for rowid {row_id} in '{table_name}'")
-
-            self.conn.execute(f"""
+            self.conn.execute(
+                f"""
             UPDATE {table_name}
             SET {set_clause}
             WHERE rowid = ?
-            """, values)
+            """,
+                values,
+            )
 
             dapla_user = get_dapla_user()
 
-            query = QueryOperations(self.conn)
+            query = QueryOperations(self.conn, self.db_config)
 
-            extra_info = json.dumps({
-                "change_event_reason": change_event_reason,
-                "changed_by": dapla_user,
-                "change_comment": change_comment,
-                "change_datetime": str(datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))),
-                "statistics_name": query._get_product_name(table_name)
-            })
+            extra_info = json.dumps(
+                {
+                    "change_event_reason": change_event_reason,
+                    "changed_by": dapla_user,
+                    "change_comment": change_comment,
+                    "change_datetime": str(
+                        datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))
+                    ),
+                    "statistics_name": query._get_product_name(table_name),
+                }
+            )
 
-            self.conn.execute("CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info])
+            self.conn.execute(
+                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+            )
 
             self.conn.execute("COMMIT")
 
         except Exception as e:
             self.conn.execute("ROLLBACK")
             raise e
-
-        #return rows_affected            
