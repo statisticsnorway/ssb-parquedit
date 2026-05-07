@@ -284,7 +284,7 @@ class DDLOperations:
         self.conn.register("data", source_converted)
         self.conn.execute(
             f"CREATE TABLE {table_name} AS "
-            f"SELECT CAST(NULL AS VARCHAR) AS _id, * FROM data WHERE 1=2"
+            f"SELECT * FROM data WHERE 1=2"
         )
 
     def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
