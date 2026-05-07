@@ -70,6 +70,7 @@ def pe(conn: LocalDuckDBConnection) -> ParquEdit:
         conn,
         db_config={
             "catalog_name": "test_catalog",
+            "metadata_schema": "main",  # SQLite bruker 'main' som default schema
             "data_path": "",
         },
     )

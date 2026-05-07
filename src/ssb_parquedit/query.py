@@ -182,13 +182,15 @@ class QueryOperations:
         result = self.conn.execute("SHOW TABLES").df()
         return cast(list[str], result["name"].tolist())
 
+
     def _get_product_name(self, table_name: str) -> str:
         config = self.db_config
+        schema = config.get("metadata_schema", config["catalog_name"])
 
         query = f"""
             SELECT t.value
-            FROM __ducklake_metadata_{config["catalog_name"]}.ducklake_tag t
-            JOIN __ducklake_metadata_{config["catalog_name"]}.ducklake_table tb
+            FROM __ducklake_metadata_{config["catalog_name"]}.{schema}.ducklake_tag t
+            JOIN __ducklake_metadata_{config["catalog_name"]}.{schema}.ducklake_table tb
                 ON t.object_id = tb.table_id
             WHERE tb.table_name = '{table_name}'
             AND t.key = 'comment'
