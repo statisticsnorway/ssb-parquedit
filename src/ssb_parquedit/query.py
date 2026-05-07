@@ -19,13 +19,17 @@ class QueryOperations:
     - Table existence checks
     """
 
-    def __init__(self, connection: Any) -> None:
+    def __init__(
+        self, connection: Any, db_config: dict[str, str] | None = None
+    ) -> None:
         """Initialize with a DuckDB connection.
 
         Args:
             connection: DuckDBConnection instance.
+            db_config: Optional database configuration dict. If None, configuration is auto-detected from the Dapla environment variables.
         """
         self.conn = connection
+        self.db_config = db_config or create_config()
 
     def view(
         self,
@@ -179,15 +183,18 @@ class QueryOperations:
         return cast(list[str], result["name"].tolist())
 
     def _get_product_name(self, table_name: str) -> str:
-
-        config: dict[str, str] = create_config()
+        config = self.db_config
 
         query = f"""
-            SELECT value
-            FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_tag
-            WHERE object_id = (SELECT table_id
-            FROM __ducklake_metadata_{config["catalog_name"]}.{config["catalog_name"]}.ducklake_table
-            WHERE table_name = '{table_name}')
+            SELECT t.value
+            FROM __ducklake_metadata_{config["catalog_name"]}.ducklake_tag t
+            JOIN __ducklake_metadata_{config["catalog_name"]}.ducklake_table tb
+                ON t.object_id = tb.table_id
+            WHERE tb.table_name = '{table_name}'
+            AND t.key = 'comment'
+            AND t.end_snapshot IS NULL
         """
         result = self.conn.execute(query).df()
+        if result.empty:
+            return ""
         return str(result["value"].iloc[0])
