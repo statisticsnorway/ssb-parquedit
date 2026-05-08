@@ -24,7 +24,7 @@
 [black]: https://github.com/psf/black
 [poetry]: https://python-poetry.org/
 
-A Python package for manually editing tabular data stored as Parquet files on [DaplaLab](https://manual.dapla.ssb.no/) — Statistics Norway's cloud data platform. Built on top of [DuckDB](https://duckdb.org/) and the [DuckLake](https://ducklake.select/) catalog, it provides a clean, SQL-injection-safe Python interface for creating tables, inserting data, and querying results directly from Google Cloud Storage (GCS).
+A Python package for manually editing tabular data stored as Parquet files on [DaplaLab](https://manual.dapla.ssb.no/) — Statistics Norway's cloud data platform. Built on top of [DuckDB](https://duckdb.org/) and the [DuckLake](https://ducklake.select/) catalog, it provides a clean Python interface for creating tables, inserting data, querying results and editing rows directly from Google Cloud Storage (GCS).
 Intended use on single-table editing. Does not support primary- and foreign keys.
 
 ---
@@ -34,13 +34,11 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 - **Auto-configuration** — reads Dapla environment variables to build connection config automatically
 - **DuckLake catalog integration** — metadata stored in PostgreSQL, data stored in GCS
 - **Create tables** from a pandas DataFrame, a JSON Schema dict, or an existing GCS Parquet file
-- **Insert data** from a pandas DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `_id` (UUID)
-- **Query tables** with structured filters, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
-- **Count rows** with optional structured filter conditions
+- **Insert data** from a pandas DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
+- **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
+- **Count rows**
 - **Check table existence** safely
 - **Partition tables** by one or more columns
-- **SQL injection prevention** — all user-supplied filter values are parameterized; column names, table names, and `ORDER BY` clauses are validated against strict allowlists
-
 
 ---
 
@@ -55,7 +53,7 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 
 | Package    | Version              |
 |------------|----------------------|
-| `duckdb`   | `==1.5.1`            |
+| `duckdb`   | `==1.5.2`            |
 | `pandas`   | `>=3.0.0, <4.0.0`   |
 | `polars`   | `>=1.38.1, <2.0.0`  |
 | `pyarrow`  | `>=23.0.1, <24.0.0` |
@@ -149,14 +147,43 @@ con.insert_data("my_table_1",
 con.insert_data("my_table_4",
                  source="gs://my-bucket/path/to/file.parquet")
 ```
-Each inserted row is automatically assigned a unique `_id` (UUID string).
+Each inserted row is automatically assigned a unique `rowid` within the table
+
+
+### Editing a row
+`edit()` updates exactly one row — identified by its `rowid` — and logs the change reason and comment to the DuckLake snapshot.
+```python
+# First look up the rowid of the row you want to edit
+result = con.view("my_table_1", where="name = 'Alice'")
+rowid = result["rowid"].iloc[0]
+
+# Then edit it
+con.edit(
+    table_name="my_table_1",
+    rowid=rowid,
+    changes={"name":"Alice B", "age": 33},
+    change_event_reason="REVIEW",
+    change_comment="Corrected name and age after data review",
+)
+```
+changes is a dict of `{column_name: new_value}` pairs. `change_event_reason` must be one of the valid update causes:
+ `OTHER_SOURCE`,
+ `REVIEW`,
+ `OWNER`,
+ `MARGINAL_UNIT`",
+ `DUPLICATE`",
+ `OTHER`".
 
 ### Querying data
 ```python
 # View all rows (returns pandas DataFrame by default)
 result = con.view("my_table_1")
 ```
-
+```python
+# Filter with a WHERE clause
+result = con.view("my_table_1", where="age > 25")
+result = con.view("my_table_1", where="name = 'Alice' AND age >= 30")
+```
 ```python
 # Limit and offset (pagination)
 result = con.view("my_table_1",
@@ -182,58 +209,10 @@ result = con.view("my_table_1",
                    output_format="pyarrow")
 ```
 
-### Filtering
-
-Filters are structured dicts — **never raw SQL strings** — ensuring SQL injection safety.
-```python
-# Single condition
-con.view("my_table_1",
-         filters={"column": "age", "operator": ">", "value": 25})
-```
-
-```python
-# Multiple conditions (implicit AND)
-con.view("my_table_1",
-        filters=[
-            {"column": "age", "operator": ">", "value": 25},
-            {"column": "name", "operator": "LIKE", "value": "A%"},
-        ])
-```
-```python
-# Explicit AND / OR
-con.view("my_table_1",
-        filters={
-            "or": [
-                {"column": "name", "operator": "=", "value": "Alice"},
-                {"column": "name", "operator": "=", "value": "Bob"},
-            ]
-        })
-```
-```python
-# IN operator
-con.view("my_table_1",
-          filters={"column": "age", "operator": "IN", "value": [25, 30, 35]})
-```
-```python
-# BETWEEN operator
-con.view("my_table_1",
-          filters={"column": "age", "operator": "BETWEEN", "value": [20, 40]})
-```
-```python
-# NULL checks
-con.view("my_table_1",
-          filters={"column": "name", "operator": "IS NOT NULL"})
-```
-
-Supported operators: `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `LIKE`, `IN`, `NOT IN`, `BETWEEN`, `IS NULL`, `IS NOT NULL`.
-
 ### Counting rows
 ```python
-total = con.count("my_table_1")
-active_adults = con.count("my_table_1",
-                            filters=[
-                                {"column": "age", "operator": ">=", "value": 18},
-                            ])
+total = con.count("my_table_1",
+                   where="name='Alice'")
 ```
 
 ### Checking table existence
@@ -246,18 +225,6 @@ if con.exists("my_table_1"):
 ```python
 con.list_tables()
 ```
-
----
-
-## Security
-
-SSB Parquedit is designed with SQL injection prevention as a first-class concern.
-
-Key points:
-- All filter **values** are passed as parameterized query parameters (never interpolated into SQL strings)
-- **Column names**, **table names**, and **ORDER BY** clauses are validated against strict allowlists before being used in query construction
-- Raw SQL string filters are not accepted
-
 ---
 ## Project structure
 ```text
@@ -265,7 +232,7 @@ src/ssb_parquedit/
 ├── parquedit.py      # ParquEdit facade — main public API
 ├── connection.py     # DuckDB + DuckLake catalog connection management
 ├── ddl.py            # DDL operations (CREATE TABLE, partitioning)
-├── dml.py            # DML operations (INSERT)
+├── dml.py            # DML operations (INSERT, EDIT)
 ├── query.py          # Query operations (SELECT, COUNT, EXISTS)
 ├── functions.py      # Environment helpers (Dapla config auto-detection)
 └── utils.py          # Schema utilities and SQL sanitization

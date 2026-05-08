@@ -36,6 +36,10 @@ def test_create_and_count(byer_tabell: ParquEdit) -> None:
     assert byer_tabell.count("byer") == 3
 
 
+def test_count_where(byer_tabell: ParquEdit) -> None:
+    assert byer_tabell.count("byer", where="navn='Oslo'") == 1
+
+
 def test_list_tables(byer_tabell: ParquEdit) -> None:
     assert "byer" in byer_tabell.list_tables()
 
