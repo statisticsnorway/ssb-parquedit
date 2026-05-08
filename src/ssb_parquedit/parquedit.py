@@ -223,11 +223,13 @@ class ParquEdit:
     def count(
         self,
         table_name: str,
+        where: str | None = None,
     ) -> int:
         """Count the number of rows in a table.
 
         Args:
             table_name: The name of the table to count rows in.
+            where: Optional SQL WHERE clause to filter results. Defaults to None.
 
         Returns:
             int: The number of rows in the table.
@@ -235,7 +237,7 @@ class ParquEdit:
         conn = self._get_connection()
 
         query = QueryOperations(conn)
-        return query.count(table_name)
+        return query.count(table_name, where)
 
     def exists(self, table_name: str) -> bool:
         """Check if a table exists in the database.

@@ -122,11 +122,13 @@ class QueryOperations:
     def count(
         self,
         table_name: str,
+        where: str | None = None,
     ) -> int:
         """Count rows in a table.
 
         Args:
             table_name: Name of the table.
+            where: Optional SQL WHERE clause to filter results. Defaults to None.
 
         Returns:
             int: Number of rows in the table.
@@ -138,6 +140,10 @@ class QueryOperations:
         SchemaUtils.validate_table_name(table_name)
 
         query = f"SELECT COUNT(*) as count FROM {table_name}"
+
+        if where:
+            query += f" WHERE {where}"
+
         result = self.conn.execute(query).df()
         return int(result["count"].iloc[0])
 
