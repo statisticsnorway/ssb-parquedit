@@ -19,6 +19,7 @@ import time
 from unittest.mock import patch
 
 import pandas as pd
+import ssb_parquedit.dml as dml_module
 from ssb_parquedit import ParquEdit
 
 logging.basicConfig(
@@ -29,11 +30,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TABLE_NAME = "concurrent_edit_test"
-USERS = ["trump", "paven", "putin", "jens", "jonas"]
+USERS = ["paven", "trump", "putin", "jonas", "haaland"]
 
-# Thread-local storage for simulert bruker — isolerer brukeridentitet per tråd
-# slik at get_dapla_user() alltid returnerer riktig bruker fra USERS-lista,
-# uavhengig av hva DAPLA_USER-miljøvariabelen er satt til i Dapla-miljøet.
+# Thread-local storage for simulert bruker — patch settes én gang globalt,
+# og _simulated_get_dapla_user() returnerer riktig bruker per tråd.
 _thread_local = threading.local()
 
 
@@ -45,8 +45,6 @@ def _simulated_get_dapla_user() -> str:
 def setup_table(pe: ParquEdit) -> int:
     """Opprett testtabell og sett inn én rad. Returnerer rowid."""
     if not pe.exists(TABLE_NAME):
-        
-
         df = pd.DataFrame([{"name": "Test Person", "salary": 50000}])
         pe.create_table(TABLE_NAME, source=df, product_name="concurrent_test", fill=True)
 
@@ -75,14 +73,13 @@ def simulate_user(
 
     t_start = time.perf_counter()
     try:
-        with patch("ssb_parquedit.dml.get_dapla_user", _simulated_get_dapla_user):
-            pe.edit(
-                table_name=TABLE_NAME,
-                rowid=rowid,
-                changes={"salary": new_salary},
-                change_event_reason="REVIEW",
-                change_comment=f"Endring gjort av {user}",
-            )
+        pe.edit(
+            table_name=TABLE_NAME,
+            rowid=rowid,
+            changes={"salary": new_salary},
+            change_event_reason="REVIEW",
+            change_comment=f"Oppdatering gjort av {user}",
+        )
         elapsed = time.perf_counter() - t_start
         results.append((user, "OK", new_salary, elapsed))
         logger.info("%-8s  ✓  salary=%d  (%.3fs)", user, new_salary, elapsed)
@@ -141,10 +138,14 @@ def main() -> None:
         for i, user in enumerate(USERS)
     ]
 
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    # Patch ssb_parquedit.dml.get_dapla_user globalt for hele simuleringen.
+    # _simulated_get_dapla_user() er thread-safe via threading.local(),
+    # så alle tråder får riktig bruker uten å interferere med hverandre.
+    with patch.object(dml_module, "get_dapla_user", _simulated_get_dapla_user):
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
     print_summary(results, pe)
     pe.close()
