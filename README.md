@@ -211,7 +211,7 @@ result = con.view("my_table_1",
 
 ### Counting rows
 ```python
-total = con.count("my_table_1", 
+total = con.count("my_table_1",
                    where="name='Alice'")
 ```
 
