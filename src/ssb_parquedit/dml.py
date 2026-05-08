@@ -15,6 +15,7 @@ from ssb_parquedit.functions import get_dapla_user
 
 from .query import QueryOperations
 from .utils import SchemaUtils
+from .retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,7 @@ class DMLOperations:
         if missing:
             raise ValueError(f"Missing columns in '{table_name}': {missing}")
 
+    @with_retry(max_retries=5, retry_delay_seconds=1.0)
     def edit(
         self,
         table_name: str,
@@ -230,5 +232,11 @@ class DMLOperations:
             self.conn.execute("COMMIT")
 
         except Exception as e:
-            self.conn.execute("ROLLBACK")
-            raise e
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaksjonen er allerede rullet tilbake av DuckDB
+            raise
+
+
+
