@@ -35,6 +35,7 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 - **DuckLake catalog integration** — metadata stored in PostgreSQL, data stored in GCS
 - **Create tables** from a pandas DataFrame, a JSON Schema dict, or an existing GCS Parquet file
 - **Insert data** from a pandas DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
+- **Edit data** - Edit value(s) in a single row in a table by its row ID.
 - **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
 - **Count rows**
 - **Check table existence** safely
@@ -59,6 +60,7 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 | `pyarrow`  | `>=23.0.1, <24.0.0` |
 | `gcsfs`    | `>=2026.1.0, <2027.0.0` |
 | `click`    | `>=8.0.1`            |
+| `tenacity` | `>=9.1.4,<10.0.0`    |
 
 ---
 

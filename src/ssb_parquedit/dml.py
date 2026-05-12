@@ -10,6 +10,9 @@ from typing import get_args
 
 import pandas as pd
 import pyarrow as pa
+from tenacity import retry
+from tenacity import stop_after_attempt
+from tenacity import wait_random
 
 from ssb_parquedit.functions import get_dapla_user
 
@@ -158,6 +161,9 @@ class DMLOperations:
         if missing:
             raise ValueError(f"Missing columns in '{table_name}': {missing}")
 
+    @retry(
+        stop=stop_after_attempt(max_attempt_number=10), wait=wait_random(min=1, max=3)
+    )
     def edit(
         self,
         table_name: str,
@@ -229,6 +235,9 @@ class DMLOperations:
 
             self.conn.execute("COMMIT")
 
-        except Exception as e:
-            self.conn.execute("ROLLBACK")
-            raise e
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaksjonen er allerede rullet tilbake av DuckDB
+            raise
