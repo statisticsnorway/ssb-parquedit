@@ -129,12 +129,6 @@ class ParquEdit:
 
         ddl.create_table(table_name, source, part_columns)
 
-        if part_columns and len(part_columns) > 0:
-            columns_str = ",".join(part_columns)
-            conn.execute(
-                f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
-            )
-
         if fill:
             dml.insert_data(table_name, source)
 
