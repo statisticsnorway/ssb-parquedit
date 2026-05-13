@@ -1,4 +1,4 @@
-"""Fixtures for local integration tests - ekte DuckDB, ingen mocks."""
+"""Fixtures for local integration tests - real DuckDB, no mocks."""
 
 import shutil
 import tempfile
@@ -10,35 +10,35 @@ import pytest
 from ssb_parquedit.connection import DuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
 
-# ============ Deaktiver autouse-stubs fra tests/conftest.py ============
+# ============ Disable autouse-stubs from tests/conftest.py ============
 
 
 @pytest.fixture(autouse=True)
 def stub_external_modules() -> Generator[None]:
-    """Overstyr stub-fixture fra tests/conftest.py integrasjonstester bruker ekte libs."""
+    """Override stub-fixture from tests/conftest.py - integration tests use real libs."""
     yield
 
 
-# ============ Lokalt testmiljø ============
+# ============ Local test environment ============
 
 
 class LocalDuckDBConnection(DuckDBConnection):
-    """Testversjon av DuckDBConnection.
+    """Test version of DuckDBConnection.
 
-    Omgår __init__ fullstendig og bruker:
-    - ducklake:sqlite: i stedet for PostgreSQL
-    - lokal tmpdir i stedet for GCS
+    Bypasses __init__ entirely and uses:
+    - ducklake:sqlite: instead of PostgreSQL
+    - local tmpdir instead of GCS
     """
 
     def __init__(self, data_path: str) -> None:
-        """Initialiser lokal DuckDB-tilkobling med SQLite-katalog.
+        """Initialize local DuckDB connection with SQLite catalog.
 
-        Omgår foreldre-__init__ og kobler til en lokal DuckLake-instans
-        backed av SQLite og lokal filstorage i stedet for PostgreSQL og GCS.
+        Bypasses the parent __init__ and connects to a local DuckLake instance
+        backed by SQLite and local file storage instead of PostgreSQL and GCS.
 
         Args:
-            data_path: Lokal mappe som brukes til både SQLite-katalog
-                (catalog.db) og Parquet-datafiler (data/).
+            data_path: Local directory used for both the SQLite catalog
+                (catalog.db) and Parquet data files (data/).
         """
         self._conn = duckdb.connect()
         self._conn.sql("INSTALL sqlite; LOAD sqlite;")
@@ -53,7 +53,7 @@ class LocalDuckDBConnection(DuckDBConnection):
 
 @pytest.fixture(autouse=True)
 def dapla_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
-    """Setter miljøvariabler for alle integrasjonstester."""
+    """Set environment variables for all integration tests."""
     monkeypatch.setenv("DAPLA_ENVIRONMENT", "test")
     monkeypatch.setenv("DAPLA_GROUP_CONTEXT", "dapla-ffunk-developers")
     monkeypatch.setenv("DAPLA_USER", "test-user@ssb.no")
@@ -80,7 +80,7 @@ def pe(conn: LocalDuckDBConnection) -> ParquEdit:
         conn,
         db_config={
             "catalog_name": "test_catalog",
-            "metadata_schema": "main",  # SQLite bruker 'main' som default schema
+            "metadata_schema": "main",  # SQLite uses 'main' as default schema
             "data_path": "",
         },
     )
