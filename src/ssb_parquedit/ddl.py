@@ -62,11 +62,11 @@ class DDLOperations:
         Returns:
             None
         """
-        # Gjør ValueError eksplisitt for pydoclint (DOC503)
+        # Make ValueError explicit for pydoclint (DOC503)
         try:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
-            # Re-raise for å gjøre unntaket synlig for lint
+            # Re-raise to make the exception visible to lint
             logger.error(str(e))
             raise
 

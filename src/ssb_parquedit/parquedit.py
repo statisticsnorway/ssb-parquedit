@@ -33,7 +33,7 @@ class ParquEdit:
         self._conn: DuckDBConnection | None = None
 
     def _get_connection(self) -> DuckDBConnection:
-        """Returnerer cached connection, oppretter ved første kall."""
+        """Return cached connection, creating it on first call."""
         if self._conn is None:
             self._conn = DuckDBConnection(self._db_config)
             logger.debug("Duck DB connection created. ")
@@ -41,7 +41,7 @@ class ParquEdit:
         return self._conn
 
     def close(self) -> None:
-        """Lukk connection eksplisitt."""
+        """Close the connection explicitly."""
         if self._conn is not None:
             self._conn.close()
             logger.debug("Duck DB connection closed. ")
@@ -72,17 +72,17 @@ class ParquEdit:
         connection: DuckDBConnection,
         db_config: dict[str, str] | None = None,
     ) -> "ParquEdit":
-        """Opprett en ParquEdit-instans fra en eksisterende tilkobling.
+        """Create a ParquEdit instance from an existing connection.
 
-        Nyttig for testing og avanserte brukstilfeller der tilkoblingen
-        opprettes og konfigureres utenfor ParquEdit.
+        Useful for testing and advanced use cases where the connection
+        is created and configured outside of ParquEdit.
 
         Args:
-            connection: En allerede opprettet DuckDBConnection.
-            db_config: Valgfri konfigurasjon. Defaults to {}.
+            connection: An already established DuckDBConnection.
+            db_config: Optional configuration. Defaults to {}.
 
         Returns:
-            ParquEdit: En instans koblet til den gitte tilkoblingen.
+            ParquEdit: An instance connected to the given connection.
         """
         instance = cls.__new__(cls)
         instance._conn = connection
@@ -128,6 +128,12 @@ class ParquEdit:
         dml = DMLOperations(conn)
 
         ddl.create_table(table_name, source, part_columns)
+
+        if part_columns and len(part_columns) > 0:
+            columns_str = ",".join(part_columns)
+            conn.execute(
+                f"ALTER TABLE {table_name} SET PARTITIONED BY ({columns_str});"
+            )
 
         if fill:
             dml.insert_data(table_name, source)
