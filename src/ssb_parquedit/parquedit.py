@@ -302,7 +302,7 @@ class ParquEdit:
                 - `commit_extra_info`: Extra info in addition to commit_message.
                 - `change_type`: How a row changed between snapshots.
                 - `var`: Column name.
-                - `value` / `pre_value`: Current and previous values for that column.    
+                - `value` / `pre_value`: Current and previous values for that column.
         """
         conn = self._get_connection()
 

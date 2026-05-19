@@ -229,7 +229,7 @@ class QueryOperations:
                 - `change_type`: How a row changed between snapshots.
                 - `var`: Column name.
                 - `value` / `pre_value`: Current and previous values for that column.
-    
+
         """
         config = self.db_config
         metadata_schema = config.get("metadata_schema", config["catalog_name"])
