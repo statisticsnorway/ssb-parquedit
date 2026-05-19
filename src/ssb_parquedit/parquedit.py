@@ -302,14 +302,7 @@ class ParquEdit:
                 - `commit_extra_info`: Extra info in addition to commit_message.
                 - `change_type`: How a row changed between snapshots.
                 - `var`: Column name.
-                - `value` / `pre_value`: Current and previous values for that column.
-
-        Raises:
-            Exception: If the SQL query fails or schema/table references are invalid.
-
-        Example:
-            >>> result = get_edits("customers").df()
-            >>> result.head()
+                - `value` / `pre_value`: Current and previous values for that column.    
         """
         conn = self._get_connection()
 

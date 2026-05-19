@@ -229,13 +229,7 @@ class QueryOperations:
                 - `change_type`: How a row changed between snapshots.
                 - `var`: Column name.
                 - `value` / `pre_value`: Current and previous values for that column.
-
-        Raises:
-            Exception: If the SQL query fails or schema/table references are invalid.
-
-        Example:
-            >>> result = get_edits("customers").df()
-            >>> result.head()
+    
         """
         config = self.db_config
         metadata_schema = config.get("metadata_schema", config["catalog_name"])
