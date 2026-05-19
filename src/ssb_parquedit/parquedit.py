@@ -279,3 +279,39 @@ class ParquEdit:
 
         dml = DMLOperations(conn, self._db_config)
         dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
+
+    def get_edits(self, table_name: str) -> Any:
+        """Retrieve historical column-level edits for a specified table within a DuckLake metadata schema.
+
+        This function dynamically determines all columns in the target table, casts them to VARCHAR
+        to ensure type consistency during unpivoting, and then compares current and previous values
+        across snapshots to identify real data changes.
+
+        Args:
+            table_name:
+                Name of the target table to inspect for historical edits.
+
+        Returns:
+            Any:
+                A DuckDB relation or result set containing detected edits, including:
+                - `snapshot_id`: Snapshot identifier.
+                - `rowid`: Unique identifier within a table
+                - `snapshot_time`: Timestamp of the snapshot.
+                - `author`: Commit author.
+                - `commit_message`: Commit message for the snapshot.
+                - `commit_extra_info`: Extra info in addition to commit_message.
+                - `change_type`: How a row changed between snapshots.
+                - `var`: Column name.
+                - `value` / `pre_value`: Current and previous values for that column.
+
+        Raises:
+            Exception: If the SQL query fails or schema/table references are invalid.
+
+        Example:
+            >>> result = get_edits("customers").df()
+            >>> result.head()
+        """
+        conn = self._get_connection()
+
+        query = QueryOperations(conn)
+        return query.get_edits(table_name)
