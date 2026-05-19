@@ -209,3 +209,4 @@ def test_edit_via_rowid(cities_table: ParquEdit) -> None:
 
     result = cities_table.view("cities", where=f"rowid = {first_rowid}")
     assert result["name"].iloc[0] == "Kristiansand"
+

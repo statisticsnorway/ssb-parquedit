@@ -305,6 +305,6 @@ class ParquEdit:
                 - `value` / `pre_value`: Current and previous values for that column.
         """
         conn = self._get_connection()
-
-        query = QueryOperations(conn)
+        query = QueryOperations(conn, self._db_config)
+        
         return query.get_edits(table_name)

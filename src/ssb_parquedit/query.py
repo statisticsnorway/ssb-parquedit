@@ -232,12 +232,13 @@ class QueryOperations:
 
         """
         config = self.db_config
-        metadata_schema = config.get("metadata_schema", config["catalog_name"])
+        catalog_name = config["catalog_name"]
+        metadata_schema = config.get("metadata_schema") or "main"
 
         # Step 1: Get latest snapshot ID
         max_snapshot_sql = f"""
             SELECT MAX(snapshot_id) AS max_snapshot
-            FROM ducklake_snapshots({metadata_schema})
+            FROM ducklake_snapshots({catalog_name})
         """
         row = self.conn.execute(max_snapshot_sql).fetchone()
         max_snapshot = row[0] if row is not None else None
@@ -266,7 +267,7 @@ class QueryOperations:
                 rowid,
                 change_type,
                 {cast_expr}
-            FROM ducklake_table_changes({metadata_schema}, 'main', {table_name} , 0, {max_snapshot})
+            FROM ducklake_table_changes({catalog_name}, 'main', '{table_name}', 0, {max_snapshot})
             WHERE change_type not in ('update_preimage', 'delete')
         ),
         dist_change_types AS
@@ -288,7 +289,7 @@ class QueryOperations:
         )
         SELECT a.*, b.snapshot_time, b.author, b.commit_message, b.commit_extra_info, c.change_type
         FROM column_edits a
-        JOIN ducklake_snapshots({metadata_schema}) b
+        JOIN ducklake_snapshots({catalog_name}) b
         JOIN dist_change_types c
         ON (b.snapshot_id = a.snapshot_id)
         ON (c.snapshot_id = a.snapshot_id)
