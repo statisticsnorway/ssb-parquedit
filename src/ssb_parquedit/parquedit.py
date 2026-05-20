@@ -306,5 +306,5 @@ class ParquEdit:
         """
         conn = self._get_connection()
         query = QueryOperations(conn, self._db_config)
-        
+
         return query.get_edits(table_name)

@@ -233,7 +233,6 @@ class QueryOperations:
         """
         config = self.db_config
         catalog_name = config["catalog_name"]
-        metadata_schema = config.get("metadata_schema") or "main"
 
         # Step 1: Get latest snapshot ID
         max_snapshot_sql = f"""
