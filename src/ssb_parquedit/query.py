@@ -260,42 +260,58 @@ class QueryOperations:
         # Step 4: Construct base changes query
 
         hist_edit_sql = f"""
-        WITH table_changes AS
+        WITH postimage AS
         (
-            SELECT snapshot_id,
-                rowid,
-                change_type,
-                {cast_expr}
+            SELECT snapshot_id, rowid, {cast_expr}
             FROM ducklake_table_changes({catalog_name}, 'main', '{table_name}', 0, {max_snapshot})
-            WHERE change_type not in ('update_preimage', 'delete')
+            WHERE change_type = 'update_postimage'
         ),
-        dist_change_types AS
+        preimage AS
         (
-            SELECT DISTINCT snapshot_id, change_type
-            FROM table_changes
+            SELECT snapshot_id, rowid, {cast_expr}
+            FROM ducklake_table_changes({catalog_name}, 'main', '{table_name}', 0, {max_snapshot})
+            WHERE change_type = 'update_preimage'
         ),
-        table_edits_unpiv AS
+        post_unpiv AS
         (
-            unpivot table_changes
-            ON COLUMNS(* EXCLUDE (snapshot_id, change_type, rowid))
-            into name var
-                value value
+            UNPIVOT postimage
+            ON COLUMNS(* EXCLUDE (snapshot_id, rowid))
+            INTO NAME var VALUE value
+        ),
+        pre_unpiv AS
+        (
+            UNPIVOT preimage
+            ON COLUMNS(* EXCLUDE (snapshot_id, rowid))
+            INTO NAME var VALUE value
         ),
         column_edits AS
         (
-            SELECT snapshot_id, rowid, var, value, LAG(value) OVER (PARTITION BY rowid, var ORDER BY snapshot_id) AS pre_value
-            FROM table_edits_unpiv
+            SELECT
+                post.snapshot_id,
+                post.rowid,
+                post.var,
+                post.value,
+                pre.value AS pre_value
+            FROM post_unpiv post
+            JOIN pre_unpiv pre
+                ON pre.snapshot_id = post.snapshot_id
+                AND pre.rowid = post.rowid
+                AND pre.var = post.var
+            WHERE post.value IS DISTINCT FROM pre.value
         )
-        SELECT a.*, b.snapshot_time, b.author, b.commit_message, b.commit_extra_info, c.change_type
+        SELECT
+            a.snapshot_id,
+            a.rowid,
+            a.var,
+            a.pre_value,
+            a.value,
+            b.snapshot_time,
+            b.author,
+            b.commit_message,
+            b.commit_extra_info
         FROM column_edits a
-        JOIN ducklake_snapshots({catalog_name}) b
-        JOIN dist_change_types c
-        ON (b.snapshot_id = a.snapshot_id)
-        ON (c.snapshot_id = a.snapshot_id)
-        WHERE a.value IS DISTINCT FROM a.pre_value
-        AND c.change_type <> 'insert'
-        ORDER BY a.snapshot_id, rowid, var
+        JOIN ducklake_snapshots({catalog_name}) b ON b.snapshot_id = a.snapshot_id
+        ORDER BY a.snapshot_id, a.rowid, a.var
         """
-
         # Step 6: Execute and return as DuckDB relation
         return self.conn.execute(hist_edit_sql)

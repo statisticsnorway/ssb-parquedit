@@ -51,7 +51,6 @@ def test_get_edits_expected_columns(edited_cities: ParquEdit) -> None:
         "author",
         "commit_message",
         "commit_extra_info",
-        "change_type",
         "var",
         "value",
         "pre_value",
