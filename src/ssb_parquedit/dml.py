@@ -143,7 +143,9 @@ class DMLOperations:
                 FROM information_schema.tables
             """).fetchall()}
         if table_name not in valid_tables:
-            raise ValueError(f"Table '{table_name}' does not exist")
+            msg = f"Table '{table_name}' does not exist"
+            logger.error(msg)
+            raise TypeError(msg)
 
         # 2) fetch all columns for table and check
         valid_columns = {
@@ -159,7 +161,9 @@ class DMLOperations:
         }
         missing = set(changes.keys()) - valid_columns
         if missing:
-            raise ValueError(f"Missing columns in '{table_name}': {missing}")
+            msg = f"Missing columns in '{table_name}': {missing}"
+            logger.error(msg)
+            raise TypeError(msg)
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=10), wait=wait_random(min=1, max=3)
@@ -191,15 +195,29 @@ class DMLOperations:
         """
         # validate cause — specific to update
         if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            raise ValueError(
-                f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            )
+            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            logger.error(msg)
+            raise ValueError(msg)
 
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
         set_clause = ", ".join(f"{col} = ?" for col in changes.keys())
         values = [*list(changes.values()), rowid]
+
+        dapla_user = get_dapla_user()
+
+        query = QueryOperations(self.conn, self.db_config)
+
+        extra_info = json.dumps(
+            {
+                "change_event_reason": change_event_reason,
+                "changed_by": dapla_user,
+                "change_comment": change_comment,
+                "change_datetime": str(datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))),
+                "statistics_name": query._get_product_name(table_name),
+            }
+        )
 
         try:
             self.conn.execute("BEGIN")
@@ -213,22 +231,6 @@ class DMLOperations:
                 values,
             )
 
-            dapla_user = get_dapla_user()
-
-            query = QueryOperations(self.conn, self.db_config)
-
-            extra_info = json.dumps(
-                {
-                    "change_event_reason": change_event_reason,
-                    "changed_by": dapla_user,
-                    "change_comment": change_comment,
-                    "change_datetime": str(
-                        datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))
-                    ),
-                    "statistics_name": query._get_product_name(table_name),
-                }
-            )
-
             self.conn.execute(
                 "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
             )
@@ -239,5 +241,5 @@ class DMLOperations:
             try:
                 self.conn.execute("ROLLBACK")
             except Exception:
-                pass  # transaksjonen er allerede rullet tilbake av DuckDB
+                pass  # transaction already rolled back by DuckDB
             raise

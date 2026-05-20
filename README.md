@@ -37,9 +37,11 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 - **Insert data** from a pandas DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
 - **Edit data** - Edit value(s) in a single row in a table by its row ID.
 - **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
+- **Find edits** Retrieve historical column-level edits for a specified table
 - **Count rows**
 - **Check table existence** safely
 - **Partition tables** by one or more columns
+
 
 ---
 
@@ -175,6 +177,12 @@ changes is a dict of `{column_name: new_value}` pairs. `change_event_reason` mus
  `MARGINAL_UNIT`",
  `DUPLICATE`",
  `OTHER`".
+
+### List edited rows within a table
+`get_edits()` Retrieves historical column-level edits for a specified table
+```python
+edited = con.get_edits(table_name="my_table_1").df()
+```
 
 ### Querying data
 ```python

@@ -205,3 +205,97 @@ class QueryOperations:
         if result.empty:
             return ""
         return str(result["value"].iloc[0])
+
+    def get_edits(self, table_name: str) -> Any:
+        """Retrieve historical column-level edits for a specified table within a DuckLake metadata schema.
+
+        This function dynamically determines all columns in the target table, casts them to VARCHAR
+        to ensure type consistency during unpivoting, and then compares current and previous values
+        across snapshots to identify real data changes.
+
+        Args:
+            table_name:
+                Name of the target table to inspect for historical edits.
+
+        Returns:
+            Any:
+                A DuckDB relation or result set containing detected edits, including:
+                - `snapshot_id`: Snapshot identifier.
+                - `rowid`: Unique identifier within a table
+                - `snapshot_time`: Timestamp of the snapshot.
+                - `author`: Commit author.
+                - `commit_message`: Commit message for the snapshot.
+                - `commit_extra_info`: Extra info in addition to commit_message.
+                - `change_type`: How a row changed between snapshots.
+                - `var`: Column name.
+                - `value` / `pre_value`: Current and previous values for that column.
+
+        """
+        config = self.db_config
+        catalog_name = config["catalog_name"]
+
+        # Step 1: Get latest snapshot ID
+        max_snapshot_sql = f"""
+            SELECT MAX(snapshot_id) AS max_snapshot
+            FROM ducklake_snapshots({catalog_name})
+        """
+        row = self.conn.execute(max_snapshot_sql).fetchone()
+        max_snapshot = row[0] if row is not None else None
+
+        # Step 2: Dynamically determine column names from the table
+        # Use DuckDB's DESCRIBE command to get schema info
+        describe_df = self.conn.execute(f"DESCRIBE {table_name}").fetchdf()
+
+        cols = [
+            c
+            for c in describe_df["column_name"].tolist()
+            if c not in ("snapshot_id", "snapshot_time", "rowid", "change_type")
+        ]
+
+        # Step 3: Generate CAST expressions for consistent UNPIVOT typing
+        cast_expr = ", ".join(
+            [f"COALESCE(CAST({c} AS VARCHAR),'NULL') AS {c}" for c in cols]
+        )
+
+        # Step 4: Construct base changes query
+
+        hist_edit_sql = f"""
+        WITH table_changes AS
+        (
+            SELECT snapshot_id,
+                rowid,
+                change_type,
+                {cast_expr}
+            FROM ducklake_table_changes({catalog_name}, 'main', '{table_name}', 0, {max_snapshot})
+            WHERE change_type not in ('update_preimage', 'delete')
+        ),
+        dist_change_types AS
+        (
+            SELECT DISTINCT snapshot_id, change_type
+            FROM table_changes
+        ),
+        table_edits_unpiv AS
+        (
+            unpivot table_changes
+            ON COLUMNS(* EXCLUDE (snapshot_id, change_type, rowid))
+            into name var
+                value value
+        ),
+        column_edits AS
+        (
+            SELECT snapshot_id, rowid, var, value, LAG(value) OVER (PARTITION BY rowid, var ORDER BY snapshot_id) AS pre_value
+            FROM table_edits_unpiv
+        )
+        SELECT a.*, b.snapshot_time, b.author, b.commit_message, b.commit_extra_info, c.change_type
+        FROM column_edits a
+        JOIN ducklake_snapshots({catalog_name}) b
+        JOIN dist_change_types c
+        ON (b.snapshot_id = a.snapshot_id)
+        ON (c.snapshot_id = a.snapshot_id)
+        WHERE a.value IS DISTINCT FROM a.pre_value
+        AND c.change_type <> 'insert'
+        ORDER BY a.snapshot_id, rowid, var
+        """
+
+        # Step 6: Execute and return as DuckDB relation
+        return self.conn.execute(hist_edit_sql)
