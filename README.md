@@ -181,7 +181,7 @@ changes is a dict of `{column_name: new_value}` pairs. `change_event_reason` mus
 ### List edited rows within a table
 `get_edits()` Retrieves historical column-level edits for a specified table
 ```python
-get_edits(table_name="my_table_1")
+edited = con.get_edits(table_name="my_table_1").df()
 ```
 
 ### Querying data
