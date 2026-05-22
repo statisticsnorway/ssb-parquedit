@@ -1,80 +1,93 @@
-"""Tests for the ParquEdit facade."""
+"""Tests for ParquEdit - happy path and documented error behavior."""
 
-from typing import Any
-from unittest.mock import MagicMock
-from unittest.mock import patch
-
+import pandas as pd
 import pytest
 
-# Fixtures are imported from conftest.py: stub_external_modules, sut, db_config
+from ssb_parquedit.parquedit import ParquEdit
+from tests.conftest import LocalDuckDBConnection
+
+# ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
-class TestInit:
-    def test_stores_provided_config(self, sut: Any, db_config: dict[str, str]) -> None:
-        pe = sut(config=db_config)
-        assert pe._db_config == db_config
+@pytest.fixture()
+def pe(conn: LocalDuckDBConnection) -> ParquEdit:
+    """ParquEdit instance backed by a real local connection."""
+    return ParquEdit.from_connection(conn)
 
 
-class TestContextManager:
-    def test_opens_and_closes_connection(
-        self, sut: Any, db_config: dict[str, str]
+# ── create_table: product_name validation ─────────────────────────────────────
+
+
+class TestCreateTableProductNameRequired:
+    """create_table() must enforce that product_name is provided and non-empty."""
+
+    def test_raises_value_error_when_product_name_is_none(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1], "value": ["a"]})
+        with pytest.raises(ValueError):
+            pe.create_table("my_table", source=df, product_name=None)
+
+    def test_raises_value_error_when_product_name_is_empty_string(
+        self, pe: ParquEdit
     ) -> None:
-        mock_conn = MagicMock()
-        pe = sut(config=db_config)
-        with patch("ssb_parquedit.parquedit.DuckDBConnection", return_value=mock_conn):
-            with pe:
-                assert pe._conn is not None
-        assert pe._conn is None
+        df = pd.DataFrame({"id": [1], "value": ["a"]})
+        with pytest.raises(ValueError):
+            pe.create_table("my_table", source=df, product_name="")
 
-
-class TestCreateTable:
-    def test_raises_without_product_name(
-        self, sut: Any, db_config: dict[str, str]
-    ) -> None:
-        pe = sut(config=db_config)
+    def test_error_message_is_informative(self, pe: ParquEdit) -> None:
+        """The ValueError message should guide the user toward the fix."""
+        df = pd.DataFrame({"id": [1], "value": ["a"]})
         with pytest.raises(ValueError, match="product_name"):
-            pe.create_table("users", {}, product_name=None)
-
-    def test_delegates_to_ddl(self, sut: Any, db_config: dict[str, str]) -> None:
-        mock_conn = MagicMock()
-        mock_ddl = MagicMock()
-        pe = sut(config=db_config)
-        with patch("ssb_parquedit.parquedit.DuckDBConnection", return_value=mock_conn):
-            with patch("ssb_parquedit.parquedit.DDLOperations", return_value=mock_ddl):
-                pe.create_table("users", {}, product_name="myproduct")
-        mock_ddl.create_table.assert_called_once()
+            pe.create_table("my_table", source=df, product_name=None)
 
 
-class TestDropTable:
-    def test_delegates_to_ddl(self, sut: Any, db_config: dict[str, str]) -> None:
-        mock_conn = MagicMock()
-        mock_ddl = MagicMock()
-        pe = sut(config=db_config)
-        with patch("ssb_parquedit.parquedit.DuckDBConnection", return_value=mock_conn):
-            with patch("ssb_parquedit.parquedit.DDLOperations", return_value=mock_ddl):
-                pe.drop_table("users", cleanup=False)
-        mock_ddl.drop_table.assert_called_once_with("users", cleanup=False)
+# ── Happy path ────────────────────────────────────────────────────────────────
 
 
-class TestInsertData:
-    def test_delegates_to_dml(self, sut: Any, db_config: dict[str, str]) -> None:
-        mock_conn = MagicMock()
-        mock_dml = MagicMock()
-        pe = sut(config=db_config)
-        with patch("ssb_parquedit.parquedit.DuckDBConnection", return_value=mock_conn):
-            with patch("ssb_parquedit.parquedit.DMLOperations", return_value=mock_dml):
-                pe.insert_data("users", "gs://bucket/data.parquet")
-        mock_dml.insert_data.assert_called_once()
+class TestParquEditHappyPath:
+    """Core ParquEdit operations that must work under normal conditions."""
 
+    def test_created_table_is_visible(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
+        pe.create_table("cities", source=df, product_name="test")
+        assert pe.exists("cities")
 
-class TestView:
-    def test_delegates_to_query(self, sut: Any, db_config: dict[str, str]) -> None:
-        mock_conn = MagicMock()
-        mock_query = MagicMock()
-        pe = sut(config=db_config)
-        with patch("ssb_parquedit.parquedit.DuckDBConnection", return_value=mock_conn):
-            with patch(
-                "ssb_parquedit.parquedit.QueryOperations", return_value=mock_query
-            ):
-                pe.view("users")
-        mock_query.view.assert_called_once()
+    def test_create_with_fill_inserts_rows(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1, 2, 3], "name": ["Oslo", "Bergen", "Tromsø"]})
+        pe.create_table("cities", source=df, product_name="test", fill=True)
+        assert pe.count("cities") == 3
+
+    def test_insert_data_adds_rows(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
+        pe.create_table("cities", source=df, product_name="test", fill=True)
+        pe.insert_data("cities", pd.DataFrame({"id": [3], "name": ["Tromsø"]}))
+        assert pe.count("cities") == 3
+
+    def test_view_returns_all_rows(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1, 2, 3], "name": ["Oslo", "Bergen", "Tromsø"]})
+        pe.create_table("cities", source=df, product_name="test", fill=True)
+        result = pe.view("cities")
+        assert len(result) == 3
+
+    def test_view_limit_is_respected(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1, 2, 3], "name": ["Oslo", "Bergen", "Tromsø"]})
+        pe.create_table("cities", source=df, product_name="test", fill=True)
+        result = pe.view("cities", limit=1)
+        assert len(result) == 1
+
+    def test_count_with_filter(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1, 2, 3], "name": ["Oslo", "Bergen", "Tromsø"]})
+        pe.create_table("cities", source=df, product_name="test", fill=True)
+        assert pe.count("cities", where="name='Oslo'") == 1
+
+    def test_list_tables_includes_created_table(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
+        pe.create_table("cities", source=df, product_name="test")
+        assert "cities" in pe.list_tables()
+
+    def test_context_manager_closes_connection_on_exit(
+        self, conn: LocalDuckDBConnection
+    ) -> None:
+        with ParquEdit.from_connection(conn) as pe_ctx:
+            df = pd.DataFrame({"id": [1]})
+            pe_ctx.create_table("t", source=df, product_name="test")
+        assert pe_ctx._conn is None
