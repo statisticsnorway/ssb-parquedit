@@ -3,8 +3,8 @@
 import pandas as pd
 import pytest
 
+from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
-from tests.conftest import LocalDuckDBConnection
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

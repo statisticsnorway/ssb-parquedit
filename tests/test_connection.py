@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from tests.conftest import LocalDuckDBConnection
+from ssb_parquedit.local import LocalDuckDBConnection
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
