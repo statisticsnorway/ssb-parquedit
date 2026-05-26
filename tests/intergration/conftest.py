@@ -4,10 +4,9 @@ import shutil
 import tempfile
 from collections.abc import Generator
 
-import duckdb
 import pytest
 
-from ssb_parquedit.connection import DuckDBConnection
+from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
 
 # ============ Disable autouse-stubs from tests/conftest.py ============
@@ -20,35 +19,6 @@ def stub_external_modules() -> Generator[None]:
 
 
 # ============ Local test environment ============
-
-
-class LocalDuckDBConnection(DuckDBConnection):
-    """Test version of DuckDBConnection.
-
-    Bypasses __init__ entirely and uses:
-    - ducklake:sqlite: instead of PostgreSQL
-    - local tmpdir instead of GCS
-    """
-
-    def __init__(self, data_path: str) -> None:
-        """Initialize local DuckDB connection with SQLite catalog.
-
-        Bypasses the parent __init__ and connects to a local DuckLake instance
-        backed by SQLite and local file storage instead of PostgreSQL and GCS.
-
-        Args:
-            data_path: Local directory used for both the SQLite catalog
-                (catalog.db) and Parquet data files (data/).
-        """
-        self._conn = duckdb.connect()
-        self._conn.sql("INSTALL sqlite; LOAD sqlite;")
-        self._conn.sql("INSTALL ducklake; LOAD ducklake;")
-        self._conn.sql(f"""
-            ATTACH 'ducklake:sqlite:{data_path}/catalog.db' AS test_catalog
-            (DATA_PATH '{data_path}/data',
-             DATA_INLINING_ROW_LIMIT 300)
-        """)
-        self._conn.sql("USE test_catalog")
 
 
 @pytest.fixture(autouse=True)

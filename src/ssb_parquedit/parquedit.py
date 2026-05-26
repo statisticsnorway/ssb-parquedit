@@ -1,6 +1,7 @@
 """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -12,6 +13,8 @@ from .functions import create_config
 from .query import QueryOperations
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_LOCAL_PATH = Path.home() / ".parquedit"
 
 
 class ParquEdit:
@@ -88,6 +91,42 @@ class ParquEdit:
         instance._conn = connection
         instance._db_config = db_config or {}
         return instance
+
+    @classmethod
+    def local(cls, path: str | Path = _DEFAULT_LOCAL_PATH) -> "ParquEdit":
+        """Create a ParquEdit instance backed by a persistent local SQLite catalog.
+
+        Useful for local development without GCS or PostgreSQL access.
+        The catalog and data files are stored at ``path`` and persist across
+        sessions. The directory is created if it does not already exist.
+
+        Args:
+            path: Directory for the SQLite catalog and Parquet data files.
+                Defaults to ``~/.parquedit``.
+
+        Returns:
+            ParquEdit: An instance backed by a local SQLite DuckLake catalog.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> pe = ParquEdit.local()                       # uses ~/.parquedit
+            >>> pe = ParquEdit.local("/tmp/my_dev_catalog")  # custom path
+            >>> pe.create_table("cities", source=df, product_name="dev")
+            >>> pe.close()
+        """
+        from .local import LocalDuckDBConnection
+
+        data_path = Path(path)
+        data_path.mkdir(parents=True, exist_ok=True)
+        conn = LocalDuckDBConnection(data_path=str(data_path))
+        return cls.from_connection(
+            conn,
+            db_config={
+                "catalog_name": "local_catalog",
+                "metadata_schema": "main",
+                "data_path": "",
+            },
+        )
 
     # ============ DDL Operations ============
 
