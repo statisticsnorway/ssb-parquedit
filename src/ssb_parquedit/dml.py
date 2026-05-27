@@ -228,11 +228,18 @@ class DMLOperations:
         unique_row = row[unique_key].iloc[0]
         key_values = {
             col: val.item() if hasattr(val, "item") else val
-            for col, val in zip(unique_key, unique_row)
+            for col, val in zip(unique_key, unique_row, strict=True)
         }
 
         # make dict with old values from row
-        old_values = {col: row[col].iloc[0].item() for col in changes.keys()}
+        old_values = {
+            col: (
+                row[col].iloc[0].item()
+                if hasattr(row[col].iloc[0], "item")
+                else row[col].iloc[0]
+            )
+            for col in changes.keys()
+        }
 
         extra_info = json.dumps(
             {
