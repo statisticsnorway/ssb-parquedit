@@ -1,5 +1,6 @@
 """Query operations for DuckDB tables."""
 
+import json
 import logging
 from typing import Any
 from typing import cast
@@ -188,7 +189,7 @@ class QueryOperations:
         result = self.conn.execute("SHOW TABLES").df()
         return cast(list[str], result["name"].tolist())
 
-    def _get_product_name(self, table_name: str) -> str:
+    def _get_tag_info(self, table_name: str) -> dict[str, Any] | None:
         config = self.db_config
         schema = config.get("metadata_schema", config["catalog_name"])
 
@@ -203,8 +204,8 @@ class QueryOperations:
         """
         result = self.conn.execute(query).df()
         if result.empty:
-            return ""
-        return str(result["value"].iloc[0])
+            return None
+        return json.loads(str(result["value"].iloc[0]))
 
     def get_edits(self, table_name: str) -> Any:
         """Retrieve historical column-level edits for a specified table within a DuckLake metadata schema.
