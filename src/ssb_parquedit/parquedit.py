@@ -183,7 +183,7 @@ class ParquEdit:
         tag_info = json.dumps(
             {
                 "product_name": product_name,
-                "unique_key": unique_key,      
+                "unique_key": unique_key,
             }
         )
 

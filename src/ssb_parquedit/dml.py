@@ -8,7 +8,6 @@ from typing import Any
 from typing import Literal
 from typing import get_args
 
-from numpy import unique_values
 import pandas as pd
 import pyarrow as pa
 from tenacity import retry
@@ -209,27 +208,30 @@ class DMLOperations:
         dapla_user = get_dapla_user()
 
         query = QueryOperations(self.conn, self.db_config)
-        
+
         # get product_name
-        tag_dict =query._get_tag_info(table_name)
+        tag_dict = query._get_tag_info(table_name)
         if tag_dict is None:
             return
-        product_name = tag_dict.get('product_name')
+        product_name = tag_dict.get("product_name")
 
-        #get current row
+        # get current row
         row = self.conn.execute(
-        f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
-                ).df()
+            f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
+        ).df()
 
-        #get unique key 
-        unique_key = tag_dict.get('unique_key')
+        # get unique key
+        unique_key = tag_dict.get("unique_key")
 
         # make dict with values of unique_id-cols from row
         assert unique_key is not None
         unique_row = row[unique_key].iloc[0]
-        key_values = {col: val.item() if hasattr(val, "item") else val for col, val in zip(unique_key, unique_row)}
+        key_values = {
+            col: val.item() if hasattr(val, "item") else val
+            for col, val in zip(unique_key, unique_row)
+        }
 
-        #make dict with old values from row
+        # make dict with old values from row
         old_values = {col: row[col].iloc[0].item() for col in changes.keys()}
 
         extra_info = json.dumps(
@@ -238,7 +240,7 @@ class DMLOperations:
                 "changed_by": dapla_user,
                 "table_name": table_name,
                 "rowid": rowid,
-                "unique_key" :key_values,
+                "unique_key": key_values,
                 "change_comment": change_comment,
                 "change_datetime": str(datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))),
                 "statistics_name": product_name,
