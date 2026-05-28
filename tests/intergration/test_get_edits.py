@@ -1,10 +1,11 @@
 import json
-import pytest
-import pandas as pd
-from unittest.mock import MagicMock
-from ssb_parquedit.parquedit import ParquEdit
 from typing import Any
+from unittest.mock import MagicMock
 
+import pandas as pd
+import pytest
+
+from ssb_parquedit.parquedit import ParquEdit
 
 MOCK_ROW = {
     "change_event_reason": "OTHER",
@@ -13,11 +14,11 @@ MOCK_ROW = {
     "rowid": 1,
     "unique_key": {"id": 1},
     "change_comment": "Test edit",
-    "change_datetime": "2026-01-01T00:00:00+02:00",
     "statistics_name": "test_product",
     "old_values": {"name": "Oslo"},
     "new_values": {"name": "Bergen"},
 }
+
 
 @pytest.fixture
 def cities_table(pe: ParquEdit) -> ParquEdit:
@@ -52,6 +53,7 @@ def mock_edits_table(pe: ParquEdit, monkeypatch: pytest.MonkeyPatch) -> ParquEdi
     monkeypatch.setattr(pe._get_connection(), "execute", mock_execute)
     return pe
 
+
 def test_get_edits_returns_dataframe(mock_edits_table: ParquEdit) -> None:
     """get_edits() should return a DataFrame."""
     result = mock_edits_table.get_edits()
@@ -68,7 +70,14 @@ def test_get_edits_filtered_by_table_name(mock_edits_table: ParquEdit) -> None:
 def test_get_edits_contains_expected_columns(mock_edits_table: ParquEdit) -> None:
     """get_edits() should contain parsed changelog columns."""
     result = mock_edits_table.get_edits("cities")
-    expected_cols = {"change_event_reason", "changed_by", "unique_key", "old_values", "new_values", "table_name"}
+    expected_cols = {
+        "change_event_reason",
+        "changed_by",
+        "unique_key",
+        "old_values",
+        "new_values",
+        "table_name",
+    }
     assert expected_cols.issubset(result.columns)
 
 
