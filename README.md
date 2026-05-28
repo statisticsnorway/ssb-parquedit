@@ -238,6 +238,23 @@ if con.exists("my_table_1"):
 ```python
 con.list_tables()
 ```
+
+### List edits
+`get_edits()` - Retrieves the full changelog for a table by reading DuckLake snapshot metadata.
+Each row represents a single edit, with columns for who made the change, when,
+the reason, which row was affected (identified by its unique key), and the old
+and new values for all modified columns.
+
+Optionally filter by table name, or omit it to get the changelog for all tables.
+```python
+# All edits for a specific table
+df = con.get_edits("my_table")
+
+# All edits across all tables
+df = con.get_edits()
+```
+
+
 ---
 ## Project structure
 ```text

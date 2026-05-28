@@ -334,3 +334,23 @@ class ParquEdit:
 
         dml = DMLOperations(conn, self._db_config)
         dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
+
+    def get_edits(self, table_name: str | None = None) -> pd.DataFrame:
+        """Retrieve changelog entries from DuckLake snapshots.
+
+        Fetches all snapshots with non-null commit metadata, parses the JSON
+        payload in 'commit_extra_info' into separate columns, and optionally
+        filters by table name.
+
+        Args:
+            table_name: If provided, only returns edits for the given table.
+                If None, returns edits for all tables.
+
+        Returns:
+            A DataFrame with snapshot data and parsed changelog columns,
+            including change_event_reason, changed_by, unique_key,
+            old_values, new_values, and more.
+        """
+        conn = self._get_connection()
+        query = QueryOperations(conn)
+        return query.get_edits(table_name)

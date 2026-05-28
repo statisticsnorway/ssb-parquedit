@@ -5,6 +5,8 @@ import logging
 from typing import Any
 from typing import cast
 
+import pandas as pd
+
 from .functions import create_config
 from .utils import SchemaUtils
 
@@ -207,3 +209,42 @@ class QueryOperations:
             return None
 
         return cast(dict[str, Any], json.loads(str(result["value"].iloc[0])))
+
+    def get_edits(self, table_name: str | None = None) -> pd.DataFrame:
+        """Retrieve changelog entries from DuckLake snapshots.
+
+        Fetches all snapshots with non-null commit metadata, parses the JSON
+        payload in 'commit_extra_info' into separate columns, and optionally
+        filters by table name.
+
+        Args:
+            table_name: If provided, only returns edits for the given table.
+                If None, returns edits for all tables.
+
+        Raises:
+            ValueError: If the given table_name does not exist in the catalog.
+
+        Returns:
+            A DataFrame with snapshot data and parsed changelog columns,
+            including change_event_reason, changed_by, unique_key,
+            old_values, new_values, and more.
+        """
+        config = self.db_config
+
+        if table_name is not None and table_name not in self.list_tables():
+            msg = f"Table '{table_name}' does not exist. Available tables: {self.list_tables()}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        df = self.conn.execute(
+            f"SELECT * FROM {config["catalog_name"]}.snapshots() WHERE commit_extra_info IS NOT NULL;"
+        ).df()
+        parsed = df["commit_extra_info"].apply(json.loads).apply(pd.Series)
+        df = pd.concat([df, parsed], axis=1)
+
+        if table_name:
+            return cast(
+                pd.DataFrame, df[df["table_name"] == table_name].reset_index(drop=True)
+            )
+
+        return df
