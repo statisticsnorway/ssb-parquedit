@@ -209,18 +209,57 @@ class DMLOperations:
 
         query = QueryOperations(self.conn, self.db_config)
 
-        extra_info = json.dumps(
-            {
-                "change_event_reason": change_event_reason,
-                "changed_by": dapla_user,
-                "change_comment": change_comment,
-                "change_datetime": str(datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))),
-                "statistics_name": query._get_product_name(table_name),
-            }
-        )
+        # get product_name
+        tag_dict = query._get_tag_info(table_name)
+        if tag_dict is None:
+            return
+        product_name = tag_dict.get("product_name")
+
+        # get unique key
+        unique_key = tag_dict.get("unique_key")
 
         try:
             self.conn.execute("BEGIN")
+
+            # get current row
+            row = self.conn.execute(
+                f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
+            ).df()
+
+            # make dict with values of unique_id-cols from row
+            assert unique_key is not None
+            unique_row = row[unique_key].iloc[0]
+            key_values = {
+                col: val.item() if hasattr(val, "item") else val
+                for col, val in zip(unique_key, unique_row, strict=True)
+            }
+
+            # make dict with old values from row
+            old_values = {
+                col: (
+                    row[col].iloc[0].item()
+                    if hasattr(row[col].iloc[0], "item")
+                    else row[col].iloc[0]
+                )
+                for col in changes.keys()
+            }
+
+            extra_info = json.dumps(
+                {
+                    "change_event_reason": change_event_reason,
+                    "changed_by": dapla_user,
+                    "table_name": table_name,
+                    "rowid": rowid,
+                    "unique_key": key_values,
+                    "change_comment": change_comment,
+                    "change_datetime": str(
+                        datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))
+                    ),
+                    "statistics_name": product_name,
+                    "old_values": old_values,
+                    "new_values": changes,
+                }
+            )
 
             self.conn.execute(
                 f"""

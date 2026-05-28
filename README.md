@@ -96,7 +96,8 @@ df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
 # Create table from DataFrame (empty — schema only)
 con.create_table("my_table_1",
                  source=df,
-                 product_name="my-product")
+                 product_name="my-product",
+                 unique_key=["name"])
 ```
 
 ```python
@@ -104,6 +105,7 @@ con.create_table("my_table_1",
 con.create_table("my_table_2",
                  source=df,
                  product_name="my-product",
+                 unique_key=["name"],
                  fill=True)
 ```
 
@@ -117,14 +119,16 @@ schema = {
 }
 con.create_table("my_table_3",
                  source=schema,
-                 product_name="my-product")
+                 product_name="my-product",
+                 unique_key=["name"])
 ```
 
 ```python
 # Create from an existing GCS Parquet file (schema inferred from file)
 con.create_table("my_table_4",
                  source="gs://my-bucket/path/to/file.parquet",
-                 product_name="my-product")
+                 product_name="my-product",
+                 unique_key=["id","year"])
 
 ```
 
@@ -134,11 +138,13 @@ con.create_table("my_table_5",
                  source=df,
                  product_name="my-product",
                  part_columns=["age"],
+                 unique_key=["name"],
                  fill=True)
 ```
 
 > **Note:** `product_name` is required and is stored as a comment on the table. Table names must be lowercase, start with a letter or underscore, and contain only lowercase letters, numbers, and underscores (max 20 characters).
 
+> **Note:** `unique_key`A list of columns that together uniquely identify a row, used to mimic a primary key.
 
 ### Inserting data in an existing table
 ```python
@@ -170,7 +176,9 @@ con.edit(
     change_comment="Corrected name and age after data review",
 )
 ```
-changes is a dict of `{column_name: new_value}` pairs. `change_event_reason` must be one of the valid update causes:
+`changes` is a dict of `{column_name: new_value}` pairs.
+
+`change_event_reason` must be one of the valid update causes:
  `OTHER_SOURCE`,
  `REVIEW`,
  `OWNER`,
@@ -178,11 +186,6 @@ changes is a dict of `{column_name: new_value}` pairs. `change_event_reason` mus
  `DUPLICATE`",
  `OTHER`".
 
-### List edited rows within a table
-`get_edits()` Retrieves historical column-level edits for a specified table
-```python
-edited = con.get_edits(table_name="my_table_1").df()
-```
 
 ### Querying data
 ```python

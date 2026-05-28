@@ -19,7 +19,9 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
             "population": [700000, 285000, 75000],
         }
     )
-    pe.create_table("cities", source=df, product_name="test_product", fill=True)
+    pe.create_table(
+        "cities", source=df, product_name="test_product", unique_key=["id"], fill=True
+    )
     return pe
 
 
@@ -28,7 +30,12 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
 
 def test_create_table_exists(pe: ParquEdit) -> None:
     df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
-    pe.create_table("cities", source=df, product_name="test_product")
+    pe.create_table(
+        "cities",
+        source=df,
+        product_name="test_product",
+        unique_key=["id"],
+    )
     assert pe.exists("cities")
 
 
@@ -123,7 +130,7 @@ def test_view_columns_subset_includes_rowid(cities_table: ParquEdit) -> None:
 
 def test_insert_data(pe: ParquEdit) -> None:
     df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
-    pe.create_table("cities", source=df, product_name="test_product")
+    pe.create_table("cities", source=df, product_name="test_product", unique_key=["id"])
     df2 = pd.DataFrame({"id": [2], "name": ["Bergen"]})
     pe.insert_data("cities", df2)
     assert pe.count("cities") == 1  # first insert did not happen (fill=False)
@@ -136,7 +143,12 @@ def test_insert_from_parquet(pe: ParquEdit, tmp_storage: str) -> None:
     pq.write_table(table, parquet_path)
 
     df = pd.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
-    pe.create_table("cities", source=df, product_name="test_product")
+    pe.create_table(
+        "cities",
+        source=df,
+        product_name="test_product",
+        unique_key=["id"],
+    )
     pe.insert_data("cities", parquet_path)
 
     assert pe.count("cities") == 2
@@ -149,7 +161,11 @@ def test_create_table_fill_from_parquet(pe: ParquEdit, tmp_storage: str) -> None
     pq.write_table(table, parquet_path)
 
     pe.create_table(
-        "cities", source=parquet_path, product_name="test_product", fill=True
+        "cities",
+        source=parquet_path,
+        product_name="test_product",
+        unique_key=["id"],
+        fill=True,
     )
 
     assert pe.count("cities") == 3

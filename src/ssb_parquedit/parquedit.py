@@ -1,5 +1,6 @@
 """ParquEdit - Clean facade for DuckDB table management with DuckLake catalog."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -135,6 +136,7 @@ class ParquEdit:
         table_name: str,
         source: pd.DataFrame | dict[str, Any] | str,
         product_name: str | None = None,
+        unique_key: list[str] | None = None,
         part_columns: list[str] | None = None,
         fill: bool = False,
     ) -> None:
@@ -150,6 +152,8 @@ class ParquEdit:
                 - str: GCS path (gs://) to a Parquet file to infer schema from.
             product_name: Label identifying the product this table belongs to.
                 Stored as a comment on the table. Must not be None or empty.
+            unique_key: A list of columns that together uniquely identify a row,
+                used to mimic a primary key. Defaults to None.
             part_columns: Optional list of column names to partition the table by.
             fill: If True, inserts data from source into the table immediately
                 after creation. Defaults to False.
@@ -157,8 +161,13 @@ class ParquEdit:
         Raises:
             ValueError: If product_name is None or empty.
         """
-        if product_name is None or product_name == "":
+        if not product_name:
             msg = "'product_name' must have a value, please provide the valid product-name for your table"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        if not unique_key:
+            msg = "'unique_key' must have at least one element, please provide a combination of columns for your table"
             logger.error(msg)
             raise ValueError(msg)
 
@@ -171,7 +180,14 @@ class ParquEdit:
         if fill:
             dml.insert_data(table_name, source)
 
-        conn.execute(f"COMMENT ON TABLE {table_name} IS '{product_name}';")
+        tag_info = json.dumps(
+            {
+                "product_name": product_name,
+                "unique_key": unique_key,
+            }
+        )
+
+        conn.execute(f"COMMENT ON TABLE {table_name} IS '{tag_info}';")
 
     def drop_table(self, table_name: str, cleanup: bool = True) -> None:
         """Drop a table from the DuckLake catalog with optional cleanup.
@@ -318,32 +334,3 @@ class ParquEdit:
 
         dml = DMLOperations(conn, self._db_config)
         dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
-
-    def get_edits(self, table_name: str) -> Any:
-        """Retrieve historical column-level edits for a specified table within a DuckLake metadata schema.
-
-        This function dynamically determines all columns in the target table, casts them to VARCHAR
-        to ensure type consistency during unpivoting, and then compares current and previous values
-        across snapshots to identify real data changes.
-
-        Args:
-            table_name:
-                Name of the target table to inspect for historical edits.
-
-        Returns:
-            Any:
-                A DuckDB relation or result set containing detected edits, including:
-                - `snapshot_id`: Snapshot identifier.
-                - `rowid`: Unique identifier within a table
-                - `snapshot_time`: Timestamp of the snapshot.
-                - `author`: Commit author.
-                - `commit_message`: Commit message for the snapshot.
-                - `commit_extra_info`: Extra info in addition to commit_message.
-                - `change_type`: How a row changed between snapshots.
-                - `var`: Column name.
-                - `value` / `pre_value`: Current and previous values for that column.
-        """
-        conn = self._get_connection()
-        query = QueryOperations(conn, self._db_config)
-
-        return query.get_edits(table_name)
