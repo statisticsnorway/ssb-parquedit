@@ -2,8 +2,6 @@
 
 import json
 import logging
-import zoneinfo
-from datetime import datetime
 from typing import Any
 from typing import Literal
 from typing import get_args
@@ -252,9 +250,6 @@ class DMLOperations:
                     "rowid": rowid,
                     "unique_key": key_values,
                     "change_comment": change_comment,
-                    "change_datetime": str(
-                        datetime.now(zoneinfo.ZoneInfo("Europe/Oslo"))
-                    ),
                     "statistics_name": product_name,
                     "old_values": old_values,
                     "new_values": changes,
