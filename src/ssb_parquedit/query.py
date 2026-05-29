@@ -228,7 +228,7 @@ class QueryOperations:
             raise ValueError(msg)
 
         df = self.conn.execute(
-            f"SELECT * FROM snapshots() WHERE commit_extra_info IS NOT NULL;"
+            "SELECT * FROM snapshots() WHERE commit_extra_info IS NOT NULL;"
         ).df()
         parsed = df["commit_extra_info"].apply(json.loads).apply(pd.Series)
         df = pd.concat([df, parsed], axis=1)
