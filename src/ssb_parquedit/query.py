@@ -192,23 +192,15 @@ class QueryOperations:
         return cast(list[str], result["name"].tolist())
 
     def _get_tag_info(self, table_name: str) -> dict[str, Any] | None:
-        config = self.db_config
-        schema = config.get("metadata_schema", config["catalog_name"])
+        result = self.conn.execute(
+            "SELECT table_comment FROM information_schema.tables WHERE table_name = ?",
+            [table_name],
+        ).df()
 
-        query = f"""
-            SELECT t.value
-            FROM __ducklake_metadata_{config["catalog_name"]}.{schema}.ducklake_tag t
-            JOIN __ducklake_metadata_{config["catalog_name"]}.{schema}.ducklake_table tb
-                ON t.object_id = tb.table_id
-            WHERE tb.table_name = '{table_name}'
-            AND t.key = 'comment'
-            AND t.end_snapshot IS NULL
-        """
-        result = self.conn.execute(query).df()
-        if result.empty:
+        if result.empty or result["TABLE_COMMENT"].iloc[0] is None:
             return None
-
-        return cast(dict[str, Any], json.loads(str(result["value"].iloc[0])))
+        
+        return cast(dict[str, Any], json.loads(str(result["TABLE_COMMENT"].iloc[0])))
 
     def get_edits(self, table_name: str | None = None) -> pd.DataFrame:
         """Retrieve changelog entries from DuckLake snapshots.
@@ -229,15 +221,14 @@ class QueryOperations:
             including change_event_reason, changed_by, unique_key,
             old_values, new_values, and more.
         """
-        config = self.db_config
-
+        
         if table_name is not None and table_name not in self.list_tables():
             msg = f"Table '{table_name}' does not exist. Available tables: {self.list_tables()}"
             logger.error(msg)
             raise ValueError(msg)
 
         df = self.conn.execute(
-            f"SELECT * FROM {config["catalog_name"]}.snapshots() WHERE commit_extra_info IS NOT NULL;"
+            f"SELECT * FROM snapshots() WHERE commit_extra_info IS NOT NULL;"
         ).df()
         parsed = df["commit_extra_info"].apply(json.loads).apply(pd.Series)
         df = pd.concat([df, parsed], axis=1)
