@@ -199,7 +199,7 @@ class QueryOperations:
 
         if result.empty or result["TABLE_COMMENT"].iloc[0] is None:
             return None
-        
+
         return cast(dict[str, Any], json.loads(str(result["TABLE_COMMENT"].iloc[0])))
 
     def get_edits(self, table_name: str | None = None) -> pd.DataFrame:
@@ -221,7 +221,6 @@ class QueryOperations:
             including change_event_reason, changed_by, unique_key,
             old_values, new_values, and more.
         """
-        
         if table_name is not None and table_name not in self.list_tables():
             msg = f"Table '{table_name}' does not exist. Available tables: {self.list_tables()}"
             logger.error(msg)
