@@ -38,19 +38,14 @@ jobs:
 
     steps:
       - name: Check out the repository
-<<<<<<< ours
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-=======
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
 
       - name: Set up Python ${{ matrix.python }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
->>>>>>> theirs
+
         with:
           python-version: ${{ matrix.python }}
 
@@ -97,11 +92,9 @@ jobs:
           subprocess.run(cmd, shell=True)
 
       - name: Restore pre-commit cache
-<<<<<<< ours
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-=======
+
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
->>>>>>> theirs
+
         if: matrix.session == 'pre-commit'
         with:
           path: ~/.cache/pre-commit
@@ -115,11 +108,9 @@ jobs:
 
       - name: Upload coverage data
         if: always() && matrix.session == 'tests'
-<<<<<<< ours
-        uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
-=======
+
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
->>>>>>> theirs
+
         with:
           name: coverage-data-${{ matrix.os }}-${{ matrix.python }}
           path: ".coverage.*"
@@ -127,11 +118,9 @@ jobs:
 
       - name: Upload documentation
         if: matrix.session == 'docs-build'
-<<<<<<< ours
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-=======
+
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
->>>>>>> theirs
+
         with:
           name: docs
           path: docs/_build
@@ -141,21 +130,17 @@ jobs:
     needs: tests
     steps:
       - name: Check out the repository
-<<<<<<< ours
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-=======
+
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
->>>>>>> theirs
+
         with:
           persist-credentials: false
           fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
 
       - name: Set up Python
-<<<<<<< ours
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-=======
+
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
->>>>>>> theirs
+
         with:
           python-version: "3.13"
 
@@ -177,11 +162,9 @@ jobs:
           nox --version
 
       - name: Download coverage data
-<<<<<<< ours
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-=======
+
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
->>>>>>> theirs
+
         with:
           pattern: coverage-data-*
           merge-multiple: true
@@ -206,8 +189,5 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         # No need to run SonarCloud analysis if dependabot update or token not defined
         if: env.SONAR_TOKEN != '' && (github.actor != 'dependabot[bot]')
-<<<<<<< ours
-        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
-=======
+
         uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432  # v8.0.0
->>>>>>> theirs
