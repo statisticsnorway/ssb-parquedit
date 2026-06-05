@@ -218,7 +218,7 @@ class QueryOperations:
 
         Returns:
             A DataFrame with snapshot data and parsed changelog columns,
-            including change_event_reason, changed_by, unique_key,
+            including change_event_reason, changed_by, user_defined_id,
             old_values, new_values, and more.
         """
         if table_name is not None and table_name not in self.list_tables():

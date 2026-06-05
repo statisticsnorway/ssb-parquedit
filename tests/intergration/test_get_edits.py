@@ -12,7 +12,7 @@ MOCK_ROW = {
     "changed_by": "user@ssb.no",
     "table_name": "cities",
     "rowid": 1,
-    "unique_key": {"id": 1},
+    "user_defined_id": {"id": 1},
     "change_comment": "Test edit",
     "statistics_name": "test_product",
     "old_values": {"name": "Oslo"},
@@ -31,7 +31,7 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
         }
     )
     pe.create_table(
-        "cities", source=df, product_name="test_product", unique_key=["id"], fill=True
+        "cities", source=df, product_name="test_product", user_defined_id=["id"], fill=True
     )
     return pe
 
@@ -73,7 +73,7 @@ def test_get_edits_contains_expected_columns(mock_edits_table: ParquEdit) -> Non
     expected_cols = {
         "change_event_reason",
         "changed_by",
-        "unique_key",
+        "user_defined_id",
         "old_values",
         "new_values",
         "table_name",

@@ -213,8 +213,8 @@ class DMLOperations:
             return
         product_name = tag_dict.get("product_name")
 
-        # get unique key
-        unique_key = tag_dict.get("unique_key")
+        # get user_defined_id
+        user_defined_id = tag_dict.get("user_defined_id")
 
         try:
             self.conn.execute("BEGIN")
@@ -225,11 +225,11 @@ class DMLOperations:
             ).df()
 
             # make dict with values of unique_id-cols from row
-            assert unique_key is not None
-            unique_row = row[unique_key].iloc[0]
+            assert user_defined_id is not None
+            unique_row = row[user_defined_id].iloc[0]
             key_values = {
                 col: val.item() if hasattr(val, "item") else val
-                for col, val in zip(unique_key, unique_row, strict=True)
+                for col, val in zip(user_defined_id, unique_row, strict=True)
             }
 
             # make dict with old values from row
@@ -248,7 +248,7 @@ class DMLOperations:
                     "changed_by": dapla_user,
                     "table_name": table_name,
                     "rowid": rowid,
-                    "unique_key": key_values,
+                    "user_defined_id": key_values,
                     "change_comment": change_comment,
                     "statistics_name": product_name,
                     "old_values": old_values,

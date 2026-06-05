@@ -136,7 +136,7 @@ class ParquEdit:
         table_name: str,
         source: pd.DataFrame | dict[str, Any] | str,
         product_name: str | None = None,
-        unique_key: list[str] | None = None,
+        user_defined_id: list[str] | None = None,
         part_columns: list[str] | None = None,
         fill: bool = False,
     ) -> None:
@@ -152,7 +152,7 @@ class ParquEdit:
                 - str: GCS path (gs://) to a Parquet file to infer schema from.
             product_name: Label identifying the product this table belongs to.
                 Stored as a comment on the table. Must not be None or empty.
-            unique_key: A list of columns that together uniquely identify a row,
+            user_defined_id: A list of columns that together uniquely identify a row,
                 used to mimic a primary key. Defaults to None.
             part_columns: Optional list of column names to partition the table by.
             fill: If True, inserts data from source into the table immediately
@@ -166,8 +166,8 @@ class ParquEdit:
             logger.error(msg)
             raise ValueError(msg)
 
-        if not unique_key:
-            msg = "'unique_key' must have at least one element, please provide a combination of columns for your table"
+        if not user_defined_id:
+            msg = "'user_defined_id' must have at least one element, please provide a combination of columns for your table"
             logger.error(msg)
             raise ValueError(msg)
 
@@ -183,7 +183,7 @@ class ParquEdit:
         tag_info = json.dumps(
             {
                 "product_name": product_name,
-                "unique_key": unique_key,
+                "user_defined_id": user_defined_id,
             }
         )
 
@@ -348,7 +348,7 @@ class ParquEdit:
 
         Returns:
             A DataFrame with snapshot data and parsed changelog columns,
-            including change_event_reason, changed_by, unique_key,
+            including change_event_reason, changed_by, user_defined_id,
             old_values, new_values, and more.
         """
         conn = self._get_connection()
