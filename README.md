@@ -97,7 +97,7 @@ df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
 con.create_table("my_table_1",
                  source=df,
                  product_name="my-product",
-                 unique_key=["name"])
+                 user_defined_id=["name"])
 ```
 
 ```python
@@ -105,7 +105,7 @@ con.create_table("my_table_1",
 con.create_table("my_table_2",
                  source=df,
                  product_name="my-product",
-                 unique_key=["name"],
+                 user_defined_id=["name"],
                  fill=True)
 ```
 
@@ -120,7 +120,7 @@ schema = {
 con.create_table("my_table_3",
                  source=schema,
                  product_name="my-product",
-                 unique_key=["name"])
+                 user_defined_id=["name"])
 ```
 
 ```python
@@ -128,7 +128,7 @@ con.create_table("my_table_3",
 con.create_table("my_table_4",
                  source="gs://my-bucket/path/to/file.parquet",
                  product_name="my-product",
-                 unique_key=["id","year"])
+                 user_defined_id=["id","year"])
 
 ```
 
@@ -138,13 +138,13 @@ con.create_table("my_table_5",
                  source=df,
                  product_name="my-product",
                  part_columns=["age"],
-                 unique_key=["name"],
+                 user_defined_id=["name"],
                  fill=True)
 ```
 
 > **Note:** `product_name` is required and is stored as a comment on the table. Table names must be lowercase, start with a letter or underscore, and contain only lowercase letters, numbers, and underscores (max 20 characters).
 
-> **Note:** `unique_key`A list of columns that together uniquely identify a row, used to mimic a primary key.
+> **Note:** `user_defined_id`A list of columns that together uniquely identify a row in a table, used to mimic a primary key.
 
 ### Inserting data in an existing table
 ```python
@@ -182,8 +182,8 @@ con.edit(
  `OTHER_SOURCE`,
  `REVIEW`,
  `OWNER`,
- `MARGINAL_UNIT`",
- `DUPLICATE`",
+ `MARGINAL_UNIT`,
+ `DUPLICATE`,
  `OTHER`".
 
 

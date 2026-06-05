@@ -20,7 +20,11 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
         }
     )
     pe.create_table(
-        "cities", source=df, product_name="test_product", unique_key=["id"], fill=True
+        "cities",
+        source=df,
+        product_name="test_product",
+        user_defined_id=["id"],
+        fill=True,
     )
     return pe
 
@@ -34,7 +38,7 @@ def test_create_table_exists(pe: ParquEdit) -> None:
         "cities",
         source=df,
         product_name="test_product",
-        unique_key=["id"],
+        user_defined_id=["id"],
     )
     assert pe.exists("cities")
 
@@ -130,7 +134,9 @@ def test_view_columns_subset_includes_rowid(cities_table: ParquEdit) -> None:
 
 def test_insert_data(pe: ParquEdit) -> None:
     df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
-    pe.create_table("cities", source=df, product_name="test_product", unique_key=["id"])
+    pe.create_table(
+        "cities", source=df, product_name="test_product", user_defined_id=["id"]
+    )
     df2 = pd.DataFrame({"id": [2], "name": ["Bergen"]})
     pe.insert_data("cities", df2)
     assert pe.count("cities") == 1  # first insert did not happen (fill=False)
@@ -147,7 +153,7 @@ def test_insert_from_parquet(pe: ParquEdit, tmp_storage: str) -> None:
         "cities",
         source=df,
         product_name="test_product",
-        unique_key=["id"],
+        user_defined_id=["id"],
     )
     pe.insert_data("cities", parquet_path)
 
@@ -164,7 +170,7 @@ def test_create_table_fill_from_parquet(pe: ParquEdit, tmp_storage: str) -> None
         "cities",
         source=parquet_path,
         product_name="test_product",
-        unique_key=["id"],
+        user_defined_id=["id"],
         fill=True,
     )
 
