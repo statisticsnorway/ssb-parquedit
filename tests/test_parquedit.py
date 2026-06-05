@@ -24,7 +24,9 @@ class TestCreateTableProductNameRequired:
     def test_raises_value_error_when_product_name_is_none(self, pe: ParquEdit) -> None:
         df = pd.DataFrame({"id": [1], "value": ["a"]})
         with pytest.raises(ValueError):
-            pe.create_table("my_table", source=df, product_name=None, user_defined_id=["id"])
+            pe.create_table(
+                "my_table", source=df, product_name=None, user_defined_id=["id"]
+            )
 
     def test_raises_value_error_when_product_name_is_empty_string(
         self, pe: ParquEdit
@@ -48,7 +50,9 @@ class TestParquEditHappyPath:
 
     def test_created_table_is_visible(self, pe: ParquEdit) -> None:
         df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
-        pe.create_table("cities", source=df, product_name="test", user_defined_id=["id"])
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"]
+        )
         assert pe.exists("cities")
 
     def test_create_with_fill_inserts_rows(self, pe: ParquEdit) -> None:
@@ -91,7 +95,9 @@ class TestParquEditHappyPath:
 
     def test_list_tables_includes_created_table(self, pe: ParquEdit) -> None:
         df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
-        pe.create_table("cities", source=df, product_name="test", user_defined_id=["id"])
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"]
+        )
         assert "cities" in pe.list_tables()
 
     def test_context_manager_closes_connection_on_exit(
@@ -99,5 +105,7 @@ class TestParquEditHappyPath:
     ) -> None:
         with ParquEdit.from_connection(conn) as pe_ctx:
             df = pd.DataFrame({"id": [1]})
-            pe_ctx.create_table("t", source=df, product_name="test", user_defined_id=["id"])
+            pe_ctx.create_table(
+                "t", source=df, product_name="test", user_defined_id=["id"]
+            )
         assert pe_ctx._conn is None

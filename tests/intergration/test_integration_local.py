@@ -20,7 +20,11 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
         }
     )
     pe.create_table(
-        "cities", source=df, product_name="test_product", user_defined_id=["id"], fill=True
+        "cities",
+        source=df,
+        product_name="test_product",
+        user_defined_id=["id"],
+        fill=True,
     )
     return pe
 
@@ -130,7 +134,9 @@ def test_view_columns_subset_includes_rowid(cities_table: ParquEdit) -> None:
 
 def test_insert_data(pe: ParquEdit) -> None:
     df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
-    pe.create_table("cities", source=df, product_name="test_product", user_defined_id=["id"])
+    pe.create_table(
+        "cities", source=df, product_name="test_product", user_defined_id=["id"]
+    )
     df2 = pd.DataFrame({"id": [2], "name": ["Bergen"]})
     pe.insert_data("cities", df2)
     assert pe.count("cities") == 1  # first insert did not happen (fill=False)

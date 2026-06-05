@@ -31,7 +31,11 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
         }
     )
     pe.create_table(
-        "cities", source=df, product_name="test_product", user_defined_id=["id"], fill=True
+        "cities",
+        source=df,
+        product_name="test_product",
+        user_defined_id=["id"],
+        fill=True,
     )
     return pe
 
