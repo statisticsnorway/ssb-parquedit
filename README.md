@@ -309,8 +309,7 @@ table = ibis_conn.table("my_table_1")
 
 > **Notes:** 
 > - `_get_connection()` is an internal method. The raw connection shares state with `ParquEdit` — closing either will affect both. Do not close the raw connection manually while `ParquEdit` is still in use.
-
-> - When using the raw connection, the user is resposible to provide the required information that `ParquEdit`-methods gives. E.g when creating and editing tables. 
+> - > - When using the raw connection, the user is resposible to provide the required information that `ParquEdit`-methods gives. E.g when creating and editing tables.
 ---
 
 ## Project structure
