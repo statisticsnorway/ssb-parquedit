@@ -121,14 +121,16 @@ con.create_table(table_name="my_table_1",
                  source=df,
                  product_name="my-product",
                  user_defined_id=["name"])
-
+```
+```python
 # Option 2: Create and immediately populate with data
 con.create_table(table_name="my_table_2",
                  source=df,
                  product_name="my-product",
                  user_defined_id=["name"],
                  fill=True)
-
+```
+```python
 # Option 3: Create from a JSON Schema
 schema = {
     "properties": {
@@ -140,13 +142,15 @@ con.create_table(table_name="my_table_3",
                  source=schema,
                  product_name="my-product",
                  user_defined_id=["name"])
-
+```
+```python
 # Option 4: Create from an existing GCS Parquet file (schema inferred from file)
 con.create_table(table_name="my_table_4",
                  source="gs://my-bucket/path/to/file.parquet",
                  product_name="my-product",
                  user_defined_id=["id", "year"])
-
+```
+```python
 # Option 5: Create with partitioning and immediately populate with data
 con.create_table(table_name="my_table_5",
                  source=df,
@@ -158,7 +162,7 @@ con.create_table(table_name="my_table_5",
 
 > **Notes:**
 > - `product_name` is required and is stored as a comment on the table.
-> - Table names must be lowercase, start with a letter or underscore, contain only lowercase letters, numbers, and underscores, and be at most 20 characters.
+> - `table_name` must be lowercase, start with a letter or underscore, contain only lowercase letters, numbers, and underscores, and be at most 20 characters.
 > - `user_defined_id` — a list of columns that together uniquely identify a row in a table, used to mimic a primary key.
 
 ### Inserting data in an existing table
