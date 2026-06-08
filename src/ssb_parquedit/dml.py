@@ -250,7 +250,7 @@ class DMLOperations:
                     "rowid": rowid,
                     "user_defined_id": key_values,
                     "change_comment": change_comment,
-                    "statistics_name": product_name,
+                    "product_name": product_name,
                     "old_values": old_values,
                     "new_values": changes,
                 }

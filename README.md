@@ -25,7 +25,29 @@
 [poetry]: https://python-poetry.org/
 
 A Python package for manually editing tabular data stored as Parquet files on [DaplaLab](https://manual.dapla.ssb.no/) — Statistics Norway's cloud data platform. Built on top of [DuckDB](https://duckdb.org/) and the [DuckLake](https://ducklake.select/) catalog, it provides a clean Python interface for creating tables, inserting data, querying results and editing rows directly from Google Cloud Storage (GCS).
-Intended use on single-table editing. Does not support primary- and foreign keys.
+Intended for single-table editing. Does not support primary- and foreign keys.
+
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Basic setup](#basic-setup)
+  - [Creating a table](#creating-a-table)
+  - [Inserting data](#inserting-data-in-an-existing-table)
+  - [Editing a row](#editing-a-row)
+  - [Querying data](#querying-data)
+  - [Counting rows](#counting-rows)
+  - [Checking table existence](#checking-table-existence)
+  - [List all tables](#list-all-tables)
+  - [List edits](#list-edits)
+- [Advanced](#advanced)
+- [Project structure](#project-structure)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -35,7 +57,7 @@ Intended use on single-table editing. Does not support primary- and foreign keys
 - **DuckLake catalog integration** — metadata stored in PostgreSQL, data stored in GCS
 - **Create tables** from a pandas DataFrame, a JSON Schema dict, or an existing GCS Parquet file
 - **Insert data** from a pandas DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
-- **Edit data** - Edit value(s) in a single row in a table by its row ID.
+- **Edit data** - Update value(s) in a single row by its rowid.
 - **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
 - **Find edits** Retrieve historical column-level edits for a specified table
 - **Count rows**
@@ -88,53 +110,45 @@ con = ParquEdit()
 ### Creating a table
 
 Tables can be created from a DataFrame schema, a JSON Schema dict, or an existing Parquet file.
+
 ```python
 import pandas as pd
 
 df = pd.DataFrame({"name": ["Alice", "Bob"], "age": [30, 25]})
 
-# Create table from DataFrame (empty — schema only)
-con.create_table("my_table_1",
+# Option 1: Create from DataFrame (empty — schema only)
+con.create_table(table_name="my_table_1",
                  source=df,
                  product_name="my-product",
                  user_defined_id=["name"])
-```
 
-```python
-# Create and immediately populate with data
-con.create_table("my_table_2",
+# Option 2: Create and immediately populate with data
+con.create_table(table_name="my_table_2",
                  source=df,
                  product_name="my-product",
                  user_defined_id=["name"],
                  fill=True)
-```
 
-```python
-# Create from a JSON Schema
+# Option 3: Create from a JSON Schema
 schema = {
     "properties": {
         "name": {"type": "string"},
         "age":  {"type": "integer"},
     }
 }
-con.create_table("my_table_3",
+con.create_table(table_name="my_table_3",
                  source=schema,
                  product_name="my-product",
                  user_defined_id=["name"])
-```
 
-```python
-# Create from an existing GCS Parquet file (schema inferred from file)
-con.create_table("my_table_4",
+# Option 4: Create from an existing GCS Parquet file (schema inferred from file)
+con.create_table(table_name="my_table_4",
                  source="gs://my-bucket/path/to/file.parquet",
                  product_name="my-product",
-                 user_defined_id=["id","year"])
+                 user_defined_id=["id", "year"])
 
-```
-
-```python
-# Create with partitioning and immediately populate with data
-con.create_table("my_table_5",
+# Option 5: Create with partitioning and immediately populate with data
+con.create_table(table_name="my_table_5",
                  source=df,
                  product_name="my-product",
                  part_columns=["age"],
@@ -142,19 +156,20 @@ con.create_table("my_table_5",
                  fill=True)
 ```
 
-> **Note:** `product_name` is required and is stored as a comment on the table. Table names must be lowercase, start with a letter or underscore, and contain only lowercase letters, numbers, and underscores (max 20 characters).
-
-> **Note:** `user_defined_id`A list of columns that together uniquely identify a row in a table, used to mimic a primary key.
+> **Notes:**
+> - `product_name` is required and is stored as a comment on the table.
+> - Table names must be lowercase, start with a letter or underscore, contain only lowercase letters, numbers, and underscores, and be at most 20 characters.
+> - `user_defined_id` — a list of columns that together uniquely identify a row in a table, used to mimic a primary key.
 
 ### Inserting data in an existing table
 ```python
 # Insert from a DataFrame
-con.insert_data("my_table_1",
+con.insert_data(table_name="my_table_1",
                  source=df)
 ```
 ```python
 # Insert from a GCS Parquet file
-con.insert_data("my_table_4",
+con.insert_data(table_name="my_table_4",
                  source="gs://my-bucket/path/to/file.parquet")
 ```
 Each inserted row is automatically assigned a unique `rowid` within the table
@@ -164,7 +179,8 @@ Each inserted row is automatically assigned a unique `rowid` within the table
 `edit()` updates exactly one row — identified by its `rowid` — and logs the change reason and comment to the DuckLake snapshot.
 ```python
 # First look up the rowid of the row you want to edit
-result = con.view("my_table_1", where="name = 'Alice'")
+result = con.view(table_name="my_table_1",
+                  where="name = 'Alice'")
 rowid = result["rowid"].iloc[0]
 
 # Then edit it
@@ -178,59 +194,53 @@ con.edit(
 ```
 `changes` is a dict of `{column_name: new_value}` pairs.
 
-`change_event_reason` must be one of the valid update causes:
- `OTHER_SOURCE`,
- `REVIEW`,
- `OWNER`,
- `MARGINAL_UNIT`,
- `DUPLICATE`,
- `OTHER`".
+`change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
 
 
 ### Querying data
 ```python
 # View all rows (returns pandas DataFrame by default)
-result = con.view("my_table_1")
+result = con.view(table_name="my_table_1")
 ```
 ```python
 # Filter with a WHERE clause
-result = con.view("my_table_1", where="age > 25")
-result = con.view("my_table_1", where="name = 'Alice' AND age >= 30")
+result = con.view(table_name="my_table_1", where="age > 25")
+result = con.view(table_name="my_table_1", where="name = 'Alice' AND age >= 30")
 ```
 ```python
 # Limit and offset (pagination)
-result = con.view("my_table_1",
+result = con.view(table_name="my_table_1",
                   limit=10,
                   offset=2)
 ```
 ```python
 # Select specific columns
-result = con.view("my_table_1",
+result = con.view(table_name="my_table_1",
                   columns=["name", "age"])
 ```
 ```python
 # Sort results
-result = con.view("my_table_1",
+result = con.view(table_name="my_table_1",
                    order_by="age DESC")
 ```
 ```python
 # Return as polars or pyarrow
-result = con.view("my_table_1",
+result = con.view(table_name="my_table_1",
                    output_format="polars")
 
-result = con.view("my_table_1",
+result = con.view(table_name="my_table_1",
                    output_format="pyarrow")
 ```
 
 ### Counting rows
 ```python
-total = con.count("my_table_1",
+total = con.count(table_name="my_table_1",
                    where="name='Alice'")
 ```
 
 ### Checking table existence
 ```python
-if con.exists("my_table_1"):
+if con.exists(table_name="my_table_1"):
     print("Table found")
 ```
 
@@ -248,14 +258,50 @@ and new values for all modified columns.
 Optionally filter by table name, or omit it to get the changelog for all tables.
 ```python
 # All edits for a specific table
-df = con.get_edits("my_table")
+df = con.get_edits(table_name="my_table")
 
 # All edits across all tables
 df = con.get_edits()
 ```
 
+The returned DataFrame includes these changelog columns:
+
+| Column | Description |
+|---|---|
+| `changed_by` | User who made the edit |
+| `change_event_reason` | Reason code (e.g. `REVIEW`, `OWNER`) |
+| `change_comment` | Free-text comment from the editor |
+| `table_name` | Table the edit was made on |
+| `rowid` | Internal row identifier |
+| `user_defined_id` | Business key values identifying the row |
+| `old_values` | Dict of column → old value for changed columns |
+| `new_values` | Dict of column → new value for changed columns |
+| `product_name` | Product name the table belongs to |
+
 
 ---
+
+## Advanced
+
+### Accessing the raw DuckDB connection
+
+`ParquEdit` wraps a `DuckDBConnection`, which exposes the underlying `duckdb.DuckDBPyConnection` via its `.raw` property. This is useful when integrating with libraries that require a native DuckDB connection, such as [Ibis](https://ibis-project.org/).
+
+```python
+import ibis
+from ssb_parquedit import ParquEdit
+
+con = ParquEdit()
+raw = con._get_connection().raw  # duckdb.DuckDBPyConnection
+
+ibis_conn = ibis.duckdb.connect(conn=raw)
+table = ibis_conn.table("my_table_1")
+```
+
+> **Note:** `_get_connection()` is an internal method. The raw connection shares state with `ParquEdit` — closing either will affect both. Do not close the raw connection manually while `ParquEdit` is still in use.
+
+---
+
 ## Project structure
 ```text
 src/ssb_parquedit/
@@ -265,8 +311,10 @@ src/ssb_parquedit/
 ├── dml.py            # DML operations (INSERT, EDIT)
 ├── query.py          # Query operations (SELECT, COUNT, EXISTS)
 ├── functions.py      # Environment helpers (Dapla config auto-detection)
+├── local.py          # Local DuckDB connection backed by SQLite (dev/testing)
 └── utils.py          # Schema utilities and SQL sanitization
 ```
+
 ---
 
 ## Contributing
