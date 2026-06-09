@@ -8,7 +8,6 @@ from typing import cast
 import gcsfs
 import pandas as pd
 
-from .functions import get_dapla_environment
 from .utils import SchemaUtils
 
 # Configure module-level logger
@@ -92,10 +91,6 @@ class DDLOperations:
     def drop_table(self, table_name: str, cleanup: bool = True) -> None:
         """Drop a table from the DuckLake catalog with optional cleanup.
 
-        Table deletion is only allowed in the TEST environment to prevent
-        accidental data loss in production. In PROD or other environments,
-        this method will raise a PermissionError.
-
         Optionally performs comprehensive cleanup:
         - Expires snapshots (removes old transaction logs from metadata)
         - Cleans GCS bucket (removes orphaned Parquet files)
@@ -106,7 +101,6 @@ class DDLOperations:
                 Defaults to True. Requires db_config to be set.
 
         Raises:
-            PermissionError: If DAPLA_ENVIRONMENT is not "test".
             ValueError: If table_name is invalid.
 
         Returns:
@@ -125,17 +119,6 @@ class DDLOperations:
             logger.error(str(e))
             raise
 
-        # Check environment
-        environment = get_dapla_environment()
-        if environment != "test":
-            msg = (
-                "Table deletion is only allowed in TEST environment. "
-                f"Current environment: {environment or 'not set'}. "
-                "Set DAPLA_ENVIRONMENT=test to enable table deletion."
-            )
-            logger.error(msg)
-            raise PermissionError(msg)
-
         # Get table location before dropping (if cleanup is enabled)
         table_location = None
         if cleanup:
@@ -150,9 +133,7 @@ class DDLOperations:
 
         # Execute drop
         self.conn.execute(f"DROP TABLE {table_name}")
-        logger.warning(
-            f"Dropped table: {table_name} from {environment.upper()} environment"
-        )
+        logger.warning(f"Dropped table: {table_name}")
 
         # Perform cleanup if enabled and location was retrieved
         if cleanup and table_location:

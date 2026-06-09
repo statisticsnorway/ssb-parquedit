@@ -192,10 +192,6 @@ class ParquEdit:
     def drop_table(self, table_name: str, cleanup: bool = True) -> None:
         """Drop a table from the DuckLake catalog with optional cleanup.
 
-        Table deletion is only allowed in the TEST environment to prevent
-        accidental data loss in production. In PROD or other environments,
-        this method will raise a PermissionError.
-
         Optionally performs comprehensive cleanup:
         - Expires snapshots (removes old transaction logs from metadata)
         - Cleans GCS bucket (removes orphaned Parquet files)
