@@ -2,12 +2,15 @@
 
 import logging
 import re
+import shutil
+from pathlib import Path
 from typing import Any
 from typing import cast
 
 import gcsfs
 import pandas as pd
 
+from .local import LocalDuckDBConnection
 from .utils import SchemaUtils
 
 # Configure module-level logger
@@ -137,20 +140,29 @@ class DDLOperations:
         if purge:
             self._expire_snapshots(table_name)
             if table_location:
-                self._cleanup_gcs_files(table_location, table_name)
+                if isinstance(self.conn, LocalDuckDBConnection):
+                    self._cleanup_local_files(table_location, table_name)
+                else:
+                    self._cleanup_gcs_files(table_location, table_name)
 
     def _get_table_location(self, table_name: str) -> str:
-        """Get the GCS location of a table.
+        """Get the storage location of a table.
+
+        For local connections, returns ``~/.parquedit/data/main/<table>``.
+        For remote (GCS) connections, returns ``{data_path}/{schema}/<table>``.
 
         Args:
             table_name: Name of the table.
 
         Returns:
-            GCS path where the table data is stored.
+            Path where the table data is stored.
 
         Raises:
             RuntimeError: If table location cannot be determined.
         """
+        if isinstance(self.conn, LocalDuckDBConnection):
+            return str(Path.home() / ".parquedit" / "data" / "main" / table_name)
+
         if self.db_config and "data_path" in self.db_config:
             data_path = self.db_config["data_path"]
             try:
@@ -174,10 +186,16 @@ class DDLOperations:
         Args:
             table_name: Name of the dropped table.
         """
-        catalog_name = self.db_config.get("catalog_name") if self.db_config else None
+        try:
+            row = self.conn.execute("SELECT CURRENT_DATABASE()").fetchone()
+            catalog_name = row[0] if row and row[0] else None
+        except Exception as e:
+            logger.error(f"Could not determine current catalog for {table_name}: {e}")
+            return
+
         if not catalog_name:
             logger.warning(
-                f"Cannot expire snapshots for {table_name}: catalog_name not configured."
+                f"Cannot expire snapshots for {table_name}: no active catalog."
             )
             return
 
@@ -238,13 +256,45 @@ class DDLOperations:
             else:
                 logger.warning(
                     f"Table location not found in GCS: {table_location}. "
-                    f"Data may have already been deleted or path is incorrect."
+                    f"Data may only be inlined, already been deleted or path is incorrect."
                 )
         except Exception as e:
             # GCS cleanup is optional - log warning but don't fail the drop operation
             logger.error(
                 f"Failed to clean up GCS files for {table_name} at {table_location}: {e}. "
                 f"Files may need manual cleanup. Verify path and GCS permissions."
+            )
+
+    def _cleanup_local_files(self, table_location: str, table_name: str) -> None:
+        """Clean up orphaned files from the local filesystem.
+
+        Local counterpart to ``_cleanup_gcs_files`` for ``LocalDuckDBConnection``.
+
+        Args:
+            table_location: Local path to the table's data directory.
+            table_name: Name of the dropped table (for logging).
+        """
+        try:
+            path = Path(table_location)
+            if not path.exists():
+                logger.warning(
+                    f"Table location not found locally: {table_location}. "
+                    f"Data may have already been deleted or path is incorrect."
+                )
+                return
+
+            logger.warning(
+                f"Deleting table data locally: {table_location} "
+                f"(table: {table_name}). This action cannot be undone."
+            )
+            shutil.rmtree(path)
+            logger.info(
+                f"Successfully cleaned up local files for {table_name} at {table_location}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to clean up local files for {table_name} at {table_location}: {e}. "
+                f"Files may need manual cleanup."
             )
 
     def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:

@@ -58,50 +58,65 @@ class TestGetTableLocation:
 
 
 class TestExpireSnapshots:
-    def test_logs_warning_when_no_catalog_name(
-        self, mock_conn: MagicMock, caplog: pytest.LogCaptureFixture
+    def test_logs_warning_when_current_database_returns_none(
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        ddl = DDLOperations(mock_conn, {})
+        conn = MagicMock()
+        conn.execute.return_value.fetchone.return_value = None
+        ddl = DDLOperations(conn, {})
         with caplog.at_level(logging.WARNING):
             ddl._expire_snapshots("my_table")
-        assert "catalog_name not configured" in caplog.text
+        assert "no active catalog" in caplog.text
 
-    def test_logs_warning_when_db_config_is_none(
-        self, mock_conn: MagicMock, caplog: pytest.LogCaptureFixture
+    def test_logs_error_when_current_database_query_raises(
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        ddl = DDLOperations(mock_conn, None)
-        with caplog.at_level(logging.WARNING):
+        conn = MagicMock()
+        conn.execute.side_effect = Exception("connection error")
+        ddl = DDLOperations(conn, {})
+        with caplog.at_level(logging.ERROR):
             ddl._expire_snapshots("my_table")
-        assert "catalog_name not configured" in caplog.text
+        assert "Could not determine current catalog" in caplog.text
 
-    def test_returns_early_when_no_snapshots(self, mock_conn: MagicMock) -> None:
-        mock_conn.execute.return_value.fetchall.return_value = []
-        ddl = DDLOperations(mock_conn, {"catalog_name": "my_catalog"})
+    def test_returns_early_when_no_snapshots(self) -> None:
+        conn = MagicMock()
+        current_db = MagicMock()
+        current_db.fetchone.return_value = ("my_catalog",)
+        snapshots = MagicMock()
+        snapshots.fetchall.return_value = []
+        conn.execute.side_effect = [current_db, snapshots]
+        ddl = DDLOperations(conn, {})
         ddl._expire_snapshots("my_table")
         assert not any(
-            "ducklake_expire_snapshots" in str(c)
-            for c in mock_conn.execute.call_args_list
+            "ducklake_expire_snapshots" in str(c) for c in conn.execute.call_args_list
         )
 
-    def test_calls_ducklake_expire_with_snapshot_ids(
-        self, mock_conn: MagicMock
-    ) -> None:
-        mock_conn.execute.return_value.fetchall.return_value = [(1,), (2,), (3,)]
-        ddl = DDLOperations(mock_conn, {"catalog_name": "my_catalog"})
+    def test_calls_ducklake_expire_with_snapshot_ids(self) -> None:
+        conn = MagicMock()
+        current_db = MagicMock()
+        current_db.fetchone.return_value = ("my_catalog",)
+        snapshots = MagicMock()
+        snapshots.fetchall.return_value = [(1,), (2,), (3,)]
+        conn.execute.side_effect = [current_db, snapshots, MagicMock()]
+        ddl = DDLOperations(conn, {})
         ddl._expire_snapshots("my_table")
         expire_calls = [
             c
-            for c in mock_conn.execute.call_args_list
+            for c in conn.execute.call_args_list
             if "ducklake_expire_snapshots" in str(c)
         ]
         assert len(expire_calls) == 1
+        assert "my_catalog" in str(expire_calls[0])
         assert "[1, 2, 3]" in str(expire_calls[0])
 
     def test_logs_error_when_expire_raises(
-        self, mock_conn: MagicMock, caplog: pytest.LogCaptureFixture
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        mock_conn.execute.side_effect = Exception("DuckLake error")
-        ddl = DDLOperations(mock_conn, {"catalog_name": "my_catalog"})
+        conn = MagicMock()
+        current_db = MagicMock()
+        current_db.fetchone.return_value = ("my_catalog",)
+        conn.execute.side_effect = [current_db, Exception("DuckLake error")]
+        ddl = DDLOperations(conn, {})
         with caplog.at_level(logging.ERROR):
             ddl._expire_snapshots("my_table")
         assert "Error during snapshot expiration" in caplog.text
