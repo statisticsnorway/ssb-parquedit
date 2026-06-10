@@ -189,8 +189,8 @@ class DDLOperations:
         try:
             row = self.conn.execute("SELECT CURRENT_DATABASE()").fetchone()
             catalog_name = row[0] if row and row[0] else None
-        except Exception as e:
-            logger.error(f"Could not determine current catalog for {table_name}: {e}")
+        except Exception:
+            logger.exception(f"Could not determine current catalog for {table_name}")
             return
 
         if not catalog_name:
@@ -217,8 +217,8 @@ class DDLOperations:
                 f"CALL ducklake_expire_snapshots('{catalog_name}', versions => {ids_literal})"
             )
             logger.info(f"Expired {len(snapshot_ids)} snapshots for {table_name}.")
-        except Exception as e:
-            logger.error(f"Error during snapshot expiration for {table_name}: {e}")
+        except Exception:
+            logger.exception(f"Error during snapshot expiration for {table_name}")
 
     def _cleanup_gcs_files(self, table_location: str, table_name: str) -> None:
         """Clean up orphaned files from GCS bucket.
@@ -291,9 +291,9 @@ class DDLOperations:
             logger.info(
                 f"Successfully cleaned up local files for {table_name} at {table_location}"
             )
-        except Exception as e:
-            logger.error(
-                f"Failed to clean up local files for {table_name} at {table_location}: {e}. "
+        except Exception:
+            logger.exception(
+                f"Failed to clean up local files for {table_name} at {table_location}"
                 f"Files may need manual cleanup."
             )
 
