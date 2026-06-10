@@ -86,9 +86,10 @@ def test_get_edits_contains_expected_columns(mock_edits_table: ParquEdit) -> Non
 
 
 def test_get_edits_unknown_table_returns_empty(mock_edits_table: ParquEdit) -> None:
-    """get_edits() should raise ValueError for unknown table name."""
-    with pytest.raises(ValueError, match="nonexistent_table"):
-        mock_edits_table.get_edits("nonexistent_table")
+    """get_edits() for a dropped/unknown table should return an empty DataFrame."""
+    result = mock_edits_table.get_edits("nonexistent_table")
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 0
 
 
 def test_get_edits_no_filter_returns_all_tables(mock_edits_table: ParquEdit) -> None:

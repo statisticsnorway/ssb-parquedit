@@ -88,17 +88,20 @@ class DDLOperations:
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
 
-    def drop_table(self, table_name: str, cleanup: bool = True) -> None:
-        """Drop a table from the DuckLake catalog with optional cleanup.
+    def drop_table(self, table_name: str, purge: bool = False) -> None:
+        """Drop a table from the DuckLake catalog.
 
-        Optionally performs comprehensive cleanup:
-        - Expires snapshots (removes old transaction logs from metadata)
-        - Cleans GCS bucket (removes orphaned Parquet files)
+        By default, only removes the table from the catalog. DuckLake preserves
+        data files and snapshot history until snapshots are explicitly expired,
+        so edit history remains accessible via snapshots() after a normal drop.
+
+        When purge=True, additionally expires snapshots and deletes GCS data files.
+        This permanently destroys all history and cannot be undone.
 
         Args:
             table_name: Name of the table to drop.
-            cleanup: If True, expire snapshots and clean GCS files.
-                Defaults to True. Requires db_config to be set.
+            purge: If True, expire snapshots and delete GCS data files after
+                dropping. Defaults to False. History is permanently lost.
 
         Raises:
             ValueError: If table_name is invalid.
@@ -109,36 +112,32 @@ class DDLOperations:
         Example:
             >>> # doctest: +SKIP
             >>> ddl = DDLOperations(conn, db_config)
-            >>> ddl.drop_table("temporary_table")  # Includes cleanup
-            >>> ddl.drop_table("temp_table", cleanup=False)  # Drop only
+            >>> ddl.drop_table("my_table")           # History preserved
+            >>> ddl.drop_table("my_table", purge=True)  # Full deletion
         """
-        # Validate table name
         try:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
             logger.error(str(e))
             raise
 
-        # Get table location before dropping (if cleanup is enabled)
         table_location = None
-        if cleanup:
+        if purge:
             try:
                 table_location = self._get_table_location(table_name)
             except Exception as e:
                 logger.warning(
                     f"Could not retrieve table location for {table_name}: {e}. "
-                    f"Proceeding with drop only."
+                    f"Proceeding with drop only, GCS files may need manual cleanup."
                 )
-                cleanup = False
 
-        # Execute drop
         self.conn.execute(f"DROP TABLE {table_name}")
         logger.warning(f"Dropped table: {table_name}")
 
-        # Perform cleanup if enabled and location was retrieved
-        if cleanup and table_location:
+        if purge:
             self._expire_snapshots(table_name)
-            self._cleanup_gcs_files(table_location, table_name)
+            if table_location:
+                self._cleanup_gcs_files(table_location, table_name)
 
     def _get_table_location(self, table_name: str) -> str:
         """Get the GCS location of a table.
@@ -184,21 +183,40 @@ class DDLOperations:
         raise RuntimeError(msg)
 
     def _expire_snapshots(self, table_name: str) -> None:
-        """Expire old snapshots for a dropped table metadata cleanup.
+        """Expire edit snapshots for a purged table, permanently removing its history.
 
-        DuckLake stores transaction logs in metadata. This removes old
-        snapshots to free up metadata storage space.
+        Queries snapshots() for all snapshot IDs associated with the given table
+        (identified via commit_extra_info) and calls ducklake_expire_snapshots to
+        mark them for deletion. Only called from drop_table(purge=True).
 
         Args:
             table_name: Name of the dropped table.
         """
-        try:
-            # TODO: Implement snapshot expiration when DuckLake API is available
-            # Currently, delta_catalog.expire_snapshots() is not a valid DuckLake procedure
+        catalog_name = self.db_config.get("catalog_name") if self.db_config else None
+        if not catalog_name:
             logger.warning(
-                f"Snapshot expiration not yet implemented for {table_name}. "
-                f"Delta log files will accumulate."
+                f"Cannot expire snapshots for {table_name}: catalog_name not configured."
             )
+            return
+
+        try:
+            rows = self.conn.execute(
+                "SELECT snapshot_id FROM snapshots() "
+                "WHERE commit_extra_info IS NOT NULL "
+                "AND json_extract_string(commit_extra_info, '$.table_name') = ?",
+                [table_name],
+            ).fetchall()
+
+            snapshot_ids = [row[0] for row in rows]
+            if not snapshot_ids:
+                logger.info(f"No edit snapshots found to expire for {table_name}.")
+                return
+
+            ids_literal = "[" + ", ".join(str(sid) for sid in snapshot_ids) + "]"
+            self.conn.execute(
+                f"CALL ducklake_expire_snapshots('{catalog_name}', versions => {ids_literal})"
+            )
+            logger.info(f"Expired {len(snapshot_ids)} snapshots for {table_name}.")
         except Exception as e:
             logger.error(f"Error during snapshot expiration for {table_name}: {e}")
 

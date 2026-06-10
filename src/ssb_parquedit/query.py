@@ -221,11 +221,6 @@ class QueryOperations:
             including change_event_reason, changed_by, user_defined_id,
             old_values, new_values, and more.
         """
-        if table_name is not None and table_name not in self.list_tables():
-            msg = f"Table '{table_name}' does not exist. Available tables: {self.list_tables()}"
-            logger.error(msg)
-            raise ValueError(msg)
-
         df = self.conn.execute(
             "SELECT * FROM snapshots() WHERE commit_extra_info IS NOT NULL;"
         ).df()
