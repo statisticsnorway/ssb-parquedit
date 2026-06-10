@@ -151,34 +151,16 @@ class DDLOperations:
         Raises:
             RuntimeError: If table location cannot be determined.
         """
-        try:
-            result = self.conn.execute(
-                "SELECT location FROM information_schema.tables WHERE table_name = ?"
-                " AND table_schema = CURRENT_SCHEMA()",
-                [table_name],
-            )
-            rows = result.fetchall()
-            if rows and rows[0][0]:
-                location = str(rows[0][0])
-                logger.info(f"Retrieved table location from metadata: {location}")
-                return location
-        except Exception as e:
-            logger.warning(f"Could not query table location from metadata: {e}")
-
-        # Fallback: Use {data_path}/{table_name} as expected by tests
         if self.db_config and "data_path" in self.db_config:
             data_path = self.db_config["data_path"]
-            fallback_path = f"{data_path}/{table_name}"
-            logger.warning(
-                f"Using fallback path for table location: {fallback_path}. "
-                f"If this is incorrect, the GCS cleanup may not remove correct files."
-            )
-            return fallback_path
+            try:
+                row = self.conn.execute("SELECT CURRENT_SCHEMA()").fetchone()
+                schema = row[0] if row and row[0] else "main"
+            except Exception:
+                schema = "main"
+            return f"{data_path}/{schema}/{table_name}"
 
-        msg = (
-            f"Cannot determine table location for {table_name}. "
-            "No data_path configured and metadata query failed."
-        )
+        msg = f"Cannot determine table location for {table_name}: no data_path configured."
         logger.error(msg)
         raise RuntimeError(msg)
 

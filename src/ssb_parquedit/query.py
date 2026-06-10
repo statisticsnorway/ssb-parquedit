@@ -213,9 +213,6 @@ class QueryOperations:
             table_name: If provided, only returns edits for the given table.
                 If None, returns edits for all tables.
 
-        Raises:
-            ValueError: If the given table_name does not exist in the catalog.
-
         Returns:
             A DataFrame with snapshot data and parsed changelog columns,
             including change_event_reason, changed_by, user_defined_id,
