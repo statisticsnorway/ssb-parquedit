@@ -161,7 +161,7 @@ class DDLOperations:
             RuntimeError: If table location cannot be determined.
         """
         if isinstance(self.conn, LocalDuckDBConnection):
-            return str(Path.home() / ".parquedit" / "data" / "main" / table_name)
+            return str(Path(self.conn.data_path) / "data" / "main" / table_name)
 
         if self.db_config and "data_path" in self.db_config:
             data_path = self.db_config["data_path"]
