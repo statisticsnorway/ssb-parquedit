@@ -213,19 +213,11 @@ class QueryOperations:
             table_name: If provided, only returns edits for the given table.
                 If None, returns edits for all tables.
 
-        Raises:
-            ValueError: If the given table_name does not exist in the catalog.
-
         Returns:
             A DataFrame with snapshot data and parsed changelog columns,
             including change_event_reason, changed_by, user_defined_id,
             old_values, new_values, and more.
         """
-        if table_name is not None and table_name not in self.list_tables():
-            msg = f"Table '{table_name}' does not exist. Available tables: {self.list_tables()}"
-            logger.error(msg)
-            raise ValueError(msg)
-
         df = self.conn.execute(
             "SELECT * FROM snapshots() WHERE commit_extra_info IS NOT NULL;"
         ).df()
@@ -233,8 +225,14 @@ class QueryOperations:
         df = pd.concat([df, parsed], axis=1)
 
         if table_name:
-            return cast(
+            filtered = cast(
                 pd.DataFrame, df[df["table_name"] == table_name].reset_index(drop=True)
             )
+            if filtered.empty:
+                logger.warning(
+                    f"No edits found for table '{table_name}'. "
+                    f"The table may not exist or has no edit history."
+                )
+            return filtered
 
         return df

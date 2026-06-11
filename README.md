@@ -44,7 +44,10 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [Checking table existence](#checking-table-existence)
   - [List all tables](#list-all-tables)
   - [List edits](#list-edits)
+  - [Drop table](#drop-table)
 - [Advanced](#advanced)
+  - [Accessing the raw DuckDB connection](#accessing-the-raw-duckdb-connection)
+  - [Setting up local connection](#setting-up-local-connection)
 - [Project structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
@@ -167,7 +170,6 @@ con.create_table(table_name="my_table_5",
 > **Notes:**
 > - `product_name` is required and is stored as a comment on the table.
 > - `table_name` must be lowercase, start with a letter or underscore, contain only lowercase letters, numbers, and underscores, and be at most 20 characters.
-> - Table names must be lowercase, start with a letter or underscore, contain only lowercase letters, numbers, and underscores, and be at most 20 characters.
 > - `user_defined_id` — a list of columns that together uniquely identify a row in a table, used to mimic a primary key.
 
 ### Inserting data in an existing table
@@ -287,6 +289,18 @@ The returned DataFrame includes these changelog columns:
 | `new_values` | Dict of column → new value for changed columns |
 | `product_name` | Product name the table belongs to |
 
+### Drop table
+`drop_table()` - Drops a table from the DuckLake catalog. By default, only removes the table from the catalog. DuckLake preserves data files and snapshot history, so edit history remains accessible via get_edits() after a normal drop.
+When purge=True, additionally expires snapshots and deletes GCS data files. This permanently destroys all history and cannot be undone.
+
+```python
+# Removes the table from the catalog
+con.drop_table(table_name="my_table")
+```
+```python
+# Removes the table from the catalog, expires snapshots and deletes data files
+con.drop_table(table_name="my_table", purge=True)
+```
 
 ---
 
@@ -309,7 +323,15 @@ table = ibis_conn.table("my_table_1")
 
 > **Notes:**
 > - `_get_connection()` is an internal method. The raw connection shares state with `ParquEdit` — closing either will affect both. Do not close the raw connection manually while `ParquEdit` is still in use.
-> - > - When using the raw connection, the user is resposible to provide the required information that `ParquEdit`-methods gives. E.g when creating and editing tables.
+> - When using the raw connection, the user is resposible to provide the required information that `ParquEdit`-methods gives. E.g when creating and editing tables.
+
+
+### Setting up local connection
+Create a ParquEdit instance backed by a persistent local SQLite catalog. Useful for local development and testing without GCS or PostgreSQL access. The catalog and data files are stored at ``path`` and persist across sessions. The directory is created if it does not already exist.
+```python
+con = ParquEdit().local(path="/home/onyxia/work/")
+```
+
 ---
 
 ## Project structure

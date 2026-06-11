@@ -19,6 +19,7 @@ class LocalDuckDBConnection(DuckDBConnection):
             data_path: Local directory used for both the SQLite catalog
                 (catalog.db) and Parquet data files (data/).
         """
+        self.data_path = data_path
         self._conn = duckdb.connect()
         self._conn.sql("INSTALL sqlite; LOAD sqlite;")
         self._conn.sql("INSTALL ducklake; LOAD ducklake;")

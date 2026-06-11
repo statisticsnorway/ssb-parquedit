@@ -189,30 +189,30 @@ class ParquEdit:
 
         conn.execute(f"COMMENT ON TABLE {table_name} IS '{tag_info}';")
 
-    def drop_table(self, table_name: str, cleanup: bool = True) -> None:
-        """Drop a table from the DuckLake catalog with optional cleanup.
+    def drop_table(self, table_name: str, purge: bool = False) -> None:
+        """Drop a table from the DuckLake catalog.
 
-        Table deletion is only allowed in the TEST environment to prevent
-        accidental data loss in production. In PROD or other environments,
-        this method will raise a PermissionError.
+        By default, only removes the table from the catalog. DuckLake preserves
+        data files and snapshot history, so edit history remains accessible via
+        get_edits() after a normal drop.
 
-        Optionally performs comprehensive cleanup:
-        - Expires snapshots (removes old transaction logs from metadata)
-        - Cleans GCS bucket (removes orphaned Parquet files)
+        When purge=True, additionally expires snapshots and deletes GCS data files.
+        This permanently destroys all history and cannot be undone.
 
         Args:
             table_name: Name of the table to drop.
-            cleanup: If True, expire snapshots and clean GCS files. Defaults to True.
+            purge: If True, expire snapshots and delete GCS data files.
+                Defaults to False. History is permanently lost when True.
 
         Example:
             >>> # doctest: +SKIP
             >>> con = ParquEdit()
-            >>> con.drop_table("temporary_table")  # Drop with cleanup
-            >>> con.drop_table("temp_table", cleanup=False)  # Drop only
+            >>> con.drop_table("my_table")             # History preserved
+            >>> con.drop_table("my_table", purge=True) # Full deletion, history lost
         """
         conn = self._get_connection()
         ddl = DDLOperations(conn, self._db_config)
-        ddl.drop_table(table_name, cleanup=cleanup)
+        ddl.drop_table(table_name, purge=purge)
 
     # ============ DML Operations ============
 

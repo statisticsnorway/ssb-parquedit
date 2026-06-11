@@ -181,7 +181,7 @@ def test_create_table_fill_from_parquet(pe: ParquEdit, tmp_storage: str) -> None
 
 
 def test_drop_table(cities_table: ParquEdit) -> None:
-    cities_table.drop_table("cities", cleanup=False)
+    cities_table.drop_table("cities")
     assert not cities_table.exists("cities")
 
 

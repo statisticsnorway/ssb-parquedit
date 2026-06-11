@@ -9,6 +9,7 @@ from typing import get_args
 import pandas as pd
 import pyarrow as pa
 from tenacity import retry
+from tenacity import retry_if_not_exception_type
 from tenacity import stop_after_attempt
 from tenacity import wait_random
 
@@ -164,7 +165,9 @@ class DMLOperations:
             raise TypeError(msg)
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10), wait=wait_random(min=1, max=3)
+        stop=stop_after_attempt(max_attempt_number=10),
+        wait=wait_random(min=1, max=3),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
     )
     def edit(
         self,

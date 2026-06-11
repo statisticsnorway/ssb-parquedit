@@ -2,13 +2,15 @@
 
 import logging
 import re
+import shutil
+from pathlib import Path
 from typing import Any
 from typing import cast
 
 import gcsfs
 import pandas as pd
 
-from .functions import get_dapla_environment
+from .local import LocalDuckDBConnection
 from .utils import SchemaUtils
 
 # Configure module-level logger
@@ -89,24 +91,22 @@ class DDLOperations:
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
 
-    def drop_table(self, table_name: str, cleanup: bool = True) -> None:
-        """Drop a table from the DuckLake catalog with optional cleanup.
+    def drop_table(self, table_name: str, purge: bool = False) -> None:
+        """Drop a table from the DuckLake catalog.
 
-        Table deletion is only allowed in the TEST environment to prevent
-        accidental data loss in production. In PROD or other environments,
-        this method will raise a PermissionError.
+        By default, only removes the table from the catalog. DuckLake preserves
+        data files and snapshot history until snapshots are explicitly expired,
+        so edit history remains accessible via snapshots() after a normal drop.
 
-        Optionally performs comprehensive cleanup:
-        - Expires snapshots (removes old transaction logs from metadata)
-        - Cleans GCS bucket (removes orphaned Parquet files)
+        When purge=True, additionally expires snapshots and deletes GCS data files.
+        This permanently destroys all history and cannot be undone.
 
         Args:
             table_name: Name of the table to drop.
-            cleanup: If True, expire snapshots and clean GCS files.
-                Defaults to True. Requires db_config to be set.
+            purge: If True, expire snapshots and delete GCS data files after
+                dropping. Defaults to False. History is permanently lost.
 
         Raises:
-            PermissionError: If DAPLA_ENVIRONMENT is not "test".
             ValueError: If table_name is invalid.
 
         Returns:
@@ -115,111 +115,110 @@ class DDLOperations:
         Example:
             >>> # doctest: +SKIP
             >>> ddl = DDLOperations(conn, db_config)
-            >>> ddl.drop_table("temporary_table")  # Includes cleanup
-            >>> ddl.drop_table("temp_table", cleanup=False)  # Drop only
+            >>> ddl.drop_table("my_table")           # History preserved
+            >>> ddl.drop_table("my_table", purge=True)  # Full deletion
         """
-        # Validate table name
         try:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
             logger.error(str(e))
             raise
 
-        # Check environment
-        environment = get_dapla_environment()
-        if environment != "test":
-            msg = (
-                "Table deletion is only allowed in TEST environment. "
-                f"Current environment: {environment or 'not set'}. "
-                "Set DAPLA_ENVIRONMENT=test to enable table deletion."
-            )
-            logger.error(msg)
-            raise PermissionError(msg)
-
-        # Get table location before dropping (if cleanup is enabled)
         table_location = None
-        if cleanup:
+        if purge:
             try:
                 table_location = self._get_table_location(table_name)
             except Exception as e:
                 logger.warning(
                     f"Could not retrieve table location for {table_name}: {e}. "
-                    f"Proceeding with drop only."
+                    f"Proceeding with drop only, GCS files may need manual cleanup."
                 )
-                cleanup = False
 
-        # Execute drop
         self.conn.execute(f"DROP TABLE {table_name}")
-        logger.warning(
-            f"Dropped table: {table_name} from {environment.upper()} environment"
-        )
+        logger.warning(f"Dropped table: {table_name}")
 
-        # Perform cleanup if enabled and location was retrieved
-        if cleanup and table_location:
+        if purge:
             self._expire_snapshots(table_name)
-            self._cleanup_gcs_files(table_location, table_name)
+            if table_location:
+                if isinstance(self.conn, LocalDuckDBConnection):
+                    self._cleanup_local_files(table_location, table_name)
+                else:
+                    self._cleanup_gcs_files(table_location, table_name)
 
     def _get_table_location(self, table_name: str) -> str:
-        """Get the GCS location of a table.
+        """Get the storage location of a table.
+
+        For local connections, returns ``~/.parquedit/data/main/<table>``.
+        For remote (GCS) connections, returns ``{data_path}/{schema}/<table>``.
 
         Args:
             table_name: Name of the table.
 
         Returns:
-            GCS path where the table data is stored.
+            Path where the table data is stored.
 
         Raises:
             RuntimeError: If table location cannot be determined.
         """
-        try:
-            result = self.conn.execute(
-                "SELECT location FROM information_schema.tables WHERE table_name = ?"
-                " AND table_schema = CURRENT_SCHEMA()",
-                [table_name],
-            )
-            rows = result.fetchall()
-            if rows and rows[0][0]:
-                location = str(rows[0][0])
-                logger.info(f"Retrieved table location from metadata: {location}")
-                return location
-        except Exception as e:
-            logger.warning(f"Could not query table location from metadata: {e}")
+        if isinstance(self.conn, LocalDuckDBConnection):
+            return str(Path(self.conn.data_path) / "data" / "main" / table_name)
 
-        # Fallback: Use {data_path}/{table_name} as expected by tests
         if self.db_config and "data_path" in self.db_config:
             data_path = self.db_config["data_path"]
-            fallback_path = f"{data_path}/{table_name}"
-            logger.warning(
-                f"Using fallback path for table location: {fallback_path}. "
-                f"If this is incorrect, the GCS cleanup may not remove correct files."
-            )
-            return fallback_path
+            try:
+                row = self.conn.execute("SELECT CURRENT_SCHEMA()").fetchone()
+                schema = row[0] if row and row[0] else "main"
+            except Exception:
+                schema = "main"
+            return f"{data_path}/{schema}/{table_name}"
 
-        msg = (
-            f"Cannot determine table location for {table_name}. "
-            "No data_path configured and metadata query failed."
-        )
+        msg = f"Cannot determine table location for {table_name}: no data_path configured."
         logger.error(msg)
         raise RuntimeError(msg)
 
     def _expire_snapshots(self, table_name: str) -> None:
-        """Expire old snapshots for a dropped table metadata cleanup.
+        """Expire edit snapshots for a purged table, permanently removing its history.
 
-        DuckLake stores transaction logs in metadata. This removes old
-        snapshots to free up metadata storage space.
+        Queries snapshots() for all snapshot IDs associated with the given table
+        (identified via commit_extra_info) and calls ducklake_expire_snapshots to
+        mark them for deletion. Only called from drop_table(purge=True).
 
         Args:
             table_name: Name of the dropped table.
         """
         try:
-            # TODO: Implement snapshot expiration when DuckLake API is available
-            # Currently, delta_catalog.expire_snapshots() is not a valid DuckLake procedure
+            row = self.conn.execute("SELECT CURRENT_DATABASE()").fetchone()
+            catalog_name = row[0] if row and row[0] else None
+        except Exception:
+            logger.exception(f"Could not determine current catalog for {table_name}")
+            return
+
+        if not catalog_name:
             logger.warning(
-                f"Snapshot expiration not yet implemented for {table_name}. "
-                f"Delta log files will accumulate."
+                f"Cannot expire snapshots for {table_name}: no active catalog."
             )
-        except Exception as e:
-            logger.error(f"Error during snapshot expiration for {table_name}: {e}")
+            return
+
+        try:
+            rows = self.conn.execute(
+                "SELECT snapshot_id FROM snapshots() "
+                "WHERE commit_extra_info IS NOT NULL "
+                "AND json_extract_string(commit_extra_info, '$.table_name') = ?",
+                [table_name],
+            ).fetchall()
+
+            snapshot_ids = [row[0] for row in rows]
+            if not snapshot_ids:
+                logger.info(f"No edit snapshots found to expire for {table_name}.")
+                return
+
+            ids_literal = "[" + ", ".join(str(sid) for sid in snapshot_ids) + "]"
+            self.conn.execute(
+                f"CALL ducklake_expire_snapshots('{catalog_name}', versions => {ids_literal})"
+            )
+            logger.info(f"Expired {len(snapshot_ids)} snapshots for {table_name}.")
+        except Exception:
+            logger.exception(f"Error during snapshot expiration for {table_name}")
 
     def _cleanup_gcs_files(self, table_location: str, table_name: str) -> None:
         """Clean up orphaned files from GCS bucket.
@@ -257,13 +256,45 @@ class DDLOperations:
             else:
                 logger.warning(
                     f"Table location not found in GCS: {table_location}. "
-                    f"Data may have already been deleted or path is incorrect."
+                    f"Data may only be inlined, already been deleted or path is incorrect."
                 )
         except Exception as e:
             # GCS cleanup is optional - log warning but don't fail the drop operation
             logger.error(
                 f"Failed to clean up GCS files for {table_name} at {table_location}: {e}. "
                 f"Files may need manual cleanup. Verify path and GCS permissions."
+            )
+
+    def _cleanup_local_files(self, table_location: str, table_name: str) -> None:
+        """Clean up orphaned files from the local filesystem.
+
+        Local counterpart to ``_cleanup_gcs_files`` for ``LocalDuckDBConnection``.
+
+        Args:
+            table_location: Local path to the table's data directory.
+            table_name: Name of the dropped table (for logging).
+        """
+        try:
+            path = Path(table_location)
+            if not path.exists():
+                logger.warning(
+                    f"Table location not found locally: {table_location}. "
+                    f"Data may have already been deleted or path is incorrect."
+                )
+                return
+
+            logger.warning(
+                f"Deleting table data locally: {table_location} "
+                f"(table: {table_name}). This action cannot be undone."
+            )
+            shutil.rmtree(path)
+            logger.info(
+                f"Successfully cleaned up local files for {table_name} at {table_location}"
+            )
+        except Exception:
+            logger.exception(
+                f"Failed to clean up local files for {table_name} at {table_location}"
+                f"Files may need manual cleanup."
             )
 
     def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
