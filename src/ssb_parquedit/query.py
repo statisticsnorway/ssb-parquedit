@@ -225,8 +225,14 @@ class QueryOperations:
         df = pd.concat([df, parsed], axis=1)
 
         if table_name:
-            return cast(
+            filtered = cast(
                 pd.DataFrame, df[df["table_name"] == table_name].reset_index(drop=True)
             )
+            if filtered.empty:
+                logger.warning(
+                    f"No edits found for table '{table_name}'. "
+                    f"The table may not exist or has no edit history."
+                )
+            return filtered
 
         return df
