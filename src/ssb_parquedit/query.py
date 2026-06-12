@@ -188,8 +188,15 @@ class QueryOperations:
             >>> tables = query.list_tables()
             >>> print(tables)  # ['products', 'users']
         """
-        result = self.conn.execute("SHOW TABLES").df()
-        return cast(list[str], result["name"].tolist())
+        result = self.conn.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = current_schema()
+                AND table_type = 'BASE TABLE'
+                AND table_name NOT LIKE 'ducklake_%' --shows up when using local connection(sqllite)
+            ORDER BY table_name
+            """).df()
+        return cast(list[str], result["table_name"].tolist())
 
     def _get_tag_info(self, table_name: str) -> dict[str, Any] | None:
         result = self.conn.execute(
