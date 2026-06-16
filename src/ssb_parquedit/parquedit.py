@@ -12,6 +12,7 @@ from .ddl import DDLOperations
 from .dml import DMLOperations
 from .functions import create_config
 from .query import QueryOperations
+from .maintenance import MaintenanceOperations
 
 logger = logging.getLogger(__name__)
 
@@ -354,3 +355,10 @@ class ParquEdit:
         conn = self._get_connection()
         query = QueryOperations(conn)
         return query.get_edits(table_name)
+  
+  # ============ Maintenance Operations ============
+
+    def flush_inlined_table(self, table_name: str) -> None:
+        conn = self._get_connection()
+        maintenance = MaintenanceOperations(conn, self._db_config)
+        maintenance.flush_inlined_table(table_name)
