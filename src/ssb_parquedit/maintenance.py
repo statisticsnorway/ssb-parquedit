@@ -44,10 +44,9 @@ class MaintenanceOperations:
         if self.db_config is None:
             raise RuntimeError("db_config is not initialized")
 
-        catalog = self.db_config["catalog_name"]
         rows = self.conn.execute(
             "SELECT schema_name, table_name, rows_flushed "
-            f"FROM ducklake_flush_inlined_data('{catalog}', table_name => '{table_name}')"
+            f"FROM ducklake_flush_inlined_data('{self.db_config['catalog_name']}', table_name => '{table_name}')"
         ).fetchall()
 
         rows_flushed = sum(row[2] for row in rows)

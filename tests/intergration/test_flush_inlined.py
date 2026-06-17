@@ -42,16 +42,16 @@ def test_flush_materializes_inlined_data(ducklake: DuckLake) -> None:
     conn, catalog, data_path = ducklake
     conn.execute("CREATE TABLE t (a INTEGER)")
     conn.execute("INSERT INTO t VALUES (1), (2), (3)")  # < limit -> inlined
-    assert _parquet_files(data_path) == []              # inlined, nothing on disk
+    assert _parquet_files(data_path) == []  # inlined, nothing on disk
 
     ops = MaintenanceOperations(conn, {"catalog_name": catalog})
     ops.flush_inlined_table("t")
 
-    assert _parquet_files(data_path)                     # Parquet now written
+    assert _parquet_files(data_path)  # Parquet now written
 
     result = conn.execute("SELECT count(*) FROM t").fetchone()
     assert result is not None
-    assert result[0] == 3                                # data intact
+    assert result[0] == 3  # data intact
 
 
 def test_flush_logs_row_count(
@@ -83,7 +83,7 @@ def test_second_flush_is_noop(
         ops.flush_inlined_table("t")
 
     assert "No inlined data to flush" in caplog.text
-    assert set(_parquet_files(data_path)) == before      # no new files
+    assert set(_parquet_files(data_path)) == before  # no new files
 
 
 def test_flush_requires_db_config(ducklake: DuckLake) -> None:
