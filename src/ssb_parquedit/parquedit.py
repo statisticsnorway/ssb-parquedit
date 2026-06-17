@@ -124,7 +124,8 @@ class ParquEdit:
         return cls.from_connection(
             conn,
             db_config={
-                "catalog_name": "local_catalog",
+                # Keep this alias in sync with LocalDuckDBConnection ATTACH AS name.
+                "catalog_name": "test_catalog",
                 "metadata_schema": "main",
                 "data_path": "",
             },
