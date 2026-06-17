@@ -11,8 +11,8 @@ from .connection import DuckDBConnection
 from .ddl import DDLOperations
 from .dml import DMLOperations
 from .functions import create_config
-from .query import QueryOperations
 from .maintenance import MaintenanceOperations
+from .query import QueryOperations
 
 logger = logging.getLogger(__name__)
 
@@ -355,10 +355,20 @@ class ParquEdit:
         conn = self._get_connection()
         query = QueryOperations(conn)
         return query.get_edits(table_name)
-  
-  # ============ Maintenance Operations ============
+
+    # ============ Maintenance Operations ============
 
     def flush_inlined_table(self, table_name: str) -> None:
+        """Flush a table's inlined data to Parquet storage.
+
+        Materializes any inlined inserts and deletes for the given table from the
+        metadata catalog into Parquet files. Tables with no inlined data are left
+        untouched.
+
+        Args:
+            table_name: Name of the table to flush.
+
+        """
         conn = self._get_connection()
         maintenance = MaintenanceOperations(conn, self._db_config)
         maintenance.flush_inlined_table(table_name)
