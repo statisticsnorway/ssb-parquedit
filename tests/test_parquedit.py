@@ -109,3 +109,17 @@ class TestParquEditHappyPath:
                 "t", source=df, product_name="test", user_defined_id=["id"]
             )
         assert pe_ctx._conn is None
+
+
+class TestParquEditLocal:
+    def test_local_can_flush_inlined_table(self, tmp_storage: str) -> None:
+        pe = ParquEdit.local(tmp_storage)
+        df = pd.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"], fill=True
+        )
+
+        pe.flush_inlined_table("cities")
+
+        assert pe.count("cities") == 2
+        pe.close()

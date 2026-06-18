@@ -11,6 +11,7 @@ from .connection import DuckDBConnection
 from .ddl import DDLOperations
 from .dml import DMLOperations
 from .functions import create_config
+from .maintenance import MaintenanceOperations
 from .query import QueryOperations
 
 logger = logging.getLogger(__name__)
@@ -123,7 +124,8 @@ class ParquEdit:
         return cls.from_connection(
             conn,
             db_config={
-                "catalog_name": "local_catalog",
+                # Keep this alias in sync with LocalDuckDBConnection ATTACH AS name.
+                "catalog_name": "test_catalog",
                 "metadata_schema": "main",
                 "data_path": "",
             },
@@ -354,3 +356,35 @@ class ParquEdit:
         conn = self._get_connection()
         query = QueryOperations(conn)
         return query.get_edits(table_name)
+
+    # ============ Maintenance Operations ============
+
+    def flush_inlined_table(self, table_name: str) -> None:
+        """Flush a table's inlined data to Parquet storage.
+
+        Materializes any inlined inserts and deletes for the given table from the
+        metadata catalog into Parquet files. Tables with no inlined data are left
+        untouched.
+
+        Args:
+            table_name: Name of the table to flush.
+
+        """
+        conn = self._get_connection()
+        maintenance = MaintenanceOperations(conn, self._db_config)
+        maintenance.flush_inlined_table(table_name)
+
+    def merge_adjacent_files(self, table_name: str) -> None:
+        """Compact a table's small Parquet files into fewer, larger ones.
+
+        Merges the adjacent Parquet files for the given table without expiring
+        snapshots, preserving time travel and the data change feed. Old files are
+        not deleted by this call; run a cleanup afterwards to remove them.
+
+        Args:
+            table_name: Name of the table to compact.
+
+        """
+        conn = self._get_connection()
+        maintenance = MaintenanceOperations(conn, self._db_config)
+        maintenance.merge_adjacent_files(table_name)
