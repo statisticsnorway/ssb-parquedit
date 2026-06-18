@@ -319,7 +319,7 @@ con.flush_inlined_table(table_name="my_table")
 ### Merge adjacent files
 Merge adjacent files compacts a table’s small Parquet files into fewer, larger files. This is a maintenance step for tables that receive many small writes, improving scan efficiency and reducing file-management overhead. It preserves table data and history semantics, changing only physical file layout. The operation is safe to run repeatedly: Running it when nothing is mergeable has no effect.
 ```python
-# Flushes inlined data for table 'my_table'
+# Merge adjacent files for table 'my_table'
 con.merge_adjacent_files(table_name="my_table")
 ```
 
