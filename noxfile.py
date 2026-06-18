@@ -5,7 +5,6 @@ import shlex
 import shutil
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
 from textwrap import dedent
 
@@ -43,63 +42,18 @@ def install_poetry_groups(session: Session, *groups: str) -> None:
     Using this as a workaround until this PR is merged in:
     https://github.com/cjolowicz/nox-poetry/pull/1080
     """
-
-    def _load_dependency_groups() -> dict[str, list[object]]:
-        pyproject_data = tomllib.loads(
-            Path("pyproject.toml").read_text(encoding="utf-8")
-        )
-        groups_obj = pyproject_data.get("dependency-groups", {})
-        return groups_obj if isinstance(groups_obj, dict) else {}
-
-    def _resolve_group(
-        group_name: str,
-        all_groups: dict[str, list[object]],
-        seen: set[str],
-    ) -> list[str]:
-        if group_name in seen:
-            return []
-        seen.add(group_name)
-
-        resolved: list[str] = []
-        for item in all_groups.get(group_name, []):
-            if isinstance(item, str):
-                resolved.append(item)
-            elif isinstance(item, dict):
-                include_group = item.get("include-group")
-                if isinstance(include_group, str):
-                    resolved.extend(_resolve_group(include_group, all_groups, seen))
-        return resolved
-
     with tempfile.TemporaryDirectory() as tempdir:
         requirements_path = os.path.join(tempdir, "requirements.txt")
-
-        # Prefer lockfile-pinned installs via poetry export when available.
-        exported = True
-        try:
-            session.run(
-                "poetry",
-                "export",
-                *[f"--only={group}" for group in groups],
-                "--format=requirements.txt",
-                "--without-hashes",
-                f"--output={requirements_path}",
-                external=True,
-            )
-        except nox.command.CommandFailed:
-            exported = False
-
-        if exported:
-            # Use pip directly to avoid nox-poetry Session.install invoking poetry export again.
-            session.run("python", "-m", "pip", "install", "-r", requirements_path)
-            return
-
-        all_groups = _load_dependency_groups()
-        deps: list[str] = []
-        for group in groups:
-            deps.extend(_resolve_group(group, all_groups, set()))
-
-        if deps:
-            session.run("python", "-m", "pip", "install", *deps)
+        session.run(
+            "poetry",
+            "export",
+            *[f"--only={group}" for group in groups],
+            "--format=requirements.txt",
+            "--without-hashes",
+            f"--output={requirements_path}",
+            external=True,
+        )
+        session.install("-r", requirements_path)
 
 
 def activate_virtualenv_in_precommit_hooks(session: Session) -> None:
