@@ -373,3 +373,18 @@ class ParquEdit:
         conn = self._get_connection()
         maintenance = MaintenanceOperations(conn, self._db_config)
         maintenance.flush_inlined_table(table_name)
+
+    def merge_adjacent_files(self, table_name: str) -> None:
+        """Compact a table's small Parquet files into fewer, larger ones.
+
+        Merges the adjacent Parquet files for the given table without expiring
+        snapshots, preserving time travel and the data change feed. Old files are
+        not deleted by this call; run a cleanup afterwards to remove them.
+
+        Args:
+            table_name: Name of the table to compact.
+
+        """
+        conn = self._get_connection()
+        maintenance = MaintenanceOperations(conn, self._db_config)
+        maintenance.merge_adjacent_files(table_name)
