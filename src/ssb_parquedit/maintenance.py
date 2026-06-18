@@ -38,7 +38,7 @@ class MaintenanceOperations:
         try:
             SchemaUtils.validate_table_name(table_name)
         except ValueError as e:
-            logger.error(str(e))
+            logger.exception(str(e))
             raise
 
         if self.db_config is None:
