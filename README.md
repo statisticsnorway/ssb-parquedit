@@ -361,9 +361,11 @@ src/ssb_parquedit/
 ├── ddl.py            # DDL operations (CREATE TABLE, partitioning)
 ├── dml.py            # DML operations (INSERT, EDIT)
 ├── query.py          # Query operations (SELECT, COUNT, EXISTS)
+├── maintenance.py    # Maintenance operations (flush inlined data, merge adjacent files)
 ├── functions.py      # Environment helpers (Dapla config auto-detection)
 ├── local.py          # Local DuckDB connection backed by SQLite (dev/testing)
 └── utils.py          # Schema utilities and SQL sanitization
+
 ```
 
 ---
