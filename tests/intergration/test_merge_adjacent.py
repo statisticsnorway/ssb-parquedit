@@ -57,7 +57,9 @@ def test_merge_adjacent_compacts_files_and_preserves_rows(ducklake: DuckLake) ->
     assert result[0] == 8
 
 
-def test_second_merge_is_noop(ducklake: DuckLake, caplog: pytest.LogCaptureFixture) -> None:
+def test_second_merge_is_noop(
+    ducklake: DuckLake, caplog: pytest.LogCaptureFixture
+) -> None:
     conn, catalog, _ = ducklake
     conn.execute("CREATE TABLE t (a INTEGER)")
     for i in range(4):
