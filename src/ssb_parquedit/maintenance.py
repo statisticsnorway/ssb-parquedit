@@ -79,7 +79,7 @@ class MaintenanceOperations:
             "SELECT schema_name, table_name, "
             "sum(files_processed) AS total_input_files, "
             "sum(files_created) AS total_output_files "
-            f"FROM ducklake_merge_adjacent_files('{self.db_config["catalog_name"]}', '{table_name}') "
+            f"FROM ducklake_merge_adjacent_files('{self.db_config['catalog_name']}', '{table_name}') "
             "GROUP BY schema_name, table_name"
         ).fetchall()
 
