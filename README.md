@@ -45,6 +45,9 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [List all tables](#list-all-tables)
   - [List edits](#list-edits)
   - [Drop table](#drop-table)
+- [Maintenance](#Maintenance)
+  -[Flush inlined data](#flush-inlined-data)
+  -[Merge adjacent files](#merge-adjacent-files)
 - [Advanced](#advanced)
   - [Accessing the raw DuckDB connection](#accessing-the-raw-duckdb-connection)
   - [Setting up local connection](#setting-up-local-connection)
@@ -303,6 +306,22 @@ con.drop_table(table_name="my_table", purge=True)
 ```
 
 ---
+
+## Maintenance
+
+### Flush inlined data
+Flush inlined data materializes inlined rows into Parquet files for a table. This is a maintenance operation for workloads with frequent small writes, helping keep storage layout efficient and query performance stable. It does not change table values, only how data is physically stored. The operation is safe to run repeatedly: Running it when nothing is pending has no effect.
+```python
+# Flushes inlined data for table 'my_table'
+con.flush_inlined_table(table_name="my_table")
+```
+
+### Merge adjacent files
+Merge adjacent files compacts a table’s small Parquet files into fewer, larger files. This is a maintenance step for tables that receive many small writes, improving scan efficiency and reducing file-management overhead. It preserves table data and history semantics, changing only physical file layout. The operation is safe to run repeatedly: Running it when nothing is mergeable has no effect.
+```python
+# Flushes inlined data for table 'my_table'
+con.merge_adjacent_files(table_name="my_table")
+```
 
 ## Advanced
 
