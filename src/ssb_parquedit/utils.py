@@ -81,7 +81,6 @@ class SchemaUtils:
         required = set(schema.get("required", []))
         cols = []
 
-        # Stable UUID primary key
         cols.append("_id VARCHAR")
 
         for name, prop in schema["properties"].items():
