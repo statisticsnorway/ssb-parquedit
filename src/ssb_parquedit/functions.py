@@ -42,7 +42,7 @@ def get_bucket_name() -> str:
         str: The constructed bucket name.
     """
     team_name: str = get_team_name()
-    environment: str = os.getenv("DAPLA_ENVIRONMENT", "").lower()
+    environment: str = get_dapla_environment()
     bucket_name: str = f"ssb-{team_name}-data-produkt-{environment}"
 
     return bucket_name
