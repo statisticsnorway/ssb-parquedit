@@ -71,6 +71,7 @@ def create_config() -> dict[str, str]:
             - data_path: The GCS path used for temporary parquedit data.
             - catalog_name: The catalog name derived from the team name.
             - metadata_schema: The metadata schema derived from the team name.
+
     """
     environment: str = get_dapla_environment()
     team_name = get_team_name().replace("-", "_")
@@ -91,6 +92,15 @@ def create_config() -> dict[str, str]:
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
             "catalog_name": team_name,
             "metadata_schema": f"team_{team_name}",
+        }
+
+    else:
+        return {
+            "dbname": "dapla-ffunk",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": team_name,
+            "metadata_schema": team_name,
         }
 
 
