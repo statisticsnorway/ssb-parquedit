@@ -71,9 +71,6 @@ def create_config() -> dict[str, str]:
             - data_path: The GCS path used for temporary parquedit data.
             - catalog_name: The catalog name derived from the team name.
             - metadata_schema: The metadata schema derived from the team name.
-
-    Raises:
-        ValueError: If the current Dapla environment is not 'test' or 'prod'.
     """
     environment: str = get_dapla_environment()
     team_name = get_team_name().replace("-", "_")
@@ -95,8 +92,6 @@ def create_config() -> dict[str, str]:
             "catalog_name": team_name,
             "metadata_schema": f"team_{team_name}",
         }
-
-    raise ValueError(f"Unsupported Dapla environment: {environment!r}")
 
 
 def get_dapla_user() -> str:
