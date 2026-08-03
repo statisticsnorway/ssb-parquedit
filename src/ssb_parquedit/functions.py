@@ -76,30 +76,25 @@ def create_config() -> dict[str, str]:
         ValueError: If the current Dapla environment is not 'test' or 'prod'.
     """
     environment: str = get_dapla_environment()
+    team_name = get_team_name().replace("-", "_")
 
     if environment == "test":
-
-        db_config: dict[str, str] = {
+        return {
             "dbname": "dapla-ffunk",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
-            "catalog_name": get_team_name().replace("-", "_"),
-            "metadata_schema": get_team_name().replace("-", "_"),
+            "catalog_name": team_name,
+            "metadata_schema": team_name,
         }
 
-        return db_config
-
     if environment == "prod":
-
-        db_config: dict[str, str] = {
+        return {
             "dbname": "parquedit",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-p-ye.iam",
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
-            "catalog_name": get_team_name().replace("-", "_"),
-            "metadata_schema": f"team_{get_team_name().replace('-', '_')}",
+            "catalog_name": team_name,
+            "metadata_schema": f"team_{team_name}",
         }
-
-        return db_config
 
     raise ValueError(f"Unsupported Dapla environment: {environment!r}")
 
