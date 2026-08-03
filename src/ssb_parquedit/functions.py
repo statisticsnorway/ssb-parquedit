@@ -42,7 +42,7 @@ def get_bucket_name() -> str:
         str: The constructed bucket name.
     """
     team_name: str = get_team_name()
-    environment: str = os.getenv("DAPLA_ENVIRONMENT", "").lower()
+    environment: str = get_dapla_environment()
     bucket_name: str = f"ssb-{team_name}-data-produkt-{environment}"
 
     return bucket_name
@@ -71,16 +71,37 @@ def create_config() -> dict[str, str]:
             - data_path: The GCS path used for temporary parquedit data.
             - catalog_name: The catalog name derived from the team name.
             - metadata_schema: The metadata schema derived from the team name.
-    """
-    db_config: dict[str, str] = {
-        "dbname": "dapla-ffunk",
-        "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
-        "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
-        "catalog_name": get_team_name().replace("-", "_"),
-        "metadata_schema": get_team_name().replace("-", "_"),
-    }
 
-    return db_config
+    """
+    environment: str = get_dapla_environment()
+    team_name = get_team_name().replace("-", "_")
+
+    if environment == "test":
+        return {
+            "dbname": "dapla-ffunk",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": team_name,
+            "metadata_schema": team_name,
+        }
+
+    if environment == "prod":
+        return {
+            "dbname": "parquedit",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-p-ye.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": team_name,
+            "metadata_schema": f"team_{team_name}",
+        }
+
+    else:
+        return {
+            "dbname": "dapla-ffunk",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": team_name,
+            "metadata_schema": team_name,
+        }
 
 
 def get_dapla_user() -> str:
