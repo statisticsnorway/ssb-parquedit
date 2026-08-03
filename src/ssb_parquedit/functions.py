@@ -71,16 +71,37 @@ def create_config() -> dict[str, str]:
             - data_path: The GCS path used for temporary parquedit data.
             - catalog_name: The catalog name derived from the team name.
             - metadata_schema: The metadata schema derived from the team name.
-    """
-    db_config: dict[str, str] = {
-        "dbname": "dapla-ffunk",
-        "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
-        "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
-        "catalog_name": get_team_name().replace("-", "_"),
-        "metadata_schema": get_team_name().replace("-", "_"),
-    }
 
-    return db_config
+    Raises:
+        ValueError: If the current Dapla environment is not 'test' or 'prod'.
+    """
+    environment: str = get_dapla_environment()
+
+    if environment == "test":
+
+        db_config: dict[str, str] = {
+            "dbname": "dapla-ffunk",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": get_team_name().replace("-", "_"),
+            "metadata_schema": get_team_name().replace("-", "_"),
+        }
+
+        return db_config
+
+    if environment == "prod":
+
+        db_config: dict[str, str] = {
+            "dbname": "parquedit",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-p-ye.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": get_team_name().replace("-", "_"),
+            "metadata_schema": f"team_{get_team_name().replace('-', '_')}",
+        }
+
+        return db_config
+
+    raise ValueError(f"Unsupported Dapla environment: {environment!r}")
 
 
 def get_dapla_user() -> str:
