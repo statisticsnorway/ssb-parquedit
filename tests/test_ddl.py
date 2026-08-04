@@ -157,11 +157,11 @@ class TestCleanupGcsFiles:
         mock_fs.rm.assert_called_once_with("gs://bucket/table", recursive=True)
 
 
-# ── drop_table(purge=True) ────────────────────────────────────────────────────
+# ── drop_table(cleanup=True) ────────────────────────────────────────────────────
 
 
-class TestDropTablePurge:
-    def test_purge_drops_table(
+class TestDropTableCleanup:
+    def test_cleanup_drops_table(
         self, conn: LocalDuckDBConnection, tmp_storage: str
     ) -> None:
         pe = ParquEdit.from_connection(
@@ -174,10 +174,10 @@ class TestDropTablePurge:
         )
         df = pd.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
         pe.create_table("cities", source=df, product_name="p", user_defined_id=["id"])
-        pe.drop_table("cities", purge=True)
+        pe.drop_table("cities", cleanup=True)
         assert not pe.exists("cities")
 
-    def test_purge_with_edits_drops_table(
+    def test_cleanup_edits_drops_table(
         self, conn: LocalDuckDBConnection, tmp_storage: str
     ) -> None:
         pe = ParquEdit.from_connection(
@@ -194,10 +194,10 @@ class TestDropTablePurge:
         )
         rowid = int(pe.view("cities")["rowid"].iloc[0])
         pe.edit("cities", rowid, {"name": "Oslo edited"}, "OTHER", "test")
-        pe.drop_table("cities", purge=True)
+        pe.drop_table("cities", cleanup=True)
         assert not pe.exists("cities")
 
-    def test_purge_location_failure_still_drops_table(
+    def test_cleanup_location_failure_still_drops_table(
         self, mock_conn: MagicMock
     ) -> None:
         mock_conn.execute.side_effect = [

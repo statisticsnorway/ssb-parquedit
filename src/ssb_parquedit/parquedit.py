@@ -191,30 +191,30 @@ class ParquEdit:
 
         conn.execute(f"COMMENT ON TABLE {table_name} IS '{tag_info}';")
 
-    def drop_table(self, table_name: str, purge: bool = False) -> None:
+    def drop_table(self, table_name: str, cleanup: bool = False) -> None:
         """Drop a table from the DuckLake catalog.
 
         By default, only removes the table from the catalog. DuckLake preserves
         data files and snapshot history, so edit history remains accessible via
         get_edits() after a normal drop.
 
-        When purge=True, additionally expires snapshots and deletes GCS data files.
+        When cleanup=True, additionally expires snapshots and deletes GCS data files.
         This permanently destroys all history and cannot be undone.
 
         Args:
             table_name: Name of the table to drop.
-            purge: If True, expire snapshots and delete GCS data files.
+            cleanup: If True, expire snapshots and delete GCS data files.
                 Defaults to False. History is permanently lost when True.
 
         Example:
             >>> # doctest: +SKIP
             >>> con = ParquEdit()
             >>> con.drop_table("my_table")             # History preserved
-            >>> con.drop_table("my_table", purge=True) # Full deletion, history lost
+            >>> con.drop_table("my_table", cleanup=True) # Full deletion, history lost
         """
         conn = self._get_connection()
         ddl = DDLOperations(conn, self._db_config)
-        ddl.drop_table(table_name, purge=purge)
+        ddl.drop_table(table_name, cleanup=cleanup)
 
     # ============ DML Operations ============
 

@@ -91,19 +91,19 @@ class DDLOperations:
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
 
-    def drop_table(self, table_name: str, purge: bool = False) -> None:
+    def drop_table(self, table_name: str, cleanup: bool = False) -> None:
         """Drop a table from the DuckLake catalog.
 
         By default, only removes the table from the catalog. DuckLake preserves
         data files and snapshot history until snapshots are explicitly expired,
         so edit history remains accessible via snapshots() after a normal drop.
 
-        When purge=True, additionally expires snapshots and deletes GCS data files.
+        When cleanup=True, additionally expires snapshots and deletes GCS data files.
         This permanently destroys all history and cannot be undone.
 
         Args:
             table_name: Name of the table to drop.
-            purge: If True, expire snapshots and delete GCS data files after
+            cleanup: If True, expire snapshots and delete GCS data files after
                 dropping. Defaults to False. History is permanently lost.
 
         Raises:
@@ -116,7 +116,7 @@ class DDLOperations:
             >>> # doctest: +SKIP
             >>> ddl = DDLOperations(conn, db_config)
             >>> ddl.drop_table("my_table")           # History preserved
-            >>> ddl.drop_table("my_table", purge=True)  # Full deletion
+            >>> ddl.drop_table("my_table", cleanup=True)  # Full deletion
         """
         try:
             SchemaUtils.validate_table_name(table_name)
@@ -125,7 +125,7 @@ class DDLOperations:
             raise
 
         table_location = None
-        if purge:
+        if cleanup:
             try:
                 table_location = self._get_table_location(table_name)
             except Exception as e:
@@ -137,7 +137,7 @@ class DDLOperations:
         self.conn.execute(f"DROP TABLE {table_name}")
         logger.warning(f"Dropped table: {table_name}")
 
-        if purge:
+        if cleanup:
             self._expire_snapshots(table_name)
             if table_location:
                 if isinstance(self.conn, LocalDuckDBConnection):
@@ -177,11 +177,11 @@ class DDLOperations:
         raise RuntimeError(msg)
 
     def _expire_snapshots(self, table_name: str) -> None:
-        """Expire edit snapshots for a purged table, permanently removing its history.
+        """Expire edit snapshots for a table, permanently removing its history.
 
         Queries snapshots() for all snapshot IDs associated with the given table
         (identified via commit_extra_info) and calls ducklake_expire_snapshots to
-        mark them for deletion. Only called from drop_table(purge=True).
+        mark them for deletion. Only called from drop_table(cleanup=True).
 
         Args:
             table_name: Name of the dropped table.
