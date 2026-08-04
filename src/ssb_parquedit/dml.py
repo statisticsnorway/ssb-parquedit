@@ -194,6 +194,11 @@ class DMLOperations:
             ValueError: If change_event_reason is not a valid update cause.
             Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
+        # Coerce numpy/pandas integer types (e.g. numpy.int64 from a DataFrame
+        # column) to a native Python int — DuckDB's parameter binding can't
+        # handle numpy scalar types directly.
+        rowid = int(rowid)
+
         # validate cause — specific to update
         if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
             msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
