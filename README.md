@@ -294,7 +294,7 @@ The returned DataFrame includes these changelog columns:
 
 ### Drop table
 `drop_table()` - Drops a table from the DuckLake catalog. By default, only removes the table from the catalog. DuckLake preserves data files and snapshot history, so edit history remains accessible via get_edits() after a normal drop.
-When purge=True, additionally expires snapshots and deletes GCS data files. This permanently destroys all history and cannot be undone.
+When cleanup=True, additionally expires snapshots and deletes GCS data files. This permanently destroys all history and cannot be undone.
 
 ```python
 # Removes the table from the catalog
@@ -302,7 +302,7 @@ con.drop_table(table_name="my_table")
 ```
 ```python
 # Removes the table from the catalog, expires snapshots and deletes data files
-con.drop_table(table_name="my_table", purge=True)
+con.drop_table(table_name="my_table", cleanup=True)
 ```
 
 ---
