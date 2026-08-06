@@ -52,7 +52,7 @@ class DuckDBConnection:
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
         """
-        instance_connection_name = "dapla-ffunk-sql-p-xo:europe-north1:parquedit"
+        instance_connection_name = "add_instance_here"
 
         ip_type = "PRIVATE"
         pg_host = get_instance_ip(instance_connection_name, ip_type=ip_type)
