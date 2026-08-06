@@ -6,6 +6,9 @@ from typing import Any
 import duckdb
 import gcsfs
 
+from .iam_auth import get_instance_ip
+from .iam_auth import get_login_token
+
 logger = logging.getLogger(__name__)
 
 _CLOSED_MSG = "Connection is closed."
@@ -49,6 +52,17 @@ class DuckDBConnection:
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
         """
+        instance_connection_name = "dapla-ffunk-sql-p-xo:europe-north1:parquedit"
+
+        ip_type = "PRIVATE"
+        pg_host = get_instance_ip(instance_connection_name, ip_type=ip_type)
+        token = get_login_token()
+        # Single-quoted in the DSN below; tokens are base64url and never
+        # contain a quote, so no escaping is needed.
+        pg_password_line = (
+            f"\n                password={token}\n                sslmode=require"
+        )
+
         self._conn = duckdb.connect()
 
         fs = gcsfs.GCSFileSystem()
@@ -63,7 +77,7 @@ class DuckDBConnection:
             ATTACH 'ducklake:postgres:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
-                host=localhost
+                host={pg_host}{pg_password_line}
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
             METADATA_SCHEMA {db_config["metadata_schema"]},
