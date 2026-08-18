@@ -42,6 +42,8 @@ class SchemaUtils:
             return "VARCHAR"
         if t == "integer":
             return "BIGINT"
+        if t == "date-time":
+            return "TIMESTAMP"
         if t == "number":
             return "DOUBLE"
         if t == "boolean":
@@ -76,16 +78,15 @@ class SchemaUtils:
             ...     "required": ["id"]
             ... }
             >>> SchemaUtils.jsonschema_to_duckdb(schema, "users")
-            'CREATE TABLE users (\n  _id VARCHAR,\n  id BIGINT NOT NULL,\n  name VARCHAR\n);'
+            'CREATE TABLE users (\n  id BIGINT NOT NULL,\n  name VARCHAR\n);'
         """
         required = set(schema.get("required", []))
         cols = []
 
-        # Stable UUID primary key
-        cols.append("_id VARCHAR")
-
         for name, prop in schema["properties"].items():
+
             col = f"{name} {SchemaUtils.translate(prop)}"
+
             if name in required:
                 col += " NOT NULL"
             cols.append(col)
