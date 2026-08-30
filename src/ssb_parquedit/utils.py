@@ -122,6 +122,43 @@ class SchemaUtils:
             )
 
     @staticmethod
+    def validate_column_names(columns: list[str]) -> None:
+        """Validate that column names fit PostgreSQL's identifier length limit.
+
+        PostgreSQL silently truncates identifiers longer than 63 bytes
+        (NAMEDATALEN - 1). For a DuckLake catalog backed by Postgres, this can
+        make two columns collide or otherwise desync DuckLake's catalog from
+        the actual Postgres columns, crashing later reads with
+        "Attempted to access index 0 within vector of size 0"
+        (see https://github.com/duckdb/ducklake/issues/1089).
+
+        Args:
+            columns: Column names to validate.
+
+        Raises:
+            ValueError: If any column name exceeds 63 bytes when UTF-8 encoded.
+
+        Example:
+            >>> SchemaUtils.validate_column_names(["id", "name"])  # OK
+            >>> # doctest: +SKIP
+            >>> SchemaUtils.validate_column_names(["a" * 64])
+            Traceback (most recent call last):
+                ...
+            ValueError: Column name(s) exceed PostgreSQL's 63-byte identifier limit...
+        """
+        too_long = [
+            f"{col} ({len(col.encode('utf-8'))} bytes)"
+            for col in columns
+            if len(col.encode("utf-8")) > 63
+        ]
+        if too_long:
+            raise ValueError(
+                "Column name(s) exceed PostgreSQL's 63-byte identifier limit "
+                f"and would be silently truncated, corrupting the table: {too_long}. "
+                "Shorten these column names before creating the table."
+            )
+
+    @staticmethod
     def pandas_to_duckdb(dtype: Any) -> str:
         """Map a pandas dtype to a DuckDB column type."""
         PANDAS_DUCKDB_TYPE_MAP: list[tuple[Callable[[Any], bool], str]] = [

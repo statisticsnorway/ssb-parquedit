@@ -174,6 +174,7 @@ con.create_table(table_name="my_table_5",
 > - `product_name` is required and is stored as a comment on the table.
 > - `table_name` must be lowercase, start with a letter or underscore, contain only lowercase letters, numbers, and underscores, and be at most 20 characters.
 > - `user_defined_id` — a list of columns that together uniquely identify a row in a table, used to mimic a primary key.
+> - Column names must not exceed 63 bytes when UTF-8 encoded (PostgreSQL's identifier limit). Longer names — easy to hit with non-ASCII characters like `æ`/`ø`/`å`, which take 2 bytes each — raise a `ValueError` at table creation instead of silently corrupting the table later.
 
 ### Inserting data in an existing table
 ```python

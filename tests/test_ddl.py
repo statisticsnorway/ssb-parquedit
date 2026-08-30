@@ -1,10 +1,13 @@
 """Unit tests for DDLOperations — mocks GCS and DuckLake to test logic branches."""
 
 import logging
+from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
 from ssb_parquedit.ddl import DDLOperations
@@ -211,3 +214,58 @@ class TestDropTableCleanup:
         mock_conn.execute.side_effect = None
         mock_conn.execute.return_value = MagicMock()
         ddl.conn.execute("DROP TABLE cities")
+
+
+# ── create_table: column name length validation ─────────────────────────────
+
+
+class TestColumnNameLengthValidation:
+    """create_table() must reject column names over Postgres's 63-byte identifier limit."""
+
+    LONG_ASCII_NAME = "a" * 64
+    # 64 chars but 67 UTF-8 bytes because of æ/ø/å — the real-world trigger.
+    LONG_MULTIBYTE_NAME = (
+        "distriktstilskuddforfruktbærveksthusgrønnsakerinklsalatpåfriland"
+    )
+
+    def test_raises_for_long_ascii_column_from_dataframe(
+        self, conn: LocalDuckDBConnection, df_with_long_column_names: pd.DataFrame
+    ) -> None:
+        with pytest.raises(ValueError, match="63-byte"):
+            DDLOperations(conn).create_table("t1", df_with_long_column_names)
+
+    def test_raises_for_long_multibyte_column_from_dataframe(
+        self, conn: LocalDuckDBConnection
+    ) -> None:
+        df = pd.DataFrame({"id": [1], self.LONG_MULTIBYTE_NAME: [1.0]})
+        with pytest.raises(ValueError, match="63-byte"):
+            DDLOperations(conn).create_table("t1", df)
+
+    def test_accepts_column_name_at_63_bytes(self, conn: LocalDuckDBConnection) -> None:
+        df = pd.DataFrame({"id": [1], "a" * 63: [1.0]})
+        DDLOperations(conn).create_table("t1", df)  # must not raise
+
+    def test_raises_for_long_property_name_from_schema(
+        self, conn: LocalDuckDBConnection
+    ) -> None:
+        schema = {
+            "properties": {
+                "id": {"type": "integer"},
+                self.LONG_ASCII_NAME: {"type": "string"},
+            }
+        }
+        with pytest.raises(ValueError, match="63-byte"):
+            DDLOperations(conn).create_table("t1", schema)
+
+    def test_raises_for_long_column_name_from_parquet(
+        self,
+        conn: LocalDuckDBConnection,
+        tmp_storage: str,
+        df_with_long_column_names: pd.DataFrame,
+    ) -> None:
+        parquet_path = str(Path(tmp_storage) / "wide.parquet")
+        table = pa.Table.from_pandas(df_with_long_column_names, preserve_index=False)
+        pq.write_table(table, parquet_path)
+
+        with pytest.raises(ValueError, match="63-byte"):
+            DDLOperations(conn).create_table("t1", parquet_path)
