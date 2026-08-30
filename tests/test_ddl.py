@@ -231,15 +231,17 @@ class TestColumnNameLengthValidation:
     def test_raises_for_long_ascii_column_from_dataframe(
         self, conn: LocalDuckDBConnection, df_with_long_column_names: pd.DataFrame
     ) -> None:
+        ddl = DDLOperations(conn)
         with pytest.raises(ValueError, match="63-byte"):
-            DDLOperations(conn).create_table("t1", df_with_long_column_names)
+            ddl.create_table("t1", df_with_long_column_names)
 
     def test_raises_for_long_multibyte_column_from_dataframe(
         self, conn: LocalDuckDBConnection
     ) -> None:
         df = pd.DataFrame({"id": [1], self.LONG_MULTIBYTE_NAME: [1.0]})
+        ddl = DDLOperations(conn)
         with pytest.raises(ValueError, match="63-byte"):
-            DDLOperations(conn).create_table("t1", df)
+            ddl.create_table("t1", df)
 
     def test_accepts_column_name_at_63_bytes(self, conn: LocalDuckDBConnection) -> None:
         df = pd.DataFrame({"id": [1], "a" * 63: [1.0]})
@@ -254,8 +256,9 @@ class TestColumnNameLengthValidation:
                 self.LONG_ASCII_NAME: {"type": "string"},
             }
         }
+        ddl = DDLOperations(conn)
         with pytest.raises(ValueError, match="63-byte"):
-            DDLOperations(conn).create_table("t1", schema)
+            ddl.create_table("t1", schema)
 
     def test_raises_for_long_column_name_from_parquet(
         self,
@@ -267,5 +270,6 @@ class TestColumnNameLengthValidation:
         table = pa.Table.from_pandas(df_with_long_column_names, preserve_index=False)
         pq.write_table(table, parquet_path)
 
+        ddl = DDLOperations(conn)
         with pytest.raises(ValueError, match="63-byte"):
-            DDLOperations(conn).create_table("t1", parquet_path)
+            ddl.create_table("t1", parquet_path)

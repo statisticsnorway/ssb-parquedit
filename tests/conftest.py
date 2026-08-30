@@ -10,7 +10,7 @@ import pytest
 from ssb_parquedit.local import LocalDuckDBConnection
 
 
-@pytest.fixture()
+@pytest.fixture
 def tmp_storage() -> Generator[str]:
     """Temporary directory that is removed after the test."""
     d = tempfile.mkdtemp(prefix="parquedit_unit_")
@@ -18,7 +18,7 @@ def tmp_storage() -> Generator[str]:
     shutil.rmtree(d, ignore_errors=True)
 
 
-@pytest.fixture()
+@pytest.fixture
 def conn(tmp_storage: str) -> Generator[LocalDuckDBConnection]:
     """Live LocalDuckDBConnection, closed after the test."""
     c = LocalDuckDBConnection(data_path=tmp_storage)
@@ -26,7 +26,7 @@ def conn(tmp_storage: str) -> Generator[LocalDuckDBConnection]:
     c.close()
 
 
-@pytest.fixture()
+@pytest.fixture
 def df_with_long_column_names() -> pd.DataFrame:
     """DataFrame mixing valid columns with ones over Postgres's 63-byte identifier limit."""
     return pd.DataFrame(
