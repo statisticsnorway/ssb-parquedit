@@ -305,6 +305,7 @@ class DDLOperations:
             data: DataFrame whose schema will be used.
         """
         df = cast(pd.DataFrame, data)
+        SchemaUtils.validate_column_names(list(df.columns))
         source_converted = df.astype(
             {
                 col: object
@@ -322,6 +323,12 @@ class DDLOperations:
             table_name: Name of the table to create.
             parquet_path: Path to the Parquet file (supports gs:// URIs).
         """
+        columns = self.conn.execute(
+            "SELECT column_name FROM (DESCRIBE SELECT * FROM read_parquet(?))",
+            [parquet_path],
+        ).fetchall()
+        SchemaUtils.validate_column_names([row[0] for row in columns])
+
         # Use parameterized query for the file path to prevent injection
         ddl = f"""
         CREATE TABLE {table_name} AS
@@ -340,6 +347,7 @@ class DDLOperations:
             table_name: Name of the table to create.
             schema: JSON Schema dictionary defining the table structure.
         """
+        SchemaUtils.validate_column_names(list(schema["properties"].keys()))
         ddl = SchemaUtils.jsonschema_to_duckdb(schema, table_name)
         self.conn.execute(ddl)
 
