@@ -8,6 +8,8 @@ from typing import Any
 import pandas as pd
 import polars as pl
 
+from ssb_parquedit.catalogexportimport import CatalogExportImport
+
 from .connection import DuckDBConnection
 from .ddl import DDLOperations
 from .dml import DMLOperations
@@ -390,3 +392,11 @@ class ParquEdit:
         conn = self._get_connection()
         maintenance = MaintenanceOperations(conn, self._db_config)
         maintenance.merge_adjacent_files(table_name)
+
+# ============ Export Catalog Operations ============
+
+    def export_catalog(self) -> None:
+    
+        conn = self._get_connection()
+        export = CatalogExportImport(conn, self._db_config)
+        export.export_catalog()
