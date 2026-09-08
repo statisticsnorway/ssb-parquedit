@@ -59,31 +59,43 @@ class CatalogExportImport:
         bucket = client.bucket(data_path.replace("/.parquedit_data", "").replace("gs://", ""))
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            backup_file = os.path.join(tmp_dir, backup_file_name)        
+            backup_file = os.path.join(tmp_dir, backup_file_name)      
 
-            self.conn.sql(f"ATTACH 'postgres:{pg_connection_string}' AS catalog_db (READ_ONLY);")
-            self.conn.sql(f"ATTACH 'duckdb:{backup_file}' AS backup;")
+            try:  
+                self.conn.sql("BEGIN")
 
-            self.conn.sql(f"CREATE SCHEMA IF NOT EXISTS backup.{schema};")
+                self.conn.sql(f"ATTACH 'postgres:{pg_connection_string}' AS catalog_db (READ_ONLY);")
+                self.conn.sql(f"ATTACH 'duckdb:{backup_file}' AS backup;")
 
-            tables = self.conn.sql(f"""
-                SELECT table_name
-                FROM catalog_db.information_schema.tables
-                WHERE table_schema = '{schema}'
-            """).fetchall()
+                self.conn.sql(f"CREATE SCHEMA IF NOT EXISTS backup.{schema};")
 
-            for (table_name,) in tables:
-                print(f"Copying {schema}.{table_name} ...")
-                self.conn.sql(f"""
-                    CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
-                    SELECT * FROM catalog_db.{schema}.{table_name}
-                """)
-            print("Backup complete.")
+                tables = self.conn.sql(f"""
+                    SELECT table_name
+                    FROM catalog_db.information_schema.tables
+                    WHERE table_schema = '{schema}'
+                """).fetchall()
 
-            self.conn.sql("DETACH catalog_db;")
-            self.conn.sql("DETACH backup;") 
+                for (table_name,) in tables:
+                    print(f"Copying {schema}.{table_name} ...")
+                    self.conn.sql(f"""
+                        CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
+                        SELECT * FROM catalog_db.{schema}.{table_name}
+                    """)
+                print("Backup complete.")
 
-            blob = bucket.blob(f".parquedit_data/catalog-export/{backup_file_name}")
-            blob.upload_from_filename(backup_file)
-            print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")
-          
+                self.conn.sql("DETACH catalog_db;")
+                self.conn.sql("DETACH backup;") 
+
+                self.conn.sql("COMMIT")
+
+                blob = bucket.blob(f".parquedit_data/catalog-export/{backup_file_name}")
+                blob.upload_from_filename(backup_file)
+                print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")          
+                
+
+            except Exception:
+                try:
+                    self.conn.sql("ROLLBACK")
+                except Exception:
+                    pass  # transaction already rolled back by DuckDB
+                raise          
