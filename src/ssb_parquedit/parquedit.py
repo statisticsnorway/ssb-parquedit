@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import polars as pl
 
 from .connection import DuckDBConnection
 from .ddl import DDLOperations
@@ -136,7 +137,7 @@ class ParquEdit:
     def create_table(
         self,
         table_name: str,
-        source: pd.DataFrame | dict[str, Any] | str,
+        source: pd.DataFrame | pl.DataFrame | dict[str, Any] | str,
         product_name: str | None = None,
         user_defined_id: list[str] | None = None,
         part_columns: list[str] | None = None,
@@ -150,6 +151,7 @@ class ParquEdit:
                 numbers, and underscores. Maximum 20 characters.
             source: Source for the table schema. Can be:
                 - pd.DataFrame: Creates table structure from the DataFrame schema.
+                - pl.DataFrame: Creates table structure from the DataFrame schema.
                 - dict: JSON Schema specification defining the table structure.
                 - str: GCS path (gs://) to a Parquet file to infer schema from.
             product_name: Label identifying the product this table belongs to.
@@ -219,14 +221,14 @@ class ParquEdit:
     # ============ DML Operations ============
 
     def insert_data(
-        self, table_name: str, source: pd.DataFrame | dict[str, Any] | str
+        self, table_name: str, source: pd.DataFrame | pl.DataFrame | str
     ) -> None:
         """Insert data into a table.
 
         Args:
             table_name: The name of the table to insert data into.
-            source: The data to insert. Can be a pandas DataFrame, a dictionary
-                mapping column names to values, or a string file path to a data file.
+            source: The data to insert. Can be a pandas or polars DataFrame, or a
+                string file path to a data file.
         """
         conn = self._get_connection()
 

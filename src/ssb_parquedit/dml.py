@@ -7,6 +7,7 @@ from typing import Literal
 from typing import get_args
 
 import pandas as pd
+import polars as pl
 import pyarrow as pa
 from tenacity import retry
 from tenacity import retry_if_not_exception_type
@@ -54,6 +55,7 @@ class DMLOperations:
             table_name: Name of the table to fill.
             source: Data source. Can be:
                 - pd.DataFrame: Insert DataFrame rows into the table
+                - pl.DataFrame: Insert DataFrame rows into the table
                 - str: Path to Parquet file (gs:// format) to read and insert data from
 
         Raises:
@@ -68,7 +70,7 @@ class DMLOperations:
             >>> # Fill from Parquet file
             >>> dml.fill_table("users", "gs://bucket/users.parquet")
         """
-        if isinstance(source, pd.DataFrame):
+        if SchemaUtils.is_dataframe(source):
             self._insert_from_dataframe(table_name, data=source)
         elif isinstance(source, str):
             self._insert_from_parquet(table_name, parquet_path=source)
@@ -77,17 +79,17 @@ class DMLOperations:
             logger.error(msg)
             raise TypeError(msg)
 
-    def _insert_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
+    def _insert_from_dataframe(
+        self, table_name: str, data: pd.DataFrame | pl.DataFrame
+    ) -> None:
         """Insert data from a DataFrame into a table.
 
         Args:
             table_name: Name of the table to populate.
-            data: DataFrame containing the data to insert.
+            data: Pandas or polars DataFrame containing the data to insert.
         """
         # Validate table name
         SchemaUtils.validate_table_name(table_name)
-
-        df_copy = data.copy()
 
         # target table's column types by name,
         col_types = {
@@ -95,7 +97,24 @@ class DMLOperations:
             for row in self.conn.execute(f"DESCRIBE {table_name}").fetchall()
         }
 
-        # force the pandas column to pure Python str, Arrow will infer int64 if early values look numeric
+        if isinstance(data, pd.DataFrame):
+            arrow_table = self._pandas_to_arrow(data, col_types)
+        else:
+            arrow_table = self._polars_to_arrow(data, col_types)
+
+        self.conn.register("data", arrow_table)
+
+        cols = ", ".join(arrow_table.schema.names)
+
+        logger.debug("Inserting %d rows into '%s'", len(data), table_name)
+        self.conn.execute(f"INSERT INTO {table_name} ({cols}) SELECT * FROM data")
+        logger.debug("Insert complete: %d rows -> '%s'", len(data), table_name)
+
+    @staticmethod
+    def _pandas_to_arrow(data: pd.DataFrame, col_types: dict[str, str]) -> pa.Table:
+        df_copy = data.copy()
+
+        # Keep target-compatible types before Arrow infers the table schema.
         for col in df_copy.columns:
             if col_types.get(col) == "VARCHAR":
                 df_copy[col] = df_copy[col].astype(str)
@@ -104,14 +123,20 @@ class DMLOperations:
                     pd.to_numeric(df_copy[col], errors="coerce"), dtype="Int64"
                 )
 
-        arrow_table = pa.Table.from_pandas(df_copy, preserve_index=False)
-        self.conn.register("data", arrow_table)
+        return pa.Table.from_pandas(df_copy, preserve_index=False)
 
-        cols = ", ".join(arrow_table.schema.names)
+    @staticmethod
+    def _polars_to_arrow(data: pl.DataFrame, col_types: dict[str, str]) -> pa.Table:
+        cast_exprs = []
+        for col in data.columns:
+            if col_types.get(col) == "VARCHAR":
+                cast_exprs.append(pl.col(col).cast(pl.Utf8))
+            elif col_types.get(col) == "BIGINT":
+                cast_exprs.append(pl.col(col).cast(pl.Int64, strict=False))
 
-        logger.debug("Inserting %d rows into '%s'", len(data), table_name)
-        self.conn.execute(f"INSERT INTO {table_name} ({cols}) SELECT * FROM data")
-        logger.debug("Insert complete: %d rows -> '%s'", len(data), table_name)
+        if cast_exprs:
+            data = data.with_columns(cast_exprs)
+        return data.to_arrow()
 
     def _insert_from_parquet(self, table_name: str, parquet_path: str) -> None:
         """Insert data from a Parquet file into a table.

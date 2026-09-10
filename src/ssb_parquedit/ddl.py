@@ -5,10 +5,10 @@ import re
 import shutil
 from pathlib import Path
 from typing import Any
-from typing import cast
 
 import gcsfs
 import pandas as pd
+import polars as pl
 
 from .local import LocalDuckDBConnection
 from .utils import SchemaUtils
@@ -53,6 +53,7 @@ class DDLOperations:
                 underscore and contain only alphanumeric characters and underscores.
             source: Source for table schema. Can be:
                 - pd.DataFrame: Uses DataFrame schema to create table structure
+                - pl.DataFrame: Uses DataFrame schema to create table structure
                 - dict: JSON Schema specification defining the table structure
                 - str: Path to Parquet file (gs:// format) to infer schema from
             part_columns: Optional list of column names to partition by.
@@ -72,14 +73,11 @@ class DDLOperations:
             logger.error(str(e))
             raise
 
-        # Check if source is a DataFrame (handle both real and mock pandas DataFrames)
         if isinstance(source, dict):
             self._create_from_schema(table_name, source)
         elif isinstance(source, str):
             self._create_from_parquet(table_name, source)
-        elif (
-            isinstance(source, pd.DataFrame) or source.__class__.__name__ == "DataFrame"
-        ):
+        elif SchemaUtils.is_dataframe(source) or source.__class__.__name__ == "DataFrame":
             self._create_from_dataframe(table_name, source)
         else:
             msg = "source must be a DataFrame, JSON Schema dict, or gs:// Parquet path"
@@ -297,23 +295,25 @@ class DDLOperations:
                 f"Files may need manual cleanup."
             )
 
-    def _create_from_dataframe(self, table_name: str, data: pd.DataFrame) -> None:
+    def _create_from_dataframe(
+        self, table_name: str, data: pd.DataFrame | pl.DataFrame
+    ) -> None:
         """Create an empty table from a DataFrame schema.
 
         Args:
             table_name: Name of the table to create.
             data: DataFrame whose schema will be used.
         """
-        df = cast(pd.DataFrame, data)
-        SchemaUtils.validate_column_names(list(df.columns))
-        source_converted = df.astype(
-            {
-                col: object
-                for col, dtype in df.dtypes.items()
-                if isinstance(dtype, pd.StringDtype)
-            }
-        )
-        self.conn.register("data", source_converted)
+        SchemaUtils.validate_column_names(list(data.columns))
+        if isinstance(data, pd.DataFrame):
+            data = data.astype(
+                {
+                    col: object
+                    for col, dtype in data.dtypes.items()
+                    if isinstance(dtype, pd.StringDtype)
+                }
+            )
+        self.conn.register("data", data)
         self.conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM data WHERE 1=2")
 
     def _create_from_parquet(self, table_name: str, parquet_path: str) -> None:
