@@ -1,6 +1,7 @@
 """Tests for ParquEdit - happy path and documented error behavior."""
 
 import pandas as pd
+import polars as pl
 import pytest
 
 from ssb_parquedit.local import LocalDuckDBConnection
@@ -123,3 +124,82 @@ class TestParquEditLocal:
 
         assert pe.count("cities") == 2
         pe.close()
+
+
+# ── Happy path: polars sources ────────────────────────────────────────────────
+
+
+class TestParquEditHappyPathPolars:
+    """create_table() and insert_data() must accept polars DataFrames too."""
+
+    def test_created_table_is_visible(self, pe: ParquEdit) -> None:
+        df = pl.DataFrame({"id": [1], "name": ["Oslo"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"]
+        )
+        assert pe.exists("cities")
+
+    def test_create_with_fill_inserts_rows(self, pe: ParquEdit) -> None:
+        df = pl.DataFrame({"id": [1, 2, 3], "name": ["Oslo", "Bergen", "Tromsø"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"], fill=True
+        )
+        assert pe.count("cities") == 3
+
+    def test_insert_data_adds_rows(self, pe: ParquEdit) -> None:
+        df = pl.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"], fill=True
+        )
+        pe.insert_data("cities", pl.DataFrame({"id": [3], "name": ["Tromsø"]}))
+        assert pe.count("cities") == 3
+
+    def test_insert_polars_into_pandas_created_table(self, pe: ParquEdit) -> None:
+        """Table schema from pandas, data inserted from polars — cross-source support."""
+        df = pd.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"], fill=True
+        )
+        pe.insert_data("cities", pl.DataFrame({"id": [3], "name": ["Tromsø"]}))
+        assert pe.count("cities") == 3
+
+    def test_insert_pandas_into_polars_created_table(self, pe: ParquEdit) -> None:
+        """Table schema from polars, data inserted from pandas — cross-source support."""
+        df = pl.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"], fill=True
+        )
+        pe.insert_data("cities", pd.DataFrame({"id": [3], "name": ["Tromsø"]}))
+        assert pe.count("cities") == 3
+
+    def test_insert_coerces_polars_int_column_to_bigint_target(
+        self, pe: ParquEdit
+    ) -> None:
+        """A narrower polars integer dtype must still fit the table's BIGINT column."""
+        df = pd.DataFrame({"id": [1], "count": pd.array([1], dtype="Int64")})
+        pe.create_table(
+            "counts", source=df, product_name="test", user_defined_id=["id"]
+        )
+        narrow_df = pl.DataFrame({"id": [2], "count": pl.Series([2], dtype=pl.Int32)})
+        pe.insert_data("counts", narrow_df)
+        result = pe.view("counts", where="id = 2")
+        assert result["count"].iloc[0] == 2
+
+    def test_insert_coerces_polars_numeric_column_to_varchar_target(
+        self, pe: ParquEdit
+    ) -> None:
+        """A polars numeric column must be cast to string for a VARCHAR target column."""
+        df = pd.DataFrame({"id": [1], "code": ["001"]})
+        pe.create_table("codes", source=df, product_name="test", user_defined_id=["id"])
+        numeric_df = pl.DataFrame({"id": [2], "code": [2]})
+        pe.insert_data("codes", numeric_df)
+        result = pe.view("codes", where="id = 2")
+        assert result["code"].iloc[0] == "2"
+
+    def test_view_returns_all_rows(self, pe: ParquEdit) -> None:
+        df = pl.DataFrame({"id": [1, 2, 3], "name": ["Oslo", "Bergen", "Tromsø"]})
+        pe.create_table(
+            "cities", source=df, product_name="test", user_defined_id=["id"], fill=True
+        )
+        result = pe.view("cities")
+        assert len(result) == 3

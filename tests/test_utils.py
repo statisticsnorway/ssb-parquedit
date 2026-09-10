@@ -1,8 +1,29 @@
 """Unit tests for SchemaUtils."""
 
+import pandas as pd
+import polars as pl
 import pytest
 
 from ssb_parquedit.utils import SchemaUtils
+
+# ── is_dataframe ────────────────────────────────────────────────────────────────
+
+
+class TestIsDataframe:
+    """is_dataframe() must recognize both pandas and polars DataFrames."""
+
+    def test_true_for_pandas_dataframe(self) -> None:
+        assert SchemaUtils.is_dataframe(pd.DataFrame({"id": [1]})) is True
+
+    def test_true_for_polars_dataframe(self) -> None:
+        assert SchemaUtils.is_dataframe(pl.DataFrame({"id": [1]})) is True
+
+    @pytest.mark.parametrize(
+        "value", [{"id": [1]}, "gs://bucket/data.parquet", [1, 2], None]
+    )
+    def test_false_for_non_dataframe_values(self, value: object) -> None:
+        assert SchemaUtils.is_dataframe(value) is False
+
 
 # ── validate_column_names ──────────────────────────────────────────────────────
 

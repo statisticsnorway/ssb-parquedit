@@ -77,7 +77,9 @@ class DDLOperations:
             self._create_from_schema(table_name, source)
         elif isinstance(source, str):
             self._create_from_parquet(table_name, source)
-        elif SchemaUtils.is_dataframe(source) or source.__class__.__name__ == "DataFrame":
+        elif (
+            SchemaUtils.is_dataframe(source) or source.__class__.__name__ == "DataFrame"
+        ):
             self._create_from_dataframe(table_name, source)
         else:
             msg = "source must be a DataFrame, JSON Schema dict, or gs:// Parquet path"
