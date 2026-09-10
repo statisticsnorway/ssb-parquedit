@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pandas as pd
+import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -245,6 +246,29 @@ class TestColumnNameLengthValidation:
 
     def test_accepts_column_name_at_63_bytes(self, conn: LocalDuckDBConnection) -> None:
         df = pd.DataFrame({"id": [1], "a" * 63: [1.0]})
+        DDLOperations(conn).create_table("t1", df)  # must not raise
+
+    def test_raises_for_long_ascii_column_from_polars_dataframe(
+        self,
+        conn: LocalDuckDBConnection,
+        polars_df_with_long_column_names: pl.DataFrame,
+    ) -> None:
+        ddl = DDLOperations(conn)
+        with pytest.raises(ValueError, match="63-byte"):
+            ddl.create_table("t1", polars_df_with_long_column_names)
+
+    def test_raises_for_long_multibyte_column_from_polars_dataframe(
+        self, conn: LocalDuckDBConnection
+    ) -> None:
+        df = pl.DataFrame({"id": [1], self.LONG_MULTIBYTE_NAME: [1.0]})
+        ddl = DDLOperations(conn)
+        with pytest.raises(ValueError, match="63-byte"):
+            ddl.create_table("t1", df)
+
+    def test_accepts_polars_column_name_at_63_bytes(
+        self, conn: LocalDuckDBConnection
+    ) -> None:
+        df = pl.DataFrame({"id": [1], "a" * 63: [1.0]})
         DDLOperations(conn).create_table("t1", df)  # must not raise
 
     def test_raises_for_long_property_name_from_schema(

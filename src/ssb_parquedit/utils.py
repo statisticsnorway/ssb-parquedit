@@ -6,12 +6,18 @@ from collections.abc import Callable
 from typing import Any
 
 import pandas as pd
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
 
 class SchemaUtils:
     """Utilities for schema translation and validation."""
+
+    @staticmethod
+    def is_dataframe(value: Any) -> bool:
+        """Return whether value is a pandas or polars DataFrame."""
+        return isinstance(value, pd.DataFrame | pl.DataFrame)
 
     @staticmethod
     def translate(prop: dict[str, Any]) -> str:
