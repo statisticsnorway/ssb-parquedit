@@ -29,7 +29,7 @@ class CatalogExportImport:
         self.conn = connection
         self.db_config: dict[str, str] | None = db_config
 
-    def export_catalog(self) -> None:
+    def export_catalog(self) -> str:
         """Export metadata catalog to GCS.
 
         """
@@ -76,7 +76,7 @@ class CatalogExportImport:
                 """).fetchall()
 
                 for (table_name,) in tables:
-                    print(f"Copying {schema}.{table_name} ...")
+                    #print(f"Copying {schema}.{table_name} ...")
                     self.conn.sql(f"""
                         CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
                         SELECT * FROM catalog_db.{schema}.{table_name}
@@ -98,4 +98,6 @@ class CatalogExportImport:
                     self.conn.sql("ROLLBACK")
                 except Exception:
                     pass  # transaction already rolled back by DuckDB
-                raise          
+                raise  
+        
+        return f"{data_path}/catalog-export/{backup_file_name}"
