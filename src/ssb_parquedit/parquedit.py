@@ -133,6 +133,39 @@ class ParquEdit:
             },
         )
 
+    @classmethod
+    def local_backup(cls, path: str) -> "ParquEdit":
+        """Create a ParquEdit instance backed by a persistent local DuckDB catalog.
+
+
+        Args:
+            path: Directory for the DuckDB catalog and Parquet data files.
+
+        Returns:
+            ParquEdit: An instance backed by a local DuckDB DuckLake catalog.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> pe = ParquEdit.local()                       # uses ~/.parquedit
+            >>> pe = ParquEdit.local("/tmp/my_dev_catalog")  # custom path
+            >>> pe.create_table("cities", source=df, product_name="dev")
+            >>> pe.close()
+        """
+        from .local_backup import LocalBackupDuckDBConnection
+
+        data_path = Path(path)
+        conn = LocalBackupDuckDBConnection(data_path=str(data_path))
+        return cls.from_connection(
+            conn,
+            db_config={
+                # Keep this alias in sync with LocalBackupDuckDBConnection ATTACH AS name.
+                "catalog_name": "my_duckdb_backup",
+                "metadata_schema": "main",
+                "data_path": "",
+            },
+        )
+
+
     # ============ DDL Operations ============
 
     def create_table(
@@ -393,8 +426,8 @@ class ParquEdit:
 
 # ============ Export Catalog Operations ============
 
-    def export_catalog(self) -> None:
+    def export_catalog(self) -> str:
     
         conn = self._get_connection()
         export = CatalogExportImport(conn, self._db_config)
-        export.export_catalog()
+        return export.export_catalog()
