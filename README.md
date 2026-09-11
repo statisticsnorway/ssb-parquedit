@@ -39,6 +39,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [Creating a table](#creating-a-table)
   - [Inserting data](#inserting-data-in-an-existing-table)
   - [Editing a row](#editing-a-row)
+  - [Deleting rows](#deleting-rows)
   - [Querying data](#querying-data)
   - [Counting rows](#counting-rows)
   - [Checking table existence](#checking-table-existence)
@@ -67,6 +68,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
 - **Create tables** from a pandas or polars DataFrame, a JSON Schema dict, or an existing GCS Parquet file
 - **Insert data** from a pandas or polars DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
 - **Edit data** - Update value(s) in a single row by its rowid.
+- **Delete rows** - Delete one or more rows matching a where-condition, logged individually to the changelog.
 - **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
 - **Find edits** Retrieve historical column-level edits for a specified table
 - **Count rows**
@@ -235,6 +237,29 @@ con.edit(
 `change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
 
 
+### Deleting rows
+`delete_row()` selects rows with a `where` clause — the same syntax as `view()` — and deletes each matching row individually by its `rowid`. Every deleted row is logged as its own entry in the changelog, so each deletion remains visible via `get_edits()`.
+```python
+# Delete a single row by its rowid
+con.delete_row(
+    table_name="my_table_1",
+    where="rowid = 1",
+    change_event_reason="REVIEW",
+    change_comment="Removed duplicate entry",
+)
+```
+```python
+# Delete multiple rows at once
+con.delete_row(
+    table_name="my_table_1",
+    where="age < 18",
+    change_event_reason="OTHER",
+    change_comment="Removed underage entries",
+)
+```
+`change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
+
+
 ### Querying data
 ```python
 # View all rows (returns pandas DataFrame by default)
@@ -306,15 +331,15 @@ The returned DataFrame includes these changelog columns:
 
 | Column | Description |
 |---|---|
-
+| `change_type` | Type of change (`UPDATE` or `DELETE`) |
 | `changed_by` | User who made the edit |
 | `change_event_reason` | Reason code (e.g. `REVIEW`, `OWNER`) |
 | `change_comment` | Free-text comment from the editor |
 | `table_name` | Table the edit was made on |
 | `rowid` | Internal row identifier |
 | `user_defined_id` | Business key values identifying the row |
-| `old_values` | Dict of column → old value for changed columns |
-| `new_values` | Dict of column → new value for changed columns  |
+| `old_values` | Dict of column → old value for changed/deleted columns |
+| `new_values` | Dict of column → new value for changed columns (`None` for deletions) |
 | `product_name` | Product name the table belongs to |
 
 ### Drop table
