@@ -317,11 +317,6 @@ class DMLOperations:
         wait=wait_random(min=1, max=3),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
     )
-    @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
-        retry=retry_if_not_exception_type((ValueError, TypeError)),
-    )
     def delete_row(
         self,
         table_name: str,
