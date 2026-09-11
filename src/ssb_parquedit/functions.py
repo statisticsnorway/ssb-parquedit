@@ -58,6 +58,16 @@ def get_dapla_environment() -> str:
     return environment
 
 
+def get_port_number() -> str:
+    """Retrieves the portnumber for Parquedits Postgres-instance.
+
+    Returns:
+        str: The value of PARQEDIT_DB_PORT, or an empty string if not set.
+    """
+    port_number: str = os.getenv("PARQEDIT_DB_PORT", "")
+    return port_number
+
+
 def create_config() -> dict[str, str]:
     """Create a default database configuration dictionary.
 
@@ -74,7 +84,8 @@ def create_config() -> dict[str, str]:
 
     """
     environment: str = get_dapla_environment()
-    team_name = get_team_name().replace("-", "_")
+    team_name: str = get_team_name().replace("-", "_")
+    port_number: str = get_port_number()
 
     if environment == "test":
         return {
@@ -83,6 +94,7 @@ def create_config() -> dict[str, str]:
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
             "catalog_name": team_name,
             "metadata_schema": team_name,
+            "port_number": port_number,
         }
 
     if environment == "prod":
@@ -92,6 +104,7 @@ def create_config() -> dict[str, str]:
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
             "catalog_name": team_name,
             "metadata_schema": f"team_{team_name}",
+            "port_number": port_number,
         }
 
     else:
@@ -101,6 +114,7 @@ def create_config() -> dict[str, str]:
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
             "catalog_name": team_name,
             "metadata_schema": team_name,
+            "port_number": port_number,
         }
 
 

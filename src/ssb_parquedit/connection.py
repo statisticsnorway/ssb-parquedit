@@ -64,6 +64,7 @@ class DuckDBConnection:
                 dbname={db_config["dbname"]}
                 user={db_config["dbuser"]}
                 host=localhost
+                port={db_config["port_number"]}
             ' AS {db_config["catalog_name"]}
             (DATA_PATH '{db_config["data_path"]}',
             METADATA_SCHEMA {db_config["metadata_schema"]},
