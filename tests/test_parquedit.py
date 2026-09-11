@@ -7,15 +7,6 @@ import pytest
 from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
-
-
-@pytest.fixture()
-def pe(conn: LocalDuckDBConnection) -> ParquEdit:
-    """ParquEdit instance backed by a real local connection."""
-    return ParquEdit.from_connection(conn)
-
-
 # ── create_table: product_name validation ─────────────────────────────────────
 
 

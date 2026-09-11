@@ -339,6 +339,34 @@ class ParquEdit:
         dml = DMLOperations(conn, self._db_config)
         dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
 
+    def delete_row(
+        self,
+        table_name: str,
+        where: str,
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Delete one or more rows from a table matching a WHERE clause.
+
+        Selects the rows to delete using the same ``where`` filter syntax as
+        ``view()``, then deletes each matching row individually by its
+        ``rowid``. Every deleted row is logged as its own edit in the same way
+        as ``edit()``: the row's full set of column values is recorded as
+        ``old_values`` in the DuckLake snapshot's commit metadata, so each
+        deleted row remains individually visible via ``get_edits()``.
+
+        Args:
+            table_name: The name of the table to delete rows from.
+            where: SQL WHERE clause (without the WHERE keyword) selecting the
+                rows to delete, e.g. "population < 100000" or "id IN (1, 2)".
+            change_event_reason: A short reason code describing the type of change event.
+            change_comment: A human-readable comment describing the change.
+        """
+        conn = self._get_connection()
+
+        dml = DMLOperations(conn, self._db_config)
+        dml.delete_row(table_name, where, change_event_reason, change_comment)
+
     def get_edits(self, table_name: str | None = None) -> pd.DataFrame:
         """Retrieve changelog entries from DuckLake snapshots.
 

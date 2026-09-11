@@ -277,6 +277,7 @@ class DMLOperations:
 
             extra_info = json.dumps(
                 {
+                    "change_type": "UPDATE",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
@@ -296,6 +297,164 @@ class DMLOperations:
             WHERE rowid = ?
             """,
                 values,
+            )
+
+            self.conn.execute(
+                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+            )
+
+            self.conn.execute("COMMIT")
+
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaction already rolled back by DuckDB
+            raise
+
+    @retry(
+        stop=stop_after_attempt(max_attempt_number=10),
+        wait=wait_random(min=1, max=3),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
+    )
+    @retry(
+        stop=stop_after_attempt(max_attempt_number=10),
+        wait=wait_random(min=1, max=3),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
+    )
+    def delete_row(
+        self,
+        table_name: str,
+        where: str,
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Delete one or more rows from a table matching a WHERE clause.
+
+        Selects the rows to delete using the same ``where`` filter syntax as
+        ``QueryOperations.view()``, then deletes each matching row
+        individually by its ``rowid``. Every deleted row is logged as its own
+        changelog entry — the same mechanism used by ``edit()`` — so each
+        deletion remains individually visible via ``get_edits()``.
+
+        Args:
+            table_name: The name of the table to delete rows from.
+            where: SQL WHERE clause (without the WHERE keyword) selecting the
+                rows to delete, e.g. "population < 100000" or "id IN (1, 2)".
+            change_event_reason: A reason code describing the type of change. Must be one of the valid update causes defined in VALID_UPDATE_CAUSES.
+            change_comment: A human-readable comment describing the change.
+
+        Raises:
+            ValueError: If change_event_reason is not a valid update cause, or
+                if no rows match the given where clause.
+        """
+        # validate cause — specific to update/delete
+        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
+            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        # validate table exists — shared
+        self._validate_table_and_columns(table_name, {})
+
+        dapla_user = get_dapla_user()
+
+        query = QueryOperations(self.conn, self.db_config)
+
+        # get product_name
+        tag_dict = query._get_tag_info(table_name)
+        if tag_dict is None:
+            return
+        product_name = tag_dict.get("product_name")
+
+        # get user_defined_id
+        user_defined_id = tag_dict.get("user_defined_id")
+
+        # select the rowids to delete, using the same `where` filter as view()
+        matches = self.conn.execute(
+            f"SELECT rowid FROM {table_name} WHERE {where}"
+        ).df()
+
+        if matches.empty:
+            msg = f"No rows in table '{table_name}' match where clause: {where}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        for rowid in matches["rowid"].tolist():
+            self._delete_single_row(
+                table_name=table_name,
+                # Coerce numpy/pandas integer types (e.g. numpy.int64) to a
+                # native Python int — DuckDB's parameter binding can't handle
+                # numpy scalar types directly.
+                rowid=int(rowid),
+                change_event_reason=change_event_reason,
+                change_comment=change_comment,
+                dapla_user=dapla_user,
+                product_name=product_name,
+                user_defined_id=user_defined_id,
+            )
+
+    def _delete_single_row(
+        self,
+        table_name: str,
+        rowid: int,
+        change_event_reason: str,
+        change_comment: str,
+        dapla_user: str,
+        product_name: Any,
+        user_defined_id: Any,
+    ) -> None:
+        """Delete a single row by rowid, logging it as its own changelog entry."""
+        try:
+            self.conn.execute("BEGIN")
+
+            # get current row
+            row = self.conn.execute(
+                f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
+            ).df()
+
+            if row.empty:
+                msg = f"Row with rowid {rowid} not found in table '{table_name}'"
+                logger.error(msg)
+                raise ValueError(msg)
+
+            # make dict with values of unique_id-cols from row
+            assert user_defined_id is not None
+            unique_row = row[user_defined_id].iloc[0]
+            key_values = {
+                col: val.item() if hasattr(val, "item") else val
+                for col, val in zip(user_defined_id, unique_row, strict=True)
+            }
+
+            # make dict with old values of every column in the deleted row
+            old_values = {
+                col: (
+                    row[col].iloc[0].item()
+                    if hasattr(row[col].iloc[0], "item")
+                    else row[col].iloc[0]
+                )
+                for col in row.columns
+                if col != "rowid"
+            }
+
+            extra_info = json.dumps(
+                {
+                    "change_type": "DELETE",
+                    "change_event_reason": change_event_reason,
+                    "changed_by": dapla_user,
+                    "table_name": table_name,
+                    "rowid": rowid,
+                    "user_defined_id": key_values,
+                    "change_comment": change_comment,
+                    "product_name": product_name,
+                    "old_values": old_values,
+                    "new_values": None,
+                }
+            )
+
+            self.conn.execute(
+                f"DELETE FROM {table_name} WHERE rowid = ?",
+                [rowid],
             )
 
             self.conn.execute(
