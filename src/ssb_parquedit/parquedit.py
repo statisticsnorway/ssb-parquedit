@@ -135,38 +135,62 @@ class ParquEdit:
         )
 
     @classmethod
-    def local_backup(cls, path: str) -> "ParquEdit":
-        """Create a ParquEdit instance backed by a persistent local DuckDB catalog.
+    def local_with_gcs_data(
+        cls,
+        catalog_path: str | Path,
+        data_path: str,
+        catalog_name: str = "restored_catalog",
+        metadata_schema: str = "team_dapla_ffunk",
+        read_only: bool = True,
+    ) -> "ParquEdit":
+        """Create a ParquEdit instance from a local DuckDB catalog file with GCS-hosted data.
 
+        Useful for inspecting or restoring from a DuckLake catalog export/backup
+        (a ``.duckdb`` file) while the actual Parquet data lives on GCS.
 
         Args:
-            path: Directory for the DuckDB catalog and Parquet data files.
+            catalog_path: Path to the local DuckDB catalog file
+                (e.g. an exported/backed-up ``.duckdb`` catalog).
+            data_path: GCS path where the Parquet data files live
+                (e.g. ``gs://bucket/path``).
+            catalog_name: Name to attach the catalog under.
+                Defaults to ``"restored_catalog"``.
+            metadata_schema: Schema within the catalog file where DuckLake
+                metadata tables live (e.g. ``ducklake_table``, ``ducklake_schema``).
+                Defaults to ``"team_dapla_ffunk"``.
+            
 
         Returns:
-            ParquEdit: An instance backed by a local DuckDB DuckLake catalog.
+            ParquEdit: An instance backed by the local catalog and GCS data.
 
         Example:
             >>> # doctest: +SKIP
-            >>> pe = ParquEdit.local()                       # uses ~/.parquedit
-            >>> pe = ParquEdit.local("/tmp/my_dev_catalog")  # custom path
-            >>> pe.create_table("cities", source=df, product_name="dev")
+            >>> pe = ParquEdit.from_local_catalog_gcs_data(
+            ...     "localcopy.duckdb",
+            ...     "gs://ssb-dapla-ffunk-data-produkt-prod/some/data/path",
+            ...     metadata_schema="team_dapla_ffunk",
+            ... )
+            >>> pe.view("some_table")
             >>> pe.close()
         """
-        from .local_backup import LocalBackupDuckDBConnection
+        from .local_backup import LocalCatalogGCSDataConnection
 
-        data_path = Path(path)
-        conn = LocalBackupDuckDBConnection(data_path=str(data_path))
+        conn = LocalCatalogGCSDataConnection(
+            catalog_path=str(catalog_path),
+            data_path=data_path,
+            catalog_name=catalog_name,
+            metadata_schema=metadata_schema,
+           
+        )
         return cls.from_connection(
             conn,
             db_config={
-                # Keep this alias in sync with LocalBackupDuckDBConnection ATTACH AS name.
-                "catalog_name": "my_duckdb_backup",
-                "metadata_schema": "main",
-                "data_path": "",
+                "catalog_name": catalog_name,
+                "metadata_schema": metadata_schema,
+                "data_path": data_path,
             },
         )
-
-
+        
     # ============ DDL Operations ============
 
     def create_table(
@@ -428,8 +452,8 @@ class ParquEdit:
 
 # ============ Export Catalog Operations ============
 
-    def export_catalog(self) -> str:
+    def export_catalog(self, export_path: str | None = None) -> str:
     
         conn = self._get_connection()
         export = CatalogExportImport(conn, self._db_config)
-        return export.export_catalog()
+        return export.export_catalog(export_path)

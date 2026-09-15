@@ -3,9 +3,9 @@
 import logging
 from typing import Any
 import datetime
-from google.cloud import storage
 import tempfile
 import os
+import gcsfs
 
 from .query import QueryOperations
 from .maintenance import MaintenanceOperations
@@ -29,13 +29,16 @@ class CatalogExportImport:
         self.conn = connection
         self.db_config: dict[str, str] | None = db_config
 
-    def export_catalog(self) -> str:
+    def export_catalog(self, export_path: str | None = None) -> str:
         """Export metadata catalog to GCS.
 
         """
   
         if self.db_config is None:
             raise RuntimeError("db_config is not initialized")
+
+        if export_path is None:
+            export_path = f"{self.db_config['data_path']}/catalog-export"
 
         query = QueryOperations(self.conn, self.db_config)
         maintenance = MaintenanceOperations(self.conn, self.db_config)
@@ -44,20 +47,16 @@ class CatalogExportImport:
         for table in tables:
             maintenance.flush_inlined_table(table)
             maintenance.merge_adjacent_files(table)
-    
-        client = storage.Client()
-
+         
         schema = f"{self.db_config['metadata_schema']}"
         db = f"{self.db_config['dbname']}"
         user = f"{self.db_config['dbuser']}"
         data_path = f"{self.db_config['data_path']}"
-        pg_connection_string = f"dbname={db} user={user} host=localhost"
+        pg_connection_string = f"dbname={db} user={user} host=localhost port=5433"
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file_name = f"{timestamp}_{schema}.duckdb"
+       
         
-
-        bucket = client.bucket(data_path.replace("/.parquedit_data", "").replace("gs://", ""))
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             backup_file = os.path.join(tmp_dir, backup_file_name)      
 
@@ -76,20 +75,21 @@ class CatalogExportImport:
                 """).fetchall()
 
                 for (table_name,) in tables:
-                    #print(f"Copying {schema}.{table_name} ...")
+                    print(f"Copying {schema}.{table_name} ...")
                     self.conn.sql(f"""
                         CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
                         SELECT * FROM catalog_db.{schema}.{table_name}
                     """)
                 print("Backup complete.")
 
-                self.conn.sql("DETACH catalog_db;")
-                self.conn.sql("DETACH backup;") 
-
                 self.conn.sql("COMMIT")
 
-                blob = bucket.blob(f".parquedit_data/catalog-export/{backup_file_name}")
-                blob.upload_from_filename(backup_file)
+                self.conn.sql("DETACH catalog_db;")
+                self.conn.sql("DETACH backup;") 
+               
+                fs = gcsfs.GCSFileSystem()
+                fs.put(backup_file ,f"{export_path}/{backup_file_name}")
+
                 print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")          
                 
 
