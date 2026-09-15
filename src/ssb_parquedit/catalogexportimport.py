@@ -1,16 +1,18 @@
 """Maintenance operations for Ducklake tables."""
 
-import logging
-from typing import Any
 import datetime
-import tempfile
+import logging
 import os
+import tempfile
+from typing import Any
+
 import gcsfs
 
-from .query import QueryOperations
 from .maintenance import MaintenanceOperations
+from .query import QueryOperations
 
 logger = logging.getLogger(__name__)
+
 
 class CatalogExportImport:
     """Catalog Export and Import.
@@ -30,10 +32,24 @@ class CatalogExportImport:
         self.db_config: dict[str, str] | None = db_config
 
     def export_catalog(self, export_path: str | None = None) -> str:
-        """Export metadata catalog to GCS.
+        """Export the DuckLake metadata catalog to GCS as a DuckDB backup file.
 
+        Flushes and merges inlined data for every table in the catalog, then
+        copies all tables from the PostgreSQL-backed catalog schema into a
+        local DuckDB file, which is uploaded to GCS.
+
+        Args:
+            export_path: GCS path (without filename) to upload the backup to.
+                Defaults to ``"{data_path}/catalog-export"`` when not given.
+
+        Returns:
+            The full GCS path (including filename) of the exported backup file.
+
+        Raises:
+            RuntimeError: If ``db_config`` is not initialized.
+            Exception: If the export fails, the transaction is rolled back and
+                the original exception is re-raised.
         """
-  
         if self.db_config is None:
             raise RuntimeError("db_config is not initialized")
 
@@ -47,7 +63,7 @@ class CatalogExportImport:
         for table in tables:
             maintenance.flush_inlined_table(table)
             maintenance.merge_adjacent_files(table)
-         
+
         schema = f"{self.db_config['metadata_schema']}"
         db = f"{self.db_config['dbname']}"
         user = f"{self.db_config['dbuser']}"
@@ -55,15 +71,16 @@ class CatalogExportImport:
         pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file_name = f"{timestamp}_{schema}.duckdb"
-       
-        
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            backup_file = os.path.join(tmp_dir, backup_file_name)      
 
-            try:  
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            backup_file = os.path.join(tmp_dir, backup_file_name)
+
+            try:
                 self.conn.sql("BEGIN")
 
-                self.conn.sql(f"ATTACH 'postgres:{pg_connection_string}' AS catalog_db (READ_ONLY);")
+                self.conn.sql(
+                    f"ATTACH 'postgres:{pg_connection_string}' AS catalog_db (READ_ONLY);"
+                )
                 self.conn.sql(f"ATTACH 'duckdb:{backup_file}' AS backup;")
 
                 self.conn.sql(f"CREATE SCHEMA IF NOT EXISTS backup.{schema};")
@@ -85,19 +102,18 @@ class CatalogExportImport:
                 self.conn.sql("COMMIT")
 
                 self.conn.sql("DETACH catalog_db;")
-                self.conn.sql("DETACH backup;") 
-               
-                fs = gcsfs.GCSFileSystem()
-                fs.put(backup_file ,f"{export_path}/{backup_file_name}")
+                self.conn.sql("DETACH backup;")
 
-                print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")          
-                
+                fs = gcsfs.GCSFileSystem()
+                fs.put(backup_file, f"{export_path}/{backup_file_name}")
+
+                print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")
 
             except Exception:
                 try:
                     self.conn.sql("ROLLBACK")
                 except Exception:
                     pass  # transaction already rolled back by DuckDB
-                raise  
-        
+                raise
+
         return f"{data_path}/catalog-export/{backup_file_name}"
