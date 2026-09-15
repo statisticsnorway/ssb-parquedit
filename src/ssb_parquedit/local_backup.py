@@ -1,40 +1,42 @@
 """Local DuckDB connection backed by DuckDB and GCS."""
 
 import duckdb
-
-from .connection import DuckDBConnection
-
 import gcsfs
 
-class LocalBackupDuckDBConnection(DuckDBConnection):
-    """A real DuckDBConnection backed by DuckLake/DuckDB.
+from .connection import DuckDBConnection
+from .functions import create_config
 
-    Bypasses DuckDBConnection.__init__ to avoid  PostgreSQL
-    dependencies, using a local DuckDB-backup catalog .
-    """
+class LocalCatalogGCSDataConnection(DuckDBConnection):
+    """DuckDBConnection backed by a local DuckDB catalog file + GCS data."""
 
-    def __init__(self, data_path: str) -> None:
-        """Create a DuckLake connection backed by local DuckDB Backup at the given data_path.
-
-        Args:
-            data_path: GCS-directory for Parquet data files.
-        """
-   
+    def __init__(
+        self,
+        catalog_path: str,
+        catalog_name: str | None = None,
+             
+    ) -> None:
+        if catalog_name is None:
+            catalog_name = "restored_catalog"
+        
+        self.db_config =  create_config()
+        self.catalog_path = catalog_path
+        self.data_path = self.db_config["data_path"]
+        self.catalog_name = catalog_name
+        self.metadata_schema = self.db_config["metadata_schema"]
         self._conn = duckdb.connect()
-        fs = gcsfs.GCSFileSystem()
-        self._conn.register_filesystem(fs)     
-        self._conn.sql("INSTALL ducklake; LOAD ducklake;")   
 
-        #self._conn.sql(f"""
-        #    ATTACH 'ducklake:duckdb:database.duckdb' AS my_duckdb_backup
-        #    (DATA_PATH '{data_path}/data',
-        #     DATA_INLINING_ROW_LIMIT 300);
-        #    """) 
-        #        
+        print(self.db_config["data_path"])
+        print(self.db_config["metadata_schema"])
+        print(catalog_name)
+        print(catalog_path)
+
+        fs = gcsfs.GCSFileSystem()
+        self._conn.register_filesystem(fs)
+        self._conn.sql("INSTALL ducklake; LOAD ducklake;")
         
-        self._conn.sql("""
-            ATTACH 'ducklake:duckdb:database.duckdb' AS my_duckdb_backup
-            (DATA_PATH 'gs://ssb-dapla-ffunk-data-produkt-prod/.parquedit_data');
-            """)  
-        
-        self._conn.sql("USE my_duckdb_backup")
+        self._conn.sql(f"""
+            ATTACH 'ducklake:{self.catalog_path}' AS {self.catalog_name}
+            (DATA_PATH '{self.data_path}',
+             METADATA_SCHEMA '{self.metadata_schema}')
+        """)
+        self._conn.sql(f"USE {self.catalog_name}")

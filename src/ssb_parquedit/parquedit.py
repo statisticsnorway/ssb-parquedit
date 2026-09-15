@@ -138,10 +138,7 @@ class ParquEdit:
     def local_with_gcs_data(
         cls,
         catalog_path: str | Path,
-        data_path: str,
-        catalog_name: str = "restored_catalog",
-        metadata_schema: str = "team_dapla_ffunk",
-        read_only: bool = True,
+        catalog_name: str = "restored_catalog",        
     ) -> "ParquEdit":
         """Create a ParquEdit instance from a local DuckDB catalog file with GCS-hosted data.
 
@@ -177,17 +174,13 @@ class ParquEdit:
 
         conn = LocalCatalogGCSDataConnection(
             catalog_path=str(catalog_path),
-            data_path=data_path,
-            catalog_name=catalog_name,
-            metadata_schema=metadata_schema,
-           
+            catalog_name=catalog_name,                      
         )
         return cls.from_connection(
             conn,
             db_config={
                 "catalog_name": catalog_name,
-                "metadata_schema": metadata_schema,
-                "data_path": data_path,
+                
             },
         )
         
