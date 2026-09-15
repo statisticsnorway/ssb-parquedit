@@ -52,7 +52,7 @@ class CatalogExportImport:
         db = f"{self.db_config['dbname']}"
         user = f"{self.db_config['dbuser']}"
         data_path = f"{self.db_config['data_path']}"
-        pg_connection_string = f"dbname={db} user={user} host=localhost port=5433"
+        pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file_name = f"{timestamp}_{schema}.duckdb"
        
