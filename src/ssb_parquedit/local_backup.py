@@ -37,11 +37,6 @@ class LocalCatalogGCSDataConnection(DuckDBConnection):
         self.metadata_schema = self.db_config["metadata_schema"]
         self._conn = duckdb.connect()
 
-        print(self.db_config["data_path"])
-        print(self.db_config["metadata_schema"])
-        print(catalog_name)
-        print(catalog_path)
-
         fs = gcsfs.GCSFileSystem()
         self._conn.register_filesystem(fs)
         self._conn.sql("INSTALL ducklake; LOAD ducklake;")
