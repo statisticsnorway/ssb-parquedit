@@ -118,8 +118,23 @@ class CatalogExportImport:
 
         return f"{data_path}/catalog-export/{backup_file_name}"
 
-    def import_catalog(self, backup_file_path: str) -> str:
+    def import_catalog(self, backup_file_path: str) -> None:
+        """Import the DuckLake metadata catalog from a DuckDB backup file.
 
+        Attaches the PostgreSQL-backed catalog schema and the local DuckDB
+        backup file, then replaces the contents of every matching table in
+        the catalog by deleting its existing rows and inserting the
+        backed-up rows in their place.
+
+        Args:
+            backup_file_path: Path to the DuckDB backup file to restore from
+                (as produced by ``export_catalog``).
+
+        Raises:
+            RuntimeError: If ``db_config`` is not initialized.
+            Exception: If the import fails, the transaction is rolled back and
+                the original exception is re-raised.
+        """
         if self.db_config is None:
             raise RuntimeError("db_config is not initialized")
 
