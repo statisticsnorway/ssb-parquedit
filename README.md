@@ -48,9 +48,12 @@ Intended for single-table editing. Does not support primary- and foreign keys.
 - [Maintenance](#maintenance)
   - [Flush inlined data](#flush-inlined-data)
   - [Merge adjacent files](#merge-adjacent-files)
+  - [Export catalog](#export-catalog)
+  - [Import catalog](#import-catalog)
 - [Advanced](#advanced)
   - [Accessing the raw DuckDB connection](#accessing-the-raw-duckdb-connection)
   - [Setting up local connection](#setting-up-local-connection)
+  - [Restoring a local catalog backup with GCS data](#restoring-a-local-catalog-backup-with-gcs-data)
 - [Project structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
@@ -69,6 +72,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
 - **Count rows**
 - **Check table existence** safely
 - **Partition tables** by one or more columns
+- **Export/import catalog** back up the DuckLake metadata catalog to a DuckDB file on GCS and restore it later
 
 
 ---
@@ -344,6 +348,23 @@ Merge adjacent files compacts a table’s small Parquet files into fewer, larger
 con.merge_adjacent_files(table_name="my_table")
 ```
 
+### Export catalog
+`export_catalog()` backs up the DuckLake metadata catalog. It flushes and merges inlined data for every table, then copies all tables from the PostgreSQL-backed catalog schema into a DuckDB file, which is uploaded to GCS. Returns the full GCS path (including filename) of the exported backup file.
+```python
+# Export using the default path ({data_path}/catalog-export)
+backup_path = con.export_catalog()
+
+# Export to a custom GCS path
+backup_path = con.export_catalog(export_path="gs://bucket/backups")
+```
+
+### Import catalog
+`import_catalog()` restores the DuckLake metadata catalog from a backup file produced by `export_catalog()`. For every table found in the backup, existing rows in the catalog are deleted and replaced with the backed-up rows.
+```python
+# Restore the catalog from a backup file
+con.import_catalog(backup_file_path="gs://bucket/backups/20250101_120000_my_schema.duckdb")
+```
+
 ## Advanced
 
 ### Accessing the raw DuckDB connection
@@ -372,20 +393,31 @@ Create a ParquEdit instance backed by a persistent local SQLite catalog. Useful 
 con = ParquEdit().local(path="/home/onyxia/work/")
 ```
 
+### Restoring a local catalog backup with GCS data
+`ParquEdit.local_with_gcs_data()` attaches a local DuckDB catalog file (e.g. one produced by [`export_catalog()`](#export-catalog)) while the actual Parquet data still lives on GCS. Useful for inspecting or restoring from a DuckLake catalog backup without needing a live PostgreSQL connection.
+```python
+con = ParquEdit.local_with_gcs_data(
+    catalog_path="localcopy.duckdb",
+    catalog_name="restored_catalog",
+)
+```
+
 ---
 
 ## Project structure
 ```text
 src/ssb_parquedit/
-├── parquedit.py      # ParquEdit facade — main public API
-├── connection.py     # DuckDB + DuckLake catalog connection management
-├── ddl.py            # DDL operations (CREATE TABLE, partitioning)
-├── dml.py            # DML operations (INSERT, EDIT)
-├── query.py          # Query operations (SELECT, COUNT, EXISTS)
-├── maintenance.py    # Maintenance operations (flush inlined data, merge adjacent files)
-├── functions.py      # Environment helpers (Dapla config auto-detection)
-├── local.py          # Local DuckDB connection backed by SQLite (dev/testing)
-└── utils.py          # Schema utilities and SQL sanitization
+├── parquedit.py            # ParquEdit facade — main public API
+├── connection.py           # DuckDB + DuckLake catalog connection management
+├── ddl.py                  # DDL operations (CREATE TABLE, partitioning)
+├── dml.py                  # DML operations (INSERT, EDIT, DELETE)
+├── query.py                # Query operations (SELECT, COUNT, EXISTS)
+├── maintenance.py          # Maintenance operations (flush inlined data, merge adjacent files)
+├── catalogexportimport.py  # Catalog backup/restore (export/import to/from GCS)
+├── functions.py            # Environment helpers (Dapla config auto-detection)
+├── local.py                # Local DuckDB connection backed by SQLite (dev/testing)
+├── local_backup.py         # Local DuckDB catalog file + GCS-hosted data connection
+└── utils.py                # Schema utilities and SQL sanitization
 
 ```
 
