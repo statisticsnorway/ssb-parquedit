@@ -451,3 +451,18 @@ class ParquEdit:
         conn = self._get_connection()
         export = CatalogExportImport(conn, self._db_config)
         return export.export_catalog(export_path)
+
+    # ============ Import Catalog Operations ============
+
+    def import_catalog(self, backup_file_path: str) -> str:
+        """Import a DuckDB backup file from GCS to the metadata catalog in Postgres.
+
+        Args:
+            backup_file_path: GCS path (with filename) to the backup-file to be imported
+
+        Returns:
+            The full GCS path (including filename) of the exported backup file.
+        """
+        conn = self._get_connection()
+        import_catalog = CatalogExportImport(conn, self._db_config)
+        import_catalog.import_catalog(backup_file_path)

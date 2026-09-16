@@ -117,3 +117,50 @@ class CatalogExportImport:
                 raise
 
         return f"{data_path}/catalog-export/{backup_file_name}"
+
+    def import_catalog(self, backup_file_path: str) -> str:
+
+        if self.db_config is None:
+            raise RuntimeError("db_config is not initialized")
+
+        schema = f"{self.db_config['metadata_schema']}"
+        db = f"{self.db_config['dbname']}"
+        user = f"{self.db_config['dbuser']}"
+        pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
+
+        try:
+            self.conn.sql("BEGIN")
+
+            self.conn.sql(f"ATTACH 'postgres:{pg_connection_string}' AS restore_db;")
+            self.conn.sql(f"ATTACH 'duckdb:{backup_file_path}' AS from_backup;")
+
+            backup_tables = self.conn.sql("""
+                SELECT table_name
+                FROM duckdb_tables()
+                WHERE database_name = 'from_backup'
+            """).fetchall()
+
+            for (table_name,) in backup_tables:
+                print(f"Copying {schema}.{table_name} ...")
+
+                self.conn.sql(f"""
+                    DELETE FROM restore_db.{schema}.{table_name}
+                """)
+                self.conn.sql(f"""
+                    INSERT INTO restore_db.{schema}.{table_name}
+                    SELECT * FROM from_backup.{schema}.{table_name}
+                """)
+
+            print("Restore complete.")
+
+            self.conn.sql("COMMIT")
+
+            self.conn.sql("DETACH from_backup;")
+            self.conn.sql("DETACH restore_db;")
+
+        except Exception:
+            try:
+                self.conn.sql("ROLLBACK")
+            except Exception:
+                pass  # transaction already rolled back by DuckDB
+            raise
