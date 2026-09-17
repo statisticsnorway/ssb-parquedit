@@ -1,5 +1,6 @@
 """Unit tests for CatalogExportImport — mocks DuckDB/Postgres/GCS to test logic branches."""
 
+import os
 from unittest.mock import MagicMock
 from unittest.mock import call
 from unittest.mock import patch
@@ -70,7 +71,7 @@ class TestExportCatalogHappyPath:
         assert result.endswith("_my_schema.duckdb")
         fs.put.assert_called_once()
         local_path, remote_path = fs.put.call_args.args
-        assert remote_path == "gs://bucket/backups/" + local_path.split("/")[-1]
+        assert remote_path == "gs://bucket/backups/" + os.path.basename(local_path)
 
     def test_uses_data_path_as_default_export_path(self, mock_conn: MagicMock) -> None:
         mock_conn.sql.return_value.fetchall.return_value = []
