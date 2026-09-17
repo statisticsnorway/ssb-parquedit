@@ -327,10 +327,11 @@ class DMLOperations:
         """Delete one or more rows from a table matching a WHERE clause.
 
         Selects the rows to delete using the same ``where`` filter syntax as
-        ``QueryOperations.view()``, then deletes each matching row
-        individually by its ``rowid``. Every deleted row is logged as its own
-        changelog entry — the same mechanism used by ``edit()`` — so each
-        deletion remains individually visible via ``get_edits()``.
+        ``QueryOperations.view()``, then deletes all matching rows in a single
+        ``DELETE`` statement wrapped in one transaction. The whole batch is
+        logged as a single changelog entry — recording how many rows were
+        deleted and the ``user_defined_id`` of each — rather than one entry
+        per row.
 
         Args:
             table_name: The name of the table to delete rows from.
@@ -365,72 +366,38 @@ class DMLOperations:
         # get user_defined_id
         user_defined_id = tag_dict.get("user_defined_id")
 
-        # select the rowids to delete, using the same `where` filter as view()
-        matches = self.conn.execute(
-            f"SELECT rowid FROM {table_name} WHERE {where}"
-        ).df()
-
-        if matches.empty:
-            msg = f"No rows in table '{table_name}' match where clause: {where}"
-            logger.error(msg)
-            raise ValueError(msg)
-
-        for rowid in matches["rowid"].tolist():
-            self._delete_single_row(
-                table_name=table_name,
-                # Coerce numpy/pandas integer types (e.g. numpy.int64) to a
-                # native Python int — DuckDB's parameter binding can't handle
-                # numpy scalar types directly.
-                rowid=int(rowid),
-                change_event_reason=change_event_reason,
-                change_comment=change_comment,
-                dapla_user=dapla_user,
-                product_name=product_name,
-                user_defined_id=user_defined_id,
-            )
-
-    def _delete_single_row(
-        self,
-        table_name: str,
-        rowid: int,
-        change_event_reason: str,
-        change_comment: str,
-        dapla_user: str,
-        product_name: Any,
-        user_defined_id: Any,
-    ) -> None:
-        """Delete a single row by rowid, logging it as its own changelog entry."""
         try:
             self.conn.execute("BEGIN")
 
-            # get current row
-            row = self.conn.execute(
-                f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
+            # select the rows to delete, using the same `where` filter as view()
+            matches = self.conn.execute(
+                f"SELECT * FROM {table_name} WHERE {where}"
             ).df()
 
-            if row.empty:
-                msg = f"Row with rowid {rowid} not found in table '{table_name}'"
+            if matches.empty:
+                msg = f"No rows in table '{table_name}' match where clause: {where}"
                 logger.error(msg)
                 raise ValueError(msg)
 
-            # make dict with values of unique_id-cols from row
+            # make one dict of unique_id-values per deleted row
             assert user_defined_id is not None
-            unique_row = row[user_defined_id].iloc[0]
-            key_values = {
-                col: val.item() if hasattr(val, "item") else val
-                for col, val in zip(user_defined_id, unique_row, strict=True)
-            }
+            key_values = [
+                {
+                    col: val.item() if hasattr(val, "item") else val
+                    for col, val in zip(user_defined_id, row, strict=True)
+                }
+                for row in matches[user_defined_id].itertuples(index=False)
+            ]
 
-            # make dict with old values of every column in the deleted row
-            old_values = {
-                col: (
-                    row[col].iloc[0].item()
-                    if hasattr(row[col].iloc[0], "item")
-                    else row[col].iloc[0]
-                )
-                for col in row.columns
-                if col != "rowid"
-            }
+            # make one dict of full column values per deleted row
+            data_columns = [col for col in matches.columns if col != "rowid"]
+            old_values = [
+                {
+                    col: val.item() if hasattr(val, "item") else val
+                    for col, val in zip(data_columns, row, strict=True)
+                }
+                for row in matches[data_columns].itertuples(index=False)
+            ]
 
             extra_info = json.dumps(
                 {
@@ -438,7 +405,8 @@ class DMLOperations:
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
-                    "rowid": rowid,
+                    "where": where,
+                    "deleted_row_count": len(matches),
                     "user_defined_id": key_values,
                     "change_comment": change_comment,
                     "product_name": product_name,
@@ -447,10 +415,7 @@ class DMLOperations:
                 }
             )
 
-            self.conn.execute(
-                f"DELETE FROM {table_name} WHERE rowid = ?",
-                [rowid],
-            )
+            self.conn.execute(f"DELETE FROM {table_name} WHERE {where}")
 
             self.conn.execute(
                 "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]

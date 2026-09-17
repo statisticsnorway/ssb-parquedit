@@ -85,7 +85,7 @@ class TestDeleteRowHappyPath:
         result = cities_table.view("cities")
         assert result["name"].tolist() == ["Oslo"]
 
-    def test_logs_one_changelog_entry_per_deleted_row(
+    def test_logs_a_single_changelog_entry_for_the_whole_deletion(
         self, cities_table: ParquEdit
     ) -> None:
         cities_table.delete_row(
@@ -95,8 +95,9 @@ class TestDeleteRowHappyPath:
             change_comment="test",
         )
         edits = cities_table.get_edits("cities")
-        assert len(edits) == 2
-        assert set(edits["user_defined_id"].apply(lambda d: d["id"])) == {2, 3}
+        assert len(edits) == 1
+        assert edits["deleted_row_count"].iloc[0] == 2
+        assert {d["id"] for d in edits["user_defined_id"].iloc[0]} == {2, 3}
 
 
 # ── delete_row: validation ────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ class TestDeleteRowChangelog:
         )
         edits = cities_table.get_edits("cities")
         old_values = edits["old_values"].iloc[0]
-        assert old_values == {"id": 1, "name": "Oslo", "population": 700000}
+        assert old_values == [{"id": 1, "name": "Oslo", "population": 700000}]
 
     def test_change_type_is_delete(self, cities_table: ParquEdit) -> None:
         cities_table.delete_row(
@@ -200,7 +201,7 @@ class TestDeleteRowChangelog:
             change_comment="test",
         )
         edits = cities_table.get_edits("cities")
-        assert edits["user_defined_id"].iloc[0] == {"id": 1}
+        assert edits["user_defined_id"].iloc[0] == [{"id": 1}]
 
     def test_edit_still_reports_change_type_update(
         self, cities_table: ParquEdit

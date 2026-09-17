@@ -394,11 +394,11 @@ class ParquEdit:
         """Delete one or more rows from a table matching a WHERE clause.
 
         Selects the rows to delete using the same ``where`` filter syntax as
-        ``view()``, then deletes each matching row individually by its
-        ``rowid``. Every deleted row is logged as its own edit in the same way
-        as ``edit()``: the row's full set of column values is recorded as
-        ``old_values`` in the DuckLake snapshot's commit metadata, so each
-        deleted row remains individually visible via ``get_edits()``.
+        ``view()``, then deletes all matching rows in a single ``DELETE``
+        statement. The whole batch is logged as a single edit in the DuckLake
+        snapshot's commit metadata — recording the number of rows deleted and
+        each row's ``user_defined_id``/full column values as lists — rather
+        than one edit per deleted row.
 
         Args:
             table_name: The name of the table to delete rows from.
