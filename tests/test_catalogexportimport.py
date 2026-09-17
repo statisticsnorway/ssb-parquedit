@@ -296,7 +296,7 @@ class TestCatalogExportImport:
     def test_export_catalog_db_config_is_none(
         self, duck_mock_conn: DuckDBConnection
     ) -> None:
-        cei = CatalogExportImport(duck_mock_conn, None)
+        cei = CatalogExportImport(duck_mock_conn, None)  # type: ignore[arg-type]
         with pytest.raises(RuntimeError, match="db_config is not initialized"):
             cei.export_catalog()
 
@@ -313,7 +313,7 @@ class TestCatalogExportImport:
         time = mock_time.now()
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        mock_time.now.strftime.return_value = timestamp
+        mock_time.now.strftime.return_value = timestamp  # type: ignore[attr-defined]
         schema = f"{db_config['metadata_schema']}"
         expected_output = (
             f"{db_config['data_path']}/catalog-export/{timestamp}_{schema}.duckdb"
@@ -322,7 +322,11 @@ class TestCatalogExportImport:
         out = cei.export_catalog()
         assert out == expected_output
 
-    def test_export_catalog_missing_bucket(self, duck_mock_conn: DuckDBConnection):
+    @patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem")
+    def test_export_catalog_missing_bucket(
+        self, mock_gcsfs_cls: gcsfs.GCSFileSystem, duck_mock_conn: DuckDBConnection
+    ) -> None:
+        mock_gcsfs_cls.return_value.put.side_effect = HttpError({"code": 404})
         db_config = MagicMock()
         cei = CatalogExportImport(duck_mock_conn, db_config)
         with pytest.raises(HttpError):
@@ -331,7 +335,7 @@ class TestCatalogExportImport:
     @patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem")
     def test_export_catalog_no_connection(
         self, _mock_gcsfs: gcsfs.GCSFileSystem, closed_conn: LocalDuckDBConnection
-    ):
+    ) -> None:
         db_config = MagicMock()
         cei = CatalogExportImport(closed_conn, db_config)
         with pytest.raises(RuntimeError):
