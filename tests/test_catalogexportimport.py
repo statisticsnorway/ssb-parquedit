@@ -285,7 +285,7 @@ def duck_mock_conn() -> MagicMock:
     return conn
 
 
-@pytest.fixture()
+@pytest.fixture
 def closed_conn(conn: LocalDuckDBConnection) -> LocalDuckDBConnection:
     """A connection that has already been closed."""
     conn.close()
