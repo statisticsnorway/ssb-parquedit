@@ -96,8 +96,8 @@ class TestDeleteRowHappyPath:
         )
         edits = cities_table.get_edits("cities")
         assert len(edits) == 1
-        assert edits["deleted_row_count"].iloc[0] == 2
-        assert {d["id"] for d in edits["user_defined_id"].iloc[0]} == {2, 3}
+        assert edits["affected_rows"].iloc[0] == 2
+        assert edits["user_defined_id"].iloc[0] is None
 
 
 # ── delete_row: validation ────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ class TestDeleteRowChangelog:
         edits = cities_table.get_edits("cities")
         assert edits["new_values"].iloc[0] is None
 
-    def test_old_values_contains_full_row(self, cities_table: ParquEdit) -> None:
+    def test_old_values_is_none(self, cities_table: ParquEdit) -> None:
         cities_table.delete_row(
             "cities",
             where="rowid = 0",
@@ -180,8 +180,7 @@ class TestDeleteRowChangelog:
             change_comment="test",
         )
         edits = cities_table.get_edits("cities")
-        old_values = edits["old_values"].iloc[0]
-        assert old_values == [{"id": 1, "name": "Oslo", "population": 700000}]
+        assert edits["old_values"].iloc[0] is None
 
     def test_change_type_is_delete(self, cities_table: ParquEdit) -> None:
         cities_table.delete_row(
@@ -193,7 +192,7 @@ class TestDeleteRowChangelog:
         edits = cities_table.get_edits("cities")
         assert edits["change_type"].iloc[0] == "DELETE"
 
-    def test_user_defined_id_is_recorded(self, cities_table: ParquEdit) -> None:
+    def test_user_defined_id_is_none(self, cities_table: ParquEdit) -> None:
         cities_table.delete_row(
             "cities",
             where="rowid = 0",
@@ -201,7 +200,7 @@ class TestDeleteRowChangelog:
             change_comment="test",
         )
         edits = cities_table.get_edits("cities")
-        assert edits["user_defined_id"].iloc[0] == [{"id": 1}]
+        assert edits["user_defined_id"].iloc[0] is None
 
     def test_edit_still_reports_change_type_update(
         self, cities_table: ParquEdit

@@ -282,6 +282,7 @@ class DMLOperations:
                     "changed_by": dapla_user,
                     "table_name": table_name,
                     "rowid": rowid,
+                    "affected_rows": 1,
                     "user_defined_id": key_values,
                     "change_comment": change_comment,
                     "product_name": product_name,
@@ -371,7 +372,7 @@ class DMLOperations:
 
             # select the rows to delete, using the same `where` filter as view()
             matches = self.conn.execute(
-                f"SELECT * FROM {table_name} WHERE {where}"
+                f"SELECT rowid FROM {table_name} WHERE {where}"
             ).df()
 
             if matches.empty:
@@ -379,38 +380,19 @@ class DMLOperations:
                 logger.error(msg)
                 raise ValueError(msg)
 
-            # make one dict of unique_id-values per deleted row
-            assert user_defined_id is not None
-            key_values = [
-                {
-                    col: val.item() if hasattr(val, "item") else val
-                    for col, val in zip(user_defined_id, row, strict=True)
-                }
-                for row in matches[user_defined_id].itertuples(index=False)
-            ]
-
-            # make one dict of full column values per deleted row
-            data_columns = [col for col in matches.columns if col != "rowid"]
-            old_values = [
-                {
-                    col: val.item() if hasattr(val, "item") else val
-                    for col, val in zip(data_columns, row, strict=True)
-                }
-                for row in matches[data_columns].itertuples(index=False)
-            ]
-
+            
             extra_info = json.dumps(
                 {
                     "change_type": "DELETE",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
-                    "where": where,
-                    "deleted_row_count": len(matches),
-                    "user_defined_id": key_values,
+                    "where_clause": where,
+                    "affected_rows": len(matches),
+                    "user_defined_id": None,
                     "change_comment": change_comment,
                     "product_name": product_name,
-                    "old_values": old_values,
+                    "old_values": None,
                     "new_values": None,
                 }
             )
