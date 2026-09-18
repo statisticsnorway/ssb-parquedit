@@ -238,7 +238,7 @@ con.edit(
 
 
 ### Deleting rows
-`delete_row()` selects rows with a `where` clause — the same syntax as `view()` — and deletes each matching row individually by its `rowid`. Every deleted row is logged as its own entry in the changelog, so each deletion remains visible via `get_edits()`.
+`delete_row()` selects rows with a `where` clause — the same syntax as `view()` — and deletes all matching rows. Deletions of multiple rows are logged as one entry in the changelog `get_edits()`- The where-clause used and number of affected rows are logged.
 ```python
 # Delete a single row by its rowid
 con.delete_row(
@@ -331,15 +331,18 @@ The returned DataFrame includes these changelog columns:
 
 | Column | Description |
 |---|---|
-| `change_type` | Type of change (`UPDATE` or `DELETE`) |
+| `snapshot_time` | Timestamp of the edit |
 | `changed_by` | User who made the edit |
 | `change_event_reason` | Reason code (e.g. `REVIEW`, `OWNER`) |
 | `change_comment` | Free-text comment from the editor |
 | `table_name` | Table the edit was made on |
-| `rowid` | Internal row identifier |
-| `user_defined_id` | Business key values identifying the row |
-| `old_values` | Dict of column → old value for changed/deleted columns |
+| `rowid` | Internal row identifier (`NaN` for deletions)|
+| `user_defined_id` | Business key values identifying the row (`None` for deletions) |
+| `old_values` | Dict of column → old value for changed columns (`None` for deletions) |
 | `new_values` | Dict of column → new value for changed columns (`None` for deletions) |
+| `where_clause` | Where-clause used on deletions (`None` for updates) |
+| `change_type` | Type of change (`UPDATE` or `DELETE`) |
+| `affected_rows` | Number of rows updated or deleted |
 | `product_name` | Product name the table belongs to |
 
 ### Drop table
@@ -419,12 +422,9 @@ con = ParquEdit().local(path="/home/onyxia/work/")
 ```
 
 ### Restoring a local catalog backup with GCS data
-`ParquEdit.local_with_gcs_data()` attaches a local DuckDB catalog file (e.g. one produced by [`export_catalog()`](#export-catalog)) while the actual Parquet data still lives on GCS. Useful for inspecting or restoring from a DuckLake catalog backup without needing a live PostgreSQL connection.
+`ParquEdit.local_with_gcs_data()` attaches a local DuckDB catalog file (e.g. one produced by [`export_catalog()`](#export-catalog)) while the actual Parquet data still lives on GCS. Useful for inspecting or restoring from a DuckLake catalog backup without needing a live PostgreSQL connection. Must be used in DaplaLab to get access to GCS-buckets.
 ```python
-con = ParquEdit.local_with_gcs_data(
-    catalog_path="localcopy.duckdb",
-    catalog_name="restored_catalog",
-)
+con = ParquEdit.local_with_gcs_data(catalog_path="localcopy.duckdb")
 ```
 
 ---

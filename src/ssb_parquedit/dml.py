@@ -344,6 +344,8 @@ class DMLOperations:
         Raises:
             ValueError: If change_event_reason is not a valid update cause, or
                 if no rows match the given where clause.
+            Exception: Re-raised if the delete transaction fails for any other
+                reason, after rolling back.
         """
         # validate cause — specific to update/delete
         if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
@@ -364,9 +366,6 @@ class DMLOperations:
             return
         product_name = tag_dict.get("product_name")
 
-        # get user_defined_id
-        user_defined_id = tag_dict.get("user_defined_id")
-
         try:
             self.conn.execute("BEGIN")
 
@@ -380,7 +379,6 @@ class DMLOperations:
                 logger.error(msg)
                 raise ValueError(msg)
 
-            
             extra_info = json.dumps(
                 {
                     "change_type": "DELETE",
