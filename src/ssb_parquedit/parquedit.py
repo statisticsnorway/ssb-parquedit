@@ -8,6 +8,8 @@ from typing import Any
 import pandas as pd
 import polars as pl
 
+from ssb_parquedit.catalogexportimport import CatalogExportImport
+
 from .connection import DuckDBConnection
 from .ddl import DDLOperations
 from .dml import DMLOperations
@@ -129,6 +131,49 @@ class ParquEdit:
                 "catalog_name": "test_catalog",
                 "metadata_schema": "main",
                 "data_path": "",
+            },
+        )
+
+    @classmethod
+    def local_with_gcs_data(
+        cls,
+        catalog_path: str | Path,
+        catalog_name: str = "restored_catalog",
+    ) -> "ParquEdit":
+        """Create a ParquEdit instance from a local DuckDB catalog file with GCS-hosted data.
+
+        Useful for inspecting or restoring from a DuckLake catalog export/backup
+        (a ``.duckdb`` file) while the actual Parquet data lives on GCS.
+
+        Args:
+            catalog_path: Path to the local DuckDB catalog file
+                (e.g. an exported/backed-up ``.duckdb`` catalog).
+
+            catalog_name: Name to attach the catalog under.
+                Defaults to ``"restored_catalog"``.
+
+
+        Returns:
+            ParquEdit: An instance backed by the local catalog and GCS data.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> pe = ParquEdit.from_local_catalog_gcs_data(
+            ...     "localcopy.duckdb",
+            ... )
+            >>> pe.view("some_table")
+            >>> pe.close()
+        """
+        from .local_backup import LocalCatalogGCSDataConnection
+
+        conn = LocalCatalogGCSDataConnection(
+            catalog_path=str(catalog_path),
+            catalog_name=catalog_name,
+        )
+        return cls.from_connection(
+            conn,
+            db_config={
+                "catalog_name": catalog_name,
             },
         )
 
@@ -390,3 +435,31 @@ class ParquEdit:
         conn = self._get_connection()
         maintenance = MaintenanceOperations(conn, self._db_config)
         maintenance.merge_adjacent_files(table_name)
+
+    # ============ Export Catalog Operations ============
+
+    def export_catalog(self, export_path: str | None = None) -> str:
+        """Export the DuckLake metadata catalog to GCS as a DuckDB backup file.
+
+        Args:
+            export_path: GCS path (without filename) to upload the backup to.
+                Defaults to ``"{data_path}/catalog-export"`` when not given.
+
+        Returns:
+            The full GCS path (including filename) of the exported backup file.
+        """
+        conn = self._get_connection()
+        export = CatalogExportImport(conn, self._db_config)
+        return export.export_catalog(export_path)
+
+    # ============ Import Catalog Operations ============
+
+    def import_catalog(self, backup_file_path: str) -> None:
+        """Import a DuckDB backup file from GCS to the metadata catalog in Postgres.
+
+        Args:
+            backup_file_path: GCS path (with filename) to the backup-file to be imported
+        """
+        conn = self._get_connection()
+        import_catalog = CatalogExportImport(conn, self._db_config)
+        import_catalog.import_catalog(backup_file_path)
