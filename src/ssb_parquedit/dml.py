@@ -277,10 +277,12 @@ class DMLOperations:
 
             extra_info = json.dumps(
                 {
+                    "change_type": "UPDATE",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
                     "rowid": rowid,
+                    "affected_rows": 1,
                     "user_defined_id": key_values,
                     "change_comment": change_comment,
                     "product_name": product_name,
@@ -297,6 +299,103 @@ class DMLOperations:
             """,
                 values,
             )
+
+            self.conn.execute(
+                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+            )
+
+            self.conn.execute("COMMIT")
+
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaction already rolled back by DuckDB
+            raise
+
+    @retry(
+        stop=stop_after_attempt(max_attempt_number=10),
+        wait=wait_random(min=1, max=3),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
+    )
+    def delete_row(
+        self,
+        table_name: str,
+        where: str,
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Delete one or more rows from a table matching a WHERE clause.
+
+        Selects the rows to delete using the same ``where`` filter syntax as
+        ``QueryOperations.view()``, then deletes all matching rows in a single
+        ``DELETE`` statement wrapped in one transaction. The whole batch is
+        logged as a single changelog entry — recording how many rows were
+        deleted and the ``user_defined_id`` of each — rather than one entry
+        per row.
+
+        Args:
+            table_name: The name of the table to delete rows from.
+            where: SQL WHERE clause (without the WHERE keyword) selecting the
+                rows to delete, e.g. "population < 100000" or "id IN (1, 2)".
+            change_event_reason: A reason code describing the type of change. Must be one of the valid update causes defined in VALID_UPDATE_CAUSES.
+            change_comment: A human-readable comment describing the change.
+
+        Raises:
+            ValueError: If change_event_reason is not a valid update cause, or
+                if no rows match the given where clause.
+            Exception: Re-raised if the delete transaction fails for any other
+                reason, after rolling back.
+        """
+        # validate cause — specific to update/delete
+        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
+            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        # validate table exists — shared
+        self._validate_table_and_columns(table_name, {})
+
+        dapla_user = get_dapla_user()
+
+        query = QueryOperations(self.conn, self.db_config)
+
+        # get product_name
+        tag_dict = query._get_tag_info(table_name)
+        if tag_dict is None:
+            return
+        product_name = tag_dict.get("product_name")
+
+        try:
+            self.conn.execute("BEGIN")
+
+            # select the rows to delete, using the same `where` filter as view()
+            matches = self.conn.execute(
+                f"SELECT rowid FROM {table_name} WHERE {where}"
+            ).df()
+
+            if matches.empty:
+                msg = f"No rows in table '{table_name}' match where clause: {where}"
+                logger.error(msg)
+                raise ValueError(msg)
+
+            extra_info = json.dumps(
+                {
+                    "change_type": "DELETE",
+                    "change_event_reason": change_event_reason,
+                    "changed_by": dapla_user,
+                    "table_name": table_name,
+                    "where_clause": where,
+                    "affected_rows": len(matches),
+                    "user_defined_id": None,
+                    "change_comment": change_comment,
+                    "product_name": product_name,
+                    "old_values": None,
+                    "new_values": None,
+                }
+            )
+
+            self.conn.execute(f"DELETE FROM {table_name} WHERE {where}")
 
             self.conn.execute(
                 "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]

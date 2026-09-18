@@ -9,6 +9,7 @@ import polars as pl
 import pytest
 
 from ssb_parquedit.local import LocalDuckDBConnection
+from ssb_parquedit.parquedit import ParquEdit
 
 
 @pytest.fixture
@@ -25,6 +26,12 @@ def conn(tmp_storage: str) -> Generator[LocalDuckDBConnection]:
     c = LocalDuckDBConnection(data_path=tmp_storage)
     yield c
     c.close()
+
+
+@pytest.fixture
+def pe(conn: LocalDuckDBConnection) -> ParquEdit:
+    """ParquEdit instance backed by a real local connection."""
+    return ParquEdit.from_connection(conn)
 
 
 @pytest.fixture
