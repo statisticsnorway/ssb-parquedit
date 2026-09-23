@@ -58,19 +58,19 @@ class CatalogExportImport:
 
         query = QueryOperations(self.conn, self.db_config)
         maintenance = MaintenanceOperations(self.conn, self.db_config)
-        tables = query.list_tables()
+        user_tables = query.list_tables()
 
-        for table in tables:
+        for table in user_tables:
             maintenance.flush_inlined_table(table)
             maintenance.merge_adjacent_files(table)
 
         schema = f"{self.db_config['metadata_schema']}"
         db = f"{self.db_config['dbname']}"
         user = f"{self.db_config['dbuser']}"
-        data_path = f"{self.db_config['data_path']}"
         pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file_name = f"{timestamp}_{schema}.duckdb"
+        remote_path = f"{export_path}/{backup_file_name}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             backup_file = os.path.join(tmp_dir, backup_file_name)
@@ -85,13 +85,13 @@ class CatalogExportImport:
 
                 self.conn.sql(f"CREATE SCHEMA IF NOT EXISTS backup.{schema};")
 
-                tables = self.conn.sql(f"""
+                meta_db_tables = self.conn.sql(f"""
                     SELECT table_name
                     FROM catalog_db.information_schema.tables
                     WHERE table_schema = '{schema}'
                 """).fetchall()
 
-                for (table_name,) in tables:
+                for (table_name,) in meta_db_tables:
                     print(f"Copying {schema}.{table_name} ...")
                     self.conn.sql(f"""
                         CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
@@ -105,9 +105,9 @@ class CatalogExportImport:
                 self.conn.sql("DETACH backup;")
 
                 fs = gcsfs.GCSFileSystem()
-                fs.put(backup_file, f"{export_path}/{backup_file_name}")
+                fs.put(backup_file, remote_path)
 
-                print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")
+                print(f"Exported to: {remote_path}")
 
             except Exception:
                 try:
@@ -116,7 +116,7 @@ class CatalogExportImport:
                     pass  # transaction already rolled back by DuckDB
                 raise
 
-        return f"{data_path}/catalog-export/{backup_file_name}"
+        return remote_path
 
     def import_catalog(self, backup_file_path: str) -> None:
         """Import the DuckLake metadata catalog from a DuckDB backup file.
