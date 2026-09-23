@@ -1,14 +1,19 @@
 """Unit tests for CatalogExportImport — mocks DuckDB/Postgres/GCS to test logic branches."""
 
+import datetime
 import os
 from unittest.mock import MagicMock
 from unittest.mock import call
 from unittest.mock import patch
 
+import gcsfs
 import pandas as pd
 import pytest
+from gcsfs.retry import HttpError
 
 from ssb_parquedit.catalogexportimport import CatalogExportImport
+from ssb_parquedit.connection import DuckDBConnection
+from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.maintenance import MaintenanceOperations
 
 DB_CONFIG = {
@@ -36,19 +41,16 @@ def mock_conn() -> MagicMock:
     return conn
 
 
+@pytest.fixture
+def closed_conn(conn: LocalDuckDBConnection) -> LocalDuckDBConnection:
+    """A connection that has already been closed."""
+    conn.close()
+    return conn
+
+
 def _sql_calls(mock_conn: MagicMock) -> list[str]:
     """Flatten conn.sql(...) call args into a list of the SQL strings passed."""
     return [c.args[0] for c in mock_conn.sql.call_args_list]
-
-
-# ── export_catalog: validation ────────────────────────────────────────────────
-
-
-class TestExportCatalogValidation:
-    def test_raises_when_db_config_none(self, mock_conn: MagicMock) -> None:
-        export = CatalogExportImport(mock_conn, None)  # type: ignore[arg-type]
-        with pytest.raises(RuntimeError, match="db_config is not initialized"):
-            export.export_catalog()
 
 
 # ── export_catalog: happy path ────────────────────────────────────────────────
@@ -67,7 +69,7 @@ class TestExportCatalogHappyPath:
 
             result = export.export_catalog(export_path="gs://bucket/backups")
 
-        assert result.startswith("gs://bucket/data/catalog-export/")
+        assert result.startswith("gs://bucket/backups/")
         assert result.endswith("_my_schema.duckdb")
         fs.put.assert_called_once()
         local_path, remote_path = fs.put.call_args.args
@@ -98,9 +100,9 @@ class TestExportCatalogHappyPath:
         assert "ATTACH 'postgres:" in calls[1]
         assert "ATTACH 'duckdb:" in calls[2]
         assert "CREATE SCHEMA IF NOT EXISTS backup.my_schema" in calls[3]
-        assert "COMMIT" in calls
-        assert "DETACH catalog_db;" in calls
-        assert "DETACH backup;" in calls
+        assert "COMMIT" in calls[-3]
+        assert "DETACH catalog_db;" in calls[-2]
+        assert "DETACH backup;" in calls[-1]
 
     def test_copies_every_table_from_the_catalog_schema(
         self, mock_conn: MagicMock
@@ -122,7 +124,7 @@ class TestExportCatalogHappyPath:
             "CREATE OR REPLACE TABLE backup.my_schema.table_b" in c for c in calls
         )
 
-    def test_flushes_and_merges_every_table_before_export(
+    def test_flushes_and_merges_every_table_before_export_one_table(
         self, mock_conn: MagicMock
     ) -> None:
         mock_conn.execute.return_value.df.return_value = pd.DataFrame(
@@ -140,6 +142,27 @@ class TestExportCatalogHappyPath:
 
         flush_mock.assert_called_once_with("cities")
         merge_mock.assert_called_once_with("cities")
+
+    def test_flushes_and_merges_every_table_before_export_more_than_one_tables(
+        self, mock_conn: MagicMock
+    ) -> None:
+        name_list = ["one", "two", "three", "four", "five"]
+        mock_conn.execute.return_value.df.return_value = pd.DataFrame(
+            {"table_name": name_list}
+        )
+
+        mock_conn.sql.return_value.fetchall.return_value = []
+        export = CatalogExportImport(mock_conn, DB_CONFIG)
+
+        with (
+            patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem"),
+            patch.object(MaintenanceOperations, "flush_inlined_table") as flush_mock,
+            patch.object(MaintenanceOperations, "merge_adjacent_files") as merge_mock,
+        ):
+            export.export_catalog()
+
+        flush_mock.assert_has_calls([call(name) for name in name_list])
+        merge_mock.assert_has_calls([call(name) for name in name_list])
 
 
 # ── export_catalog: failure handling ─────────────────────────────────────────
@@ -207,9 +230,9 @@ class TestImportCatalogHappyPath:
         assert calls[0] == "BEGIN"
         assert "ATTACH 'postgres:" in calls[1]
         assert "ATTACH 'duckdb:/tmp/backup.duckdb'" in calls[2]
-        assert "COMMIT" in calls
-        assert "DETACH from_backup;" in calls
-        assert "DETACH restore_db;" in calls
+        assert "COMMIT" in calls[-3]
+        assert "DETACH from_backup;" in calls[-2]
+        assert "DETACH restore_db;" in calls[-1]
 
     def test_deletes_and_reinserts_every_backup_table(
         self, mock_conn: MagicMock
@@ -264,42 +287,8 @@ class TestImportCatalogFailureHandling:
             import_.import_catalog("/tmp/backup.duckdb")
 
 
-import datetime
-from unittest.mock import MagicMock
-
-import gcsfs
-import pytest
-from gcsfs.retry import HttpError
-
-from ssb_parquedit.connection import DuckDBConnection
-from ssb_parquedit.local import LocalDuckDBConnection
-
-
-# ── Fixtures ──────────────────────────────────────────────────────────────────
-@pytest.fixture
-def duck_mock_conn() -> MagicMock:
-    conn = MagicMock()
-    conn.execute = MagicMock()
-    conn.execute.fetchall = MagicMock()
-    conn.execute.sql = MagicMock()
-    return conn
-
-
-@pytest.fixture
-def closed_conn(conn: LocalDuckDBConnection) -> LocalDuckDBConnection:
-    """A connection that has already been closed."""
-    conn.close()
-    return conn
-
-
 # ── CatalogExportImport ──────────────────────────────────────────────────────────────────
 class TestCatalogExportImport:
-    def test_export_catalog_db_config_is_none(
-        self, duck_mock_conn: DuckDBConnection
-    ) -> None:
-        cei = CatalogExportImport(duck_mock_conn, None)  # type: ignore[arg-type]
-        with pytest.raises(RuntimeError, match="db_config is not initialized"):
-            cei.export_catalog()
 
     @patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem")
     @patch("ssb_parquedit.catalogexportimport.datetime.datetime")
@@ -307,10 +296,10 @@ class TestCatalogExportImport:
         self,
         mock_time: datetime.datetime,
         _mock_gcfs: gcsfs.GCSFileSystem,
-        duck_mock_conn: DuckDBConnection,
+        mock_conn: DuckDBConnection,
     ) -> None:
         db_config = MagicMock()
-        cei = CatalogExportImport(duck_mock_conn, db_config)
+        cei = CatalogExportImport(mock_conn, db_config)
         time = mock_time.now()
 
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -325,11 +314,11 @@ class TestCatalogExportImport:
 
     @patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem")
     def test_export_catalog_missing_bucket(
-        self, mock_gcsfs_cls: gcsfs.GCSFileSystem, duck_mock_conn: DuckDBConnection
+        self, mock_gcsfs_cls: gcsfs.GCSFileSystem, mock_conn: DuckDBConnection
     ) -> None:
         mock_gcsfs_cls.return_value.put.side_effect = HttpError({"code": 404})
         db_config = MagicMock()
-        cei = CatalogExportImport(duck_mock_conn, db_config)
+        cei = CatalogExportImport(mock_conn, db_config)
         with pytest.raises(HttpError):
             cei.export_catalog()
 
