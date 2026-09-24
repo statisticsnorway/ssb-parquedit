@@ -129,12 +129,16 @@ class ParquEditGUI:
         self._suppress_autoload = False
         self._where: str | None = None
         self._match_count = 0
+        self._loaded_count = 0
         self._pending_delete_where: str | None = None
+        self._count_cache: dict[str, int] = {}
+        self._uid_cols: list[str] = []
 
         self._build_widgets()
         self._refresh_tables()
         if self.table_dropdown.value:
             self._update_table_info(self.table_dropdown.value)
+            self._populate_columns(self.table_dropdown.value)
         if load_on_start and self.table_dropdown.value:
             self._on_load()
 
@@ -187,7 +191,23 @@ class ParquEditGUI:
             indent=False,
             layout=widgets.Layout(width="150px"),
         )
+        self.columns_select = widgets.SelectMultiple(
+            description="Columns:",
+            options=[],
+            rows=5,
+            layout=widgets.Layout(width="320px"),
+        )
+        self.columns_hint = widgets.HTML(
+            "<span style='color:#777;font-size:90%'>Select a subset to load fewer "
+            "columns (faster). None selected = all columns. "
+            "Key columns are always included.</span>"
+        )
         self.result_info_html = widgets.HTML()
+        self.count_matches_btn = widgets.Button(
+            description="Count matches",
+            icon="calculator",
+            layout=widgets.Layout(width="160px", display="none"),
+        )
 
         self.reason_dropdown = widgets.Dropdown(
             description="Reason:",
@@ -267,6 +287,7 @@ class ParquEditGUI:
         self.confirm_yes_btn.on_click(self._on_confirm_delete_all)
         self.confirm_cancel_btn.on_click(self._on_cancel_delete_all)
         self.show_log_btn.on_click(self._on_show_log)
+        self.count_matches_btn.on_click(self._on_count_matches)
         self.select_all_chk.observe(self._on_select_all, names="value")
         self.table_dropdown.observe(self._on_table_change, names="value")
 
@@ -278,7 +299,14 @@ class ParquEditGUI:
                 widgets.HBox(
                     [self.where_text, self.limit_int, self.sort_chk, self.load_btn]
                 ),
-                self.result_info_html,
+                widgets.HBox(
+                    [self.columns_select, self.columns_hint],
+                    layout=widgets.Layout(align_items="center"),
+                ),
+                widgets.HBox(
+                    [self.result_info_html, self.count_matches_btn],
+                    layout=widgets.Layout(align_items="center"),
+                ),
                 widgets.HTML("<hr>"),
                 widgets.HBox([self.reason_dropdown, self.comment_text]),
                 widgets.HBox(
@@ -515,6 +543,50 @@ class ParquEditGUI:
         finally:
             self._suppress_autoload = False
 
+    def _populate_columns(self, table: str) -> None:
+        """Populate the column picker with the table's columns.
+
+        Uses a ``LIMIT 0`` query (metadata only, no data scan) to read the
+        column names, and always keeps the ``user_defined_id`` key columns so
+        they can still be frozen when a subset is loaded.
+
+        Args:
+            table: The table whose columns should be listed.
+        """
+        from .query import QueryOperations
+
+        try:
+            df0 = self.con.view(table_name=table, limit=0)
+            cols = [c for c in df0.columns if c != ROWID_COLUMN]
+        except Exception:
+            cols = []
+        try:
+            info = QueryOperations(self.con._get_connection())._get_tag_info(table)
+            uid = (info or {}).get("user_defined_id") or []
+            self._uid_cols = [c for c in uid if c in cols]
+        except Exception:
+            self._uid_cols = []
+        self.columns_select.options = cols
+        self.columns_select.value = ()
+
+    def _selected_columns(self) -> list[str] | None:
+        """Return the columns to load, or ``None`` for all columns.
+
+        Key (``user_defined_id``) columns are always included so the frozen
+        panel stays meaningful even when a subset is picked.
+
+        Returns:
+            The ordered column list to request, or ``None`` to select all.
+        """
+        picked = list(self.columns_select.value)
+        if not picked:
+            return None
+        columns = list(self._uid_cols)
+        for col in picked:
+            if col not in columns:
+                columns.append(col)
+        return columns
+
     def _update_table_info(self, table: str) -> int | None:
         """Show the row count, ``user_defined_id`` and product for the table.
 
@@ -532,7 +604,12 @@ class ParquEditGUI:
             info = None
 
         try:
-            n_rows: int | None = self.con.count(table_name=table)
+            cached = self._count_cache.get(table)
+            if cached is not None:
+                n_rows: int | None = cached
+            else:
+                n_rows = self.con.count(table_name=table)
+                self._count_cache[table] = n_rows
             rows_str = f"{n_rows:,}"
         except Exception:
             n_rows = None
@@ -560,6 +637,7 @@ class ParquEditGUI:
         """
         if self._suppress_autoload or not self.table_dropdown.value:
             return
+        self._populate_columns(self.table_dropdown.value)
         self.where_text.value = ""
         self._on_load()
 
@@ -575,55 +653,114 @@ class ParquEditGUI:
         limit = self.limit_int.value
         # Sorting forces a full sort before LIMIT; skip it unless requested.
         order_by = ROWID_COLUMN if self.sort_chk.value else None
+        columns = self._selected_columns()
         try:
             with self._busy(f"Loading '{table}'…"):
                 total = self._update_table_info(table)
-                # Reuse the total count when there is no filter to avoid a
-                # second full-table COUNT.
-                if where is None and total is not None:
-                    match_count = total
+                if where is None:
+                    # No filter: reuse the (cached) total; fetch exactly `limit`.
+                    df = self.con.view(
+                        table_name=table,
+                        where=where,
+                        limit=limit,
+                        columns=columns,
+                        order_by=order_by,
+                    )
+                    if total is not None:
+                        truncated = total > len(df)
+                    else:
+                        truncated = len(df) == limit
+                    match_count: int | None = total
                 else:
-                    match_count = self.con.count(table_name=table, where=where)
-                df = self.con.view(
-                    table_name=table,
-                    where=where,
-                    limit=limit,
-                    order_by=order_by,
-                )
+                    # Filter: fetch one extra row to detect truncation without a
+                    # full COUNT scan. The exact count is computed on demand.
+                    df = self.con.view(
+                        table_name=table,
+                        where=where,
+                        limit=limit + 1,
+                        columns=columns,
+                        order_by=order_by,
+                    )
+                    truncated = len(df) > limit
+                    if truncated:
+                        df = df.head(limit)
+                        match_count = None
+                    else:
+                        match_count = len(df)
         except Exception as exc:
             self._log(f"Load failed: {exc}", error=True)
             return
         self._where = where
-        self._match_count = match_count
+        self._match_count = match_count if match_count is not None else 0
+        self._loaded_count = len(df)
         self._render_grid(df)
-        self._update_result_info(where, match_count, len(df), limit)
+        self._update_result_info(where, match_count, len(df), limit, truncated)
         self._log(f"Loaded {len(df)} row(s) from '{table}'.")
 
     def _update_result_info(
-        self, where: str | None, match_count: int, loaded: int, limit: int
+        self,
+        where: str | None,
+        match_count: int | None,
+        loaded: int,
+        limit: int,
+        truncated: bool,
     ) -> None:
         """Show how many rows the WHERE filter matches vs how many are loaded.
 
         Args:
             where: The WHERE clause used (``None`` when no filter).
-            match_count: Total rows matching the filter (ignoring the limit).
+            match_count: Total matching rows if known, else ``None`` (unknown
+                because truncation was detected via a ``limit + 1`` fetch).
             loaded: Number of rows currently loaded into the grid.
             limit: The row limit that was applied.
+            truncated: Whether more rows match than were loaded.
         """
         if where is None:
             self.result_info_html.value = ""
+            self.count_matches_btn.layout.display = "none"
             return
-        truncated = match_count > loaded
-        color = "#b00" if truncated else "#555"
-        note = (
-            f" &nbsp; <b style='color:#b00'>&#9888; showing first {loaded} of "
-            f"{match_count:,} (limit {limit}) — increase the limit to load/act on all</b>"
-            if truncated
-            else ""
-        )
-        self.result_info_html.value = (
-            f"<span style='color:{color}'>"
-            f"<b>WHERE matches:</b> <code>{match_count:,}</code> row(s)</span>{note}"
+        if not truncated:
+            # All matching rows are loaded, so the exact count is what we loaded.
+            self.count_matches_btn.layout.display = "none"
+            self.result_info_html.value = (
+                "<span style='color:#555'><b>WHERE matches:</b> "
+                f"<code>{loaded:,}</code> row(s)</span>"
+            )
+            return
+        # Truncated: more rows match than were loaded.
+        self.count_matches_btn.layout.display = ""
+        if match_count is None:
+            self.result_info_html.value = (
+                f"<span style='color:#b00'><b>&#9888; showing first {loaded} "
+                f"(limit {limit}); more rows match.</b> Increase the limit, or "
+                "click <b>Count matches</b> for the exact total.</span>"
+            )
+        else:
+            self.result_info_html.value = (
+                f"<span style='color:#b00'><b>&#9888; showing first {loaded} of "
+                f"{match_count:,} (limit {limit}) — increase the limit to load/"
+                "act on all</b></span>"
+            )
+
+    def _on_count_matches(self, _btn: widgets.Button | None = None) -> None:
+        """Run the exact ``COUNT(*)`` for the current WHERE filter on demand.
+
+        Args:
+            _btn: The clicked button (unused).
+        """
+        table = self.table_dropdown.value
+        where = self._where
+        if not table or not where:
+            return
+        try:
+            with self._busy("Counting matching rows…"):
+                count = self.con.count(table_name=table, where=where)
+        except Exception as exc:
+            self._log(f"Count failed: {exc}", error=True)
+            return
+        self._match_count = count
+        self._update_result_info(
+            where, count, self._loaded_count, self.limit_int.value, True
         )
 
     def _on_save(self, _btn: widgets.Button | None = None) -> None:
@@ -694,6 +831,7 @@ class ParquEditGUI:
             self._log(f"Delete failed: {exc}", error=True)
             return
         self._log(f"Deleted {len(selected)} row(s): {rowid_list}.")
+        self._count_cache.pop(table, None)
         self._on_load()
 
     def _on_delete_all_request(self, _btn: widgets.Button | None = None) -> None:
@@ -766,6 +904,7 @@ class ParquEditGUI:
             self._log(f"Delete failed: {exc}", error=True)
             return
         self._log(f"Deleted all rows matching WHERE: {where}.")
+        self._count_cache.pop(table, None)
         self._on_load()
 
     def _on_show_log(self, _btn: widgets.Button | None = None) -> None:

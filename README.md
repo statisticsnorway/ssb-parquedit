@@ -385,9 +385,14 @@ Usage:
 - **Table** — pick the table to edit (use *Refresh tables* to reload the list).
   The table's row count, `user_defined_id` (business key) and product are shown
   beneath it.
-- **WHERE / Limit** — optional SQL filter and row cap, then *Search / Load*. When a
-  filter is used, the number of matching rows is shown; if it exceeds the limit, a
-  warning notes that only the first *N* are loaded.
+- **WHERE / Limit / Sort by rowid** — optional SQL filter, row cap, and an
+  optional stable ordering, then *Search / Load*. When a filter is used, the
+  number of matching rows is shown; if more rows match than the limit, a warning
+  notes that only the first *N* are loaded and a *Count matches* button computes
+  the exact total on demand.
+- **Columns** — optionally load only a subset of columns (fewer columns load and
+  render faster). None selected = all columns; the `user_defined_id` key columns
+  are always included.
 - **Grid layout** — Select, `rowid` and the `user_defined_id` columns are frozen
   (sticky) on the left and the header row is frozen on top, so column names and
   key columns stay visible while scrolling. One scroll container means a single
@@ -405,6 +410,12 @@ Usage:
 
 While a query or write is running, a spinner appears next to the action buttons and
 the buttons are disabled until it finishes.
+
+**Performance on large tables:** the full-table row count is cached (recomputed
+only after deletions), the load does not sort by `rowid` unless *Sort by rowid* is
+ticked, and a filtered search fetches only `limit + 1` rows to detect truncation
+instead of a full `COUNT(*)`. For big/wide tables, load fewer **Columns** and keep
+the **Limit** modest — building many editable cells is the main client-side cost.
 
 ---
 
