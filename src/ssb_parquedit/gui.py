@@ -687,15 +687,29 @@ class ParquEditGUI:
                         match_count = None
                     else:
                         match_count = len(df)
+                # Render inside the busy block: building the cell widgets is the
+                # slowest part, so the spinner must stay up until it completes.
+                self._where = where
+                self._match_count = match_count if match_count is not None else 0
+                self._loaded_count = len(df)
+                self._render_grid(df)
+                self._update_result_info(where, match_count, len(df), limit, truncated)
         except Exception as exc:
             self._log(f"Load failed: {exc}", error=True)
             return
-        self._where = where
-        self._match_count = match_count if match_count is not None else 0
-        self._loaded_count = len(df)
-        self._render_grid(df)
-        self._update_result_info(where, match_count, len(df), limit, truncated)
-        self._log(f"Loaded {len(df)} row(s) from '{table}'.")
+        if where is None:
+            total_str = f"{total:,}" if total is not None else "?"
+            self._log(f"Loaded {len(df)} row(s) of {total_str} from '{table}'.")
+        elif match_count is not None:
+            self._log(
+                f"Loaded {len(df)} row(s) of {match_count:,} matching WHERE "
+                f"from '{table}'."
+            )
+        else:
+            self._log(
+                f"Loaded {len(df)} row(s) from '{table}' — more rows match WHERE "
+                "than the limit; click 'Count matches' for the total."
+            )
 
     def _update_result_info(
         self,
