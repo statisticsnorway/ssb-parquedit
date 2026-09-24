@@ -360,6 +360,54 @@ con.drop_table(table_name="my_table", cleanup=True)
 
 ---
 
+## Interactive GUI (notebook)
+
+`ParquEditGUI` is an [ipywidgets](https://ipywidgets.readthedocs.io/) front-end for
+editing and deleting rows from within a Jupyter notebook (e.g. on DaplaLab). It lets you
+select a table, search for rows with a SQL `WHERE` filter, click cells to edit values,
+or select whole rows to delete. A shared `change_comment` and `change_event_reason`
+are applied to each commit, and all writes go through `edit()` / `delete_row()` so they
+are recorded in the changelog.
+
+```python
+from ssb_parquedit import ParquEditGUI
+
+# Backed by a local catalog (dev/testing)
+ParquEditGUI()
+
+# Or reuse an existing connection
+from ssb_parquedit import ParquEdit
+con = ParquEdit.local()
+ParquEditGUI(con=con)
+```
+
+Usage:
+- **Table** — pick the table to edit (use *Refresh tables* to reload the list).
+  The table's row count, `user_defined_id` (business key) and product are shown
+  beneath it.
+- **WHERE / Limit** — optional SQL filter and row cap, then *Search / Load*. When a
+  filter is used, the number of matching rows is shown; if it exceeds the limit, a
+  warning notes that only the first *N* are loaded.
+- **Grid layout** — Select, `rowid` and the `user_defined_id` columns are frozen
+  (sticky) on the left and the header row is frozen on top, so column names and
+  key columns stay visible while scrolling. One scroll container means a single
+  vertical and single horizontal scrollbar.
+- **Edit** — change any cell, set *Reason* + *Comment*, then *Save edits*
+  (changed cells in a row are committed together in one `edit()` call).
+- **Delete** — tick the rows to remove (or *Select all*), set *Reason* + *Comment*,
+  then *Delete selected* (removed in a single `delete_row()` call). Note that
+  *Select all* only ticks the loaded rows.
+- **Delete ALL matching WHERE** — deletes every row matching the current WHERE
+  filter (even beyond the limit), after an explicit confirmation showing the count.
+  Requires a WHERE filter (use e.g. `1=1` to target all rows).
+- **Show edit log** — show the most recent changelog entry for the selected table
+  (via `get_edits()`), as the raw `commit_extra_info` JSON of the latest snapshot.
+
+While a query or write is running, a spinner appears next to the action buttons and
+the buttons are disabled until it finishes.
+
+---
+
 ## Maintenance
 
 ### Flush inlined data
