@@ -417,6 +417,12 @@ ticked, and a filtered search fetches only `limit + 1` rows to detect truncation
 instead of a full `COUNT(*)`. For big/wide tables, load fewer **Columns** and keep
 the **Limit** modest — building many editable cells is the main client-side cost.
 
+When reading GCS-backed tables in a notebook, gcsfs can print harmless
+garbage-collection tracebacks (`Calling sync() from within a running loop` /
+`Task was destroyed but it is pending!`) after a query has already returned its
+data. The GUI silences exactly those two messages by default; pass
+`ParquEditGUI(silence_gc_noise=False)` to keep them.
+
 ---
 
 ## Maintenance

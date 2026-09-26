@@ -15,6 +15,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -72,6 +73,49 @@ def _spinner_img() -> str:
 #: Pre-rendered spinner ``<img>`` shown while the GUI is querying/writing.
 _SPINNER_IMG = _spinner_img()
 
+#: Guard so the GC-noise silencer is only installed once per process.
+_GC_NOISE_SILENCED = False
+
+
+class _AsyncioNoiseFilter(logging.Filter):
+    """Drop the harmless ``Task was destroyed but it is pending!`` asyncio logs.
+
+    These are emitted when gcsfs prefetch tasks are garbage-collected inside the
+    notebook's running event loop; the underlying read has already completed.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return ``False`` for the pending-task-destroyed message, else ``True``."""
+        return "Task was destroyed but it is pending" not in record.getMessage()
+
+
+def _silence_gcsfs_gc_noise() -> None:
+    """Suppress harmless gcsfs garbage-collection noise in notebooks.
+
+    When DuckLake reads Parquet from GCS via gcsfs, the buffered file objects are
+    closed asynchronously. If Python garbage-collects them inside the notebook's
+    already-running asyncio loop, fsspec raises ``NotImplementedError: Calling
+    sync() from within a running loop`` in ``__del__`` and asyncio logs
+    ``Task was destroyed but it is pending!``. Both are cosmetic — the query data
+    is already returned. This installs narrowly-targeted filters that swallow only
+    those two messages and delegate everything else unchanged. Runs once.
+    """
+    global _GC_NOISE_SILENCED
+    if _GC_NOISE_SILENCED:
+        return
+    _GC_NOISE_SILENCED = True
+
+    prev_hook = sys.unraisablehook
+
+    def hook(unraisable: Any) -> None:
+        exc = unraisable.exc_value
+        if isinstance(exc, NotImplementedError) and "running loop" in str(exc):
+            return
+        prev_hook(unraisable)
+
+    sys.unraisablehook = hook
+    logging.getLogger("asyncio").addFilter(_AsyncioNoiseFilter())
+
 
 def _px(value: str) -> int:
     """Return the integer pixel count from a CSS ``px`` string (e.g. ``"60px"``)."""
@@ -98,6 +142,7 @@ class ParquEditGUI:
         page_size: int = 50,
         auto_display: bool = True,
         load_on_start: bool = False,
+        silence_gc_noise: bool = True,
     ) -> None:
         """Build the GUI and (optionally) render it.
 
@@ -112,7 +157,14 @@ class ParquEditGUI:
             load_on_start: If ``True``, immediately load rows for the initially
                 selected table. Defaults to ``False`` so the GUI renders quickly;
                 rows load when a table is selected or *Search / Load* is clicked.
+            silence_gc_noise: If ``True`` (default), suppress the harmless gcsfs
+                garbage-collection tracebacks (``Calling sync() from within a
+                running loop`` / ``Task was destroyed but it is pending!``) that
+                appear when reading GCS-backed tables in a notebook.
         """
+        if silence_gc_noise:
+            _silence_gcsfs_gc_noise()
+
         if con is not None:
             self.con = con
         elif local_path is not None:
