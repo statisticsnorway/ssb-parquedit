@@ -79,6 +79,8 @@ class DMLOperations:
             logger.error(msg)
             raise TypeError(msg)
 
+        logger.info("Inserted data into table '%s'.", table_name)
+
     def _insert_from_dataframe(
         self, table_name: str, data: pd.DataFrame | pl.DataFrame
     ) -> None:
@@ -108,7 +110,7 @@ class DMLOperations:
 
         logger.debug("Inserting %d rows into '%s'", len(data), table_name)
         self.conn.execute(f"INSERT INTO {table_name} ({cols}) SELECT * FROM data")
-        logger.debug("Insert complete: %d rows -> '%s'", len(data), table_name)
+        logger.info("Inserted %d rows into '%s'.", len(data), table_name)
 
     @staticmethod
     def _pandas_to_arrow(data: pd.DataFrame, col_types: dict[str, str]) -> pa.Table:
@@ -305,6 +307,7 @@ class DMLOperations:
             )
 
             self.conn.execute("COMMIT")
+            logger.info("Updated row %d in table '%s'.", rowid, table_name)
 
         except Exception:
             try:
@@ -402,6 +405,9 @@ class DMLOperations:
             )
 
             self.conn.execute("COMMIT")
+            logger.info(
+                "Deleted %d rows from table '%s'.", len(matches), table_name
+            )
 
         except Exception:
             try:

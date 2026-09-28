@@ -116,11 +116,14 @@ class QueryOperations:
         result = self.conn.execute(query)
 
         if output_format == "pandas":
-            return result.df()
+            data = result.df()
         elif output_format == "polars":
-            return result.pl()
+            data = result.pl()
         elif output_format == "pyarrow":
-            return result.arrow()
+            data = result.arrow()
+
+        logger.info("Viewed table '%s'.", table_name)
+        return data
 
     def count(
         self,
@@ -148,7 +151,9 @@ class QueryOperations:
             query += f" WHERE {where}"
 
         result = self.conn.execute(query).df()
-        return int(result["count"].iloc[0])
+        count = int(result["count"].iloc[0])
+        logger.info("Counted %d rows in table '%s'.", count, table_name)
+        return count
 
     def table_exists(self, table_name: str) -> bool:
         """Check if a table exists in the catalog.
@@ -169,8 +174,10 @@ class QueryOperations:
 
         try:
             self.conn.execute(f"SELECT 1 FROM {table_name} WHERE 1=0")
+            logger.info("Confirmed table '%s' exists.", table_name)
             return True
         except Exception:
+            logger.info("Confirmed table '%s' does not exist.", table_name)
             return False
 
     def list_tables(self) -> list[str]:
@@ -196,7 +203,9 @@ class QueryOperations:
                 AND table_name NOT LIKE 'ducklake_%' --shows up when using local connection(sqllite)
             ORDER BY table_name
             """).df()
-        return cast(list[str], result["table_name"].tolist())
+        tables = cast(list[str], result["table_name"].tolist())
+        logger.info("Listed %d tables.", len(tables))
+        return tables
 
     def _get_tag_info(self, table_name: str) -> dict[str, Any] | None:
         result = self.conn.execute(
@@ -240,6 +249,11 @@ class QueryOperations:
                     f"No edits found for table '{table_name}'. "
                     f"The table may not exist or has no edit history."
                 )
+            else:
+                logger.info(
+                    "Retrieved %d edits for table '%s'.", len(filtered), table_name
+                )
             return filtered
 
+        logger.info("Retrieved %d edits.", len(df))
         return df

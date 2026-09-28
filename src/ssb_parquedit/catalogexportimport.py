@@ -108,6 +108,9 @@ class CatalogExportImport:
                 fs.put(backup_file, f"{export_path}/{backup_file_name}")
 
                 print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")
+                logger.info(
+                    "Exported catalog to '%s/%s'.", export_path, backup_file_name
+                )
 
             except Exception:
                 try:
@@ -172,6 +175,7 @@ class CatalogExportImport:
 
             self.conn.sql("DETACH from_backup;")
             self.conn.sql("DETACH restore_db;")
+            logger.info("Imported catalog from '%s'.", backup_file_path)
 
         except Exception:
             try:

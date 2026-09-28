@@ -91,6 +91,8 @@ class DDLOperations:
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
 
+        logger.info("Created table '%s'.", table_name)
+
     def drop_table(self, table_name: str, cleanup: bool = False) -> None:
         """Drop a table from the DuckLake catalog.
 
@@ -144,6 +146,8 @@ class DDLOperations:
                     self._cleanup_local_files(table_location, table_name)
                 else:
                     self._cleanup_gcs_files(table_location, table_name)
+
+        logger.info("Dropped table '%s' successfully.", table_name)
 
     def _get_table_location(self, table_name: str) -> str:
         """Get the storage location of a table.
