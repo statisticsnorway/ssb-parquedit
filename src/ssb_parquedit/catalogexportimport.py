@@ -56,6 +56,8 @@ class CatalogExportImport:
         if export_path is None:
             export_path = f"{self.db_config['data_path']}/catalog-export"
 
+        logger.info("Starting catalog export to '%s'", export_path)
+
         query = QueryOperations(self.conn, self.db_config)
         maintenance = MaintenanceOperations(self.conn, self.db_config)
         tables = query.list_tables()
@@ -92,12 +94,12 @@ class CatalogExportImport:
                 """).fetchall()
 
                 for (table_name,) in tables:
-                    print(f"Copying {schema}.{table_name} ...")
+                    logger.debug("Copying %s.%s ...", schema, table_name)
                     self.conn.sql(f"""
                         CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
                         SELECT * FROM catalog_db.{schema}.{table_name}
                     """)
-                print("Backup complete.")
+                logger.info("Catalog backup complete: %d table(s) copied", len(tables))
 
                 self.conn.sql("COMMIT")
 
@@ -107,7 +109,11 @@ class CatalogExportImport:
                 fs = gcsfs.GCSFileSystem()
                 fs.put(backup_file, f"{export_path}/{backup_file_name}")
 
-                print(f"Exported to: {data_path}/catalog-export/{backup_file_name}")
+                logger.info(
+                    "Exported catalog to '%s/catalog-export/%s'",
+                    data_path,
+                    backup_file_name,
+                )
 
             except Exception:
                 try:
@@ -143,6 +149,8 @@ class CatalogExportImport:
         user = f"{self.db_config['dbuser']}"
         pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
 
+        logger.info("Starting catalog import from '%s'", backup_file_path)
+
         try:
             self.conn.sql("BEGIN")
 
@@ -156,7 +164,7 @@ class CatalogExportImport:
             """).fetchall()
 
             for (table_name,) in backup_tables:
-                print(f"Copying {schema}.{table_name} ...")
+                logger.debug("Copying %s.%s ...", schema, table_name)
 
                 self.conn.sql(f"""
                     DELETE FROM restore_db.{schema}.{table_name}
@@ -166,7 +174,11 @@ class CatalogExportImport:
                     SELECT * FROM from_backup.{schema}.{table_name}
                 """)
 
-            print("Restore complete.")
+            logger.info(
+                "Catalog import complete: %d table(s) restored from '%s'",
+                len(backup_tables),
+                backup_file_path,
+            )
 
             self.conn.sql("COMMIT")
 

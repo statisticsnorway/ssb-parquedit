@@ -88,7 +88,7 @@ def create_config() -> dict[str, str]:
     port_number: str = get_port_number()
 
     if environment == "test":
-        return {
+        config = {
             "dbname": "dapla-ffunk",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
@@ -96,9 +96,8 @@ def create_config() -> dict[str, str]:
             "metadata_schema": team_name,
             "port_number": port_number,
         }
-
-    if environment == "prod":
-        return {
+    elif environment == "prod":
+        config = {
             "dbname": "parquedit",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-p-ye.iam",
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
@@ -106,9 +105,8 @@ def create_config() -> dict[str, str]:
             "metadata_schema": f"team_{team_name}",
             "port_number": port_number,
         }
-
     else:
-        return {
+        config = {
             "dbname": "dapla-ffunk",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
             "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
@@ -116,6 +114,14 @@ def create_config() -> dict[str, str]:
             "metadata_schema": team_name,
             "port_number": port_number,
         }
+
+    logger.debug(
+        "Resolved config for environment '%s': catalog='%s', metadata_schema='%s'",
+        environment or "dev",
+        config["catalog_name"],
+        config["metadata_schema"],
+    )
+    return config
 
 
 def get_dapla_user() -> str:
