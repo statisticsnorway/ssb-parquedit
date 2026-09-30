@@ -115,14 +115,6 @@ class QueryOperations:
 
         result = self.conn.execute(query)
 
-        logger.debug(
-            "Viewed table '%s' (where=%s, limit=%s, offset=%d)",
-            table_name,
-            where,
-            limit,
-            offset,
-        )
-
         if output_format == "pandas":
             return result.df()
         elif output_format == "polars":
@@ -156,9 +148,7 @@ class QueryOperations:
             query += f" WHERE {where}"
 
         result = self.conn.execute(query).df()
-        count = int(result["count"].iloc[0])
-        logger.debug("Counted %d row(s) in '%s' (where=%s)", count, table_name, where)
-        return count
+        return int(result["count"].iloc[0])
 
     def table_exists(self, table_name: str) -> bool:
         """Check if a table exists in the catalog.
@@ -179,10 +169,8 @@ class QueryOperations:
 
         try:
             self.conn.execute(f"SELECT 1 FROM {table_name} WHERE 1=0")
-            logger.debug("Table '%s' exists", table_name)
             return True
         except Exception:
-            logger.debug("Table '%s' does not exist", table_name)
             return False
 
     def list_tables(self) -> list[str]:
@@ -208,9 +196,7 @@ class QueryOperations:
                 AND table_name NOT LIKE 'ducklake_%' --shows up when using local connection(sqllite)
             ORDER BY table_name
             """).df()
-        tables = cast(list[str], result["table_name"].tolist())
-        logger.debug("Listed %d table(s)", len(tables))
-        return tables
+        return cast(list[str], result["table_name"].tolist())
 
     def _get_tag_info(self, table_name: str) -> dict[str, Any] | None:
         result = self.conn.execute(
@@ -251,9 +237,8 @@ class QueryOperations:
             )
             if filtered.empty:
                 logger.warning(
-                    "No edits found for table '%s'. "
-                    "The table may not exist or has no edit history.",
-                    table_name,
+                    f"No edits found for table '{table_name}'. "
+                    f"The table may not exist or has no edit history."
                 )
             return filtered
 

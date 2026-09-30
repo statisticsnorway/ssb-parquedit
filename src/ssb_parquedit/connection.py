@@ -32,7 +32,6 @@ class DuckDBConnection:
     """
 
     _conn: duckdb.DuckDBPyConnection | None = None
-    _catalog_name: str | None = None
 
     def __init__(self, db_config: dict[str, str]) -> None:
         """Initialize DuckDB connection with DuckLake catalog.
@@ -73,13 +72,6 @@ class DuckDBConnection:
             AUTOMATIC_MIGRATION TRUE);
             """)
         self._conn.sql(f"USE {db_config['catalog_name']}")
-
-        self._catalog_name = db_config["catalog_name"]
-        logger.info(
-            "Connected to DuckLake catalog '%s' (data_path=%s)",
-            db_config["catalog_name"],
-            db_config["data_path"],
-        )
 
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute a SQL statement.
@@ -168,9 +160,6 @@ class DuckDBConnection:
         if self._conn is not None:
             self._conn.close()
             self._conn = None
-            logger.info(
-                "Closed connection to DuckLake catalog '%s'", self._catalog_name
-            )
 
     @property
     def raw(self) -> duckdb.DuckDBPyConnection:

@@ -9,7 +9,6 @@ from typing import get_args
 import pandas as pd
 import polars as pl
 import pyarrow as pa
-from tenacity import before_sleep_log
 from tenacity import retry
 from tenacity import retry_if_not_exception_type
 from tenacity import stop_after_attempt
@@ -109,7 +108,7 @@ class DMLOperations:
 
         logger.debug("Inserting %d rows into '%s'", len(data), table_name)
         self.conn.execute(f"INSERT INTO {table_name} ({cols}) SELECT * FROM data")
-        logger.info("Inserted %d row(s) into '%s'", len(data), table_name)
+        logger.debug("Insert complete: %d rows -> '%s'", len(data), table_name)
 
     @staticmethod
     def _pandas_to_arrow(data: pd.DataFrame, col_types: dict[str, str]) -> pa.Table:
@@ -158,9 +157,6 @@ class DMLOperations:
         """
 
         self.conn.execute(sql, [parquet_path])
-        logger.info(
-            "Inserted data into '%s' from Parquet file '%s'", table_name, parquet_path
-        )
 
     def _validate_table_and_columns(
         self, table_name: str, changes: dict[str, Any]
@@ -197,7 +193,6 @@ class DMLOperations:
         stop=stop_after_attempt(max_attempt_number=10),
         wait=wait_random(min=1, max=3),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     def edit(
         self,
@@ -310,12 +305,6 @@ class DMLOperations:
             )
 
             self.conn.execute("COMMIT")
-            logger.info(
-                "Edited row %d in '%s' (reason=%s)",
-                rowid,
-                table_name,
-                change_event_reason,
-            )
 
         except Exception:
             try:
@@ -328,7 +317,6 @@ class DMLOperations:
         stop=stop_after_attempt(max_attempt_number=10),
         wait=wait_random(min=1, max=3),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     def delete_row(
         self,
@@ -414,12 +402,6 @@ class DMLOperations:
             )
 
             self.conn.execute("COMMIT")
-            logger.info(
-                "Deleted %d row(s) from '%s' (reason=%s)",
-                len(matches),
-                table_name,
-                change_event_reason,
-            )
 
         except Exception:
             try:

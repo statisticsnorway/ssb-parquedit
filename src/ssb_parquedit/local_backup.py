@@ -1,14 +1,10 @@
 """Local DuckDB connection backed by DuckDB and GCS."""
 
-import logging
-
 import duckdb
 import gcsfs
 
 from .connection import DuckDBConnection
 from .functions import create_config
-
-logger = logging.getLogger(__name__)
 
 
 class LocalCatalogGCSDataConnection(DuckDBConnection):
@@ -51,11 +47,3 @@ class LocalCatalogGCSDataConnection(DuckDBConnection):
              METADATA_SCHEMA '{self.metadata_schema}')
         """)
         self._conn.sql(f"USE {self.catalog_name}")
-
-        self._catalog_name = self.catalog_name
-        logger.info(
-            "Connected to local catalog '%s' (catalog_path=%s, data_path=%s)",
-            self.catalog_name,
-            self.catalog_path,
-            self.data_path,
-        )

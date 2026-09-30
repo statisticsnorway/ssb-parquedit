@@ -1,12 +1,8 @@
 """Local DuckDB connection backed by SQLite and local filesystem."""
 
-import logging
-
 import duckdb
 
 from .connection import DuckDBConnection
-
-logger = logging.getLogger(__name__)
 
 
 class LocalDuckDBConnection(DuckDBConnection):
@@ -33,9 +29,3 @@ class LocalDuckDBConnection(DuckDBConnection):
              DATA_INLINING_ROW_LIMIT 300)
         """)
         self._conn.sql("USE test_catalog")
-
-        self._catalog_name = "test_catalog"
-        logger.info(
-            "Connected to local DuckLake catalog 'test_catalog' (data_path=%s)",
-            data_path,
-        )
