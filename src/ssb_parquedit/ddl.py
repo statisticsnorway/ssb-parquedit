@@ -91,6 +91,8 @@ class DDLOperations:
         if len(part_columns) > 0:
             self._add_table_partition(table_name, part_columns)
 
+        logger.info("Created table '%s'", table_name)
+
     def drop_table(self, table_name: str, cleanup: bool = False) -> None:
         """Drop a table from the DuckLake catalog.
 
@@ -130,12 +132,14 @@ class DDLOperations:
                 table_location = self._get_table_location(table_name)
             except Exception as e:
                 logger.warning(
-                    f"Could not retrieve table location for {table_name}: {e}. "
-                    f"Proceeding with drop only, GCS files may need manual cleanup."
+                    "Could not retrieve table location for '%s': %s. "
+                    "Proceeding with drop only, GCS files may need manual cleanup.",
+                    table_name,
+                    e,
                 )
 
         self.conn.execute(f"DROP TABLE {table_name}")
-        logger.warning(f"Dropped table: {table_name}")
+        logger.warning("Dropped table: '%s'", table_name)
 
         if cleanup:
             self._expire_snapshots(table_name)
@@ -190,12 +194,12 @@ class DDLOperations:
             row = self.conn.execute("SELECT CURRENT_DATABASE()").fetchone()
             catalog_name = row[0] if row and row[0] else None
         except Exception:
-            logger.exception(f"Could not determine current catalog for {table_name}")
+            logger.exception("Could not determine current catalog for '%s'", table_name)
             return
 
         if not catalog_name:
             logger.warning(
-                f"Cannot expire snapshots for {table_name}: no active catalog."
+                "Cannot expire snapshots for '%s': no active catalog.", table_name
             )
             return
 
@@ -209,16 +213,18 @@ class DDLOperations:
 
             snapshot_ids = [row[0] for row in rows]
             if not snapshot_ids:
-                logger.info(f"No edit snapshots found to expire for {table_name}.")
+                logger.info("No edit snapshots found to expire for '%s'.", table_name)
                 return
 
             ids_literal = "[" + ", ".join(str(sid) for sid in snapshot_ids) + "]"
             self.conn.execute(
                 f"CALL ducklake_expire_snapshots('{catalog_name}', versions => {ids_literal})"
             )
-            logger.info(f"Expired {len(snapshot_ids)} snapshots for {table_name}.")
+            logger.info(
+                "Expired %d snapshot(s) for '%s'.", len(snapshot_ids), table_name
+            )
         except Exception:
-            logger.exception(f"Error during snapshot expiration for {table_name}")
+            logger.exception("Error during snapshot expiration for '%s'", table_name)
 
     def _cleanup_gcs_files(self, table_location: str, table_name: str) -> None:
         """Clean up orphaned files from GCS bucket.
@@ -236,9 +242,10 @@ class DDLOperations:
             match = re.match(r"gs://([^/]+)/(.+)", table_location)
             if not match:
                 logger.error(
-                    f"Invalid GCS path format: {table_location}. "
-                    f"Cannot cleanup GCS files for {table_name}. "
-                    f"Manual cleanup may be required."
+                    "Invalid GCS path format: %s. Cannot cleanup GCS files for '%s'. "
+                    "Manual cleanup may be required.",
+                    table_location,
+                    table_name,
                 )
                 return
 
@@ -246,23 +253,29 @@ class DDLOperations:
             fs = gcsfs.GCSFileSystem()
             if fs.exists(table_location):
                 logger.warning(
-                    f"Deleting table data from GCS: {table_location} "
-                    f"(table: {table_name}). This action cannot be undone."
+                    "Deleting table data from GCS: %s (table: '%s'). "
+                    "This action cannot be undone.",
+                    table_location,
+                    table_name,
                 )
                 fs.rm(table_location, recursive=True)
                 logger.info(
-                    f"Successfully cleaned up GCS files for {table_name} at {table_location}"
+                    "Cleaned up GCS files for '%s' at %s", table_name, table_location
                 )
             else:
                 logger.warning(
-                    f"Table location not found in GCS: {table_location}. "
-                    f"Data may only be inlined, already been deleted or path is incorrect."
+                    "Table location not found in GCS: %s. "
+                    "Data may only be inlined, already been deleted or path is incorrect.",
+                    table_location,
                 )
         except Exception as e:
             # GCS cleanup is optional - log warning but don't fail the drop operation
             logger.error(
-                f"Failed to clean up GCS files for {table_name} at {table_location}: {e}. "
-                f"Files may need manual cleanup. Verify path and GCS permissions."
+                "Failed to clean up GCS files for '%s' at %s: %s. "
+                "Files may need manual cleanup. Verify path and GCS permissions.",
+                table_name,
+                table_location,
+                e,
             )
 
     def _cleanup_local_files(self, table_location: str, table_name: str) -> None:
@@ -278,23 +291,28 @@ class DDLOperations:
             path = Path(table_location)
             if not path.exists():
                 logger.warning(
-                    f"Table location not found locally: {table_location}. "
-                    f"Data may have already been deleted or path is incorrect."
+                    "Table location not found locally: %s. "
+                    "Data may have already been deleted or path is incorrect.",
+                    table_location,
                 )
                 return
 
             logger.warning(
-                f"Deleting table data locally: {table_location} "
-                f"(table: {table_name}). This action cannot be undone."
+                "Deleting table data locally: %s (table: '%s'). "
+                "This action cannot be undone.",
+                table_location,
+                table_name,
             )
             shutil.rmtree(path)
             logger.info(
-                f"Successfully cleaned up local files for {table_name} at {table_location}"
+                "Cleaned up local files for '%s' at %s", table_name, table_location
             )
         except Exception:
             logger.exception(
-                f"Failed to clean up local files for {table_name} at {table_location}"
-                f"Files may need manual cleanup."
+                "Failed to clean up local files for '%s' at %s. "
+                "Files may need manual cleanup.",
+                table_name,
+                table_location,
             )
 
     def _create_from_dataframe(
@@ -362,3 +380,4 @@ class DDLOperations:
         """
         cols = ", ".join(part_columns)
         self.conn.execute(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols})")
+        logger.info("Partitioned table '%s' by (%s)", table_name, cols)
