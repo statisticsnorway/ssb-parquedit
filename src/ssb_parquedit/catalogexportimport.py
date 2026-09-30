@@ -6,7 +6,6 @@ import os
 import tempfile
 from typing import Any
 
-import duckdb
 import gcsfs
 
 from .maintenance import MaintenanceOperations
@@ -37,10 +36,7 @@ class CatalogExportImport:
 
         Flushes and merges inlined data for every table in the catalog, then
         copies all tables from the PostgreSQL-backed catalog schema into a
-        local DuckDB file, which is uploaded to GCS. If flushing or merging
-        raises a DuckDB error for a given table (e.g. an internal DuckLake
-        extension error), that table's maintenance is skipped with a logged
-        warning and the export continues with the remaining tables.
+        local DuckDB file, which is uploaded to GCS.
 
         Args:
             export_path: GCS path (without filename) to upload the backup to.
@@ -66,27 +62,9 @@ class CatalogExportImport:
         maintenance = MaintenanceOperations(self.conn, self.db_config)
         tables = query.list_tables()
 
-        failed_tables: list[str] = []
         for table in tables:
-            try:
-                maintenance.flush_inlined_table(table)
-                maintenance.merge_adjacent_files(table)
-            except duckdb.Error:
-                logger.exception(
-                    "Skipping maintenance for table '%s' due to a DuckDB error; "
-                    "continuing catalog export with remaining tables.",
-                    table,
-                )
-                failed_tables.append(table)
-
-        if failed_tables:
-            logger.warning(
-                "Maintenance failed for %d table(s): %s. Catalog export will "
-                "continue, but these tables may still contain unflushed or "
-                "unmerged data.",
-                len(failed_tables),
-                ", ".join(failed_tables),
-            )
+            maintenance.flush_inlined_table(table)
+            maintenance.merge_adjacent_files(table)
 
         schema = f"{self.db_config['metadata_schema']}"
         db = f"{self.db_config['dbname']}"
