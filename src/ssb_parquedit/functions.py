@@ -87,16 +87,7 @@ def create_config() -> dict[str, str]:
     team_name: str = get_team_name().replace("-", "_")
     port_number: str = get_port_number()
 
-    if environment == "test":
-        config = {
-            "dbname": "dapla-ffunk",
-            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
-            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
-            "catalog_name": team_name,
-            "metadata_schema": team_name,
-            "port_number": port_number,
-        }
-    elif environment == "prod":
+    if environment == "prod":
         config = {
             "dbname": "parquedit",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-p-ye.iam",
@@ -106,6 +97,7 @@ def create_config() -> dict[str, str]:
             "port_number": port_number,
         }
     else:
+        # "test" and any other (e.g. local/dev) environment share the same config.
         config = {
             "dbname": "dapla-ffunk",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
