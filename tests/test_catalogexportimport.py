@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from unittest.mock import call
 from unittest.mock import patch
 
+import duckdb
 import pandas as pd
 import pytest
 
@@ -140,6 +141,43 @@ class TestExportCatalogHappyPath:
 
         flush_mock.assert_called_once_with("cities")
         merge_mock.assert_called_once_with("cities")
+
+    def test_skips_table_on_duckdb_error_and_continues_export(
+        self, mock_conn: MagicMock
+    ) -> None:
+        mock_conn.execute.return_value.df.return_value = pd.DataFrame(
+            {"table_name": ["broken_table", "cities"]}
+        )
+        mock_conn.sql.return_value.fetchall.return_value = []
+        export = CatalogExportImport(mock_conn, DB_CONFIG)
+
+        def flush_side_effect(table_name: str) -> None:
+            if table_name == "broken_table":
+                raise duckdb.InternalException("boom")
+
+        with (
+            patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem") as fs_cls,
+            patch.object(
+                MaintenanceOperations,
+                "flush_inlined_table",
+                side_effect=flush_side_effect,
+            ) as flush_mock,
+            patch.object(MaintenanceOperations, "merge_adjacent_files") as merge_mock,
+        ):
+            fs = MagicMock()
+            fs_cls.return_value = fs
+
+            result = export.export_catalog()
+
+        # Both tables' flush is attempted, but only the healthy table reaches merge.
+        assert flush_mock.call_args_list == [
+            call("broken_table"),
+            call("cities"),
+        ]
+        merge_mock.assert_called_once_with("cities")
+        # Export still completes and uploads the backup despite the maintenance error.
+        fs.put.assert_called_once()
+        assert result.endswith("_my_schema.duckdb")
 
 
 # ── export_catalog: failure handling ─────────────────────────────────────────
