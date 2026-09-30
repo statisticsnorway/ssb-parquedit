@@ -44,7 +44,6 @@ class ParquEdit:
         """Return cached connection, creating it on first call."""
         if self._conn is None:
             self._conn = DuckDBConnection(self._db_config)
-            logger.debug("Duck DB connection created. ")
 
         return self._conn
 
@@ -52,7 +51,6 @@ class ParquEdit:
         """Close the connection explicitly."""
         if self._conn is not None:
             self._conn.close()
-            logger.debug("Duck DB connection closed. ")
             self._conn = None
 
     def __enter__(self) -> "ParquEdit":
