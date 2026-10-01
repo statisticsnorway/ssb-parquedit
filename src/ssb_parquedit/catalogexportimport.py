@@ -99,7 +99,9 @@ class CatalogExportImport:
                         CREATE OR REPLACE TABLE backup.{schema}.{table_name} AS
                         SELECT * FROM catalog_db.{schema}.{table_name}
                     """)
-                logger.info("Catalog backup complete: %d table(s) copied", len(tables))
+                logger.info(
+                    "Catalog backup complete: %d table(s) copied", len(meta_db_tables)
+                )
 
                 self.conn.sql("COMMIT")
 
@@ -111,7 +113,7 @@ class CatalogExportImport:
 
                 logger.info(
                     "Exported catalog to '%s/catalog-export/%s'",
-                    data_path,
+                    remote_path,
                     backup_file_name,
                 )
 
