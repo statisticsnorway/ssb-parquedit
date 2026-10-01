@@ -165,7 +165,7 @@ class SchemaUtils:
             )
 
         if "rowid" in columns:
-            raise ValueError("Column name 'row' is reserved and cannot be used.")
+            raise ValueError("Column name 'rowid' is reserved and cannot be used.")
 
     @staticmethod
     def pandas_to_duckdb(dtype: Any) -> str:

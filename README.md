@@ -55,6 +55,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [Accessing the raw DuckDB connection](#accessing-the-raw-duckdb-connection)
   - [Setting up local connection](#setting-up-local-connection)
   - [Restoring a local catalog backup with GCS data](#restoring-a-local-catalog-backup-with-gcs-data)
+  - [Configuring logging](#configuring-logging)
 - [Project structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
@@ -425,6 +426,28 @@ con = ParquEdit().local(path="/home/onyxia/work/")
 `ParquEdit.local_with_gcs_data()` attaches a local DuckDB catalog file (e.g. one produced by [`export_catalog()`](#export-catalog)) while the actual Parquet data still lives on GCS. Useful for inspecting or restoring from a DuckLake catalog backup without needing a live PostgreSQL connection. Must be used in DaplaLab to get access to GCS-buckets.
 ```python
 con = ParquEdit.local_with_gcs_data(catalog_path="localcopy.duckdb")
+```
+
+### Configuring logging
+`ssb-parquedit` uses the standard Python [`logging`](https://docs.python.org/3/library/logging.html) module. Each internal module gets its own logger via `logging.getLogger(__name__)`, so the library does not configure any handlers itself — initialize logging in your own application before using `ParquEdit`:
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+)
+
+from ssb_parquedit import ParquEdit
+
+con = ParquEdit()
+```
+
+To see more detailed output (e.g. for debugging), set the level to `logging.DEBUG`, optionally only for `ssb_parquedit`'s own loggers:
+
+```python
+logging.getLogger("ssb_parquedit").setLevel(logging.DEBUG)
 ```
 
 ---
