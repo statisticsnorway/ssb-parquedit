@@ -442,7 +442,7 @@ src/ssb_parquedit/
 ├── functions.py            # Environment helpers (Dapla config auto-detection)
 ├── local.py                # Local DuckDB connection backed by SQLite (dev/testing)
 ├── local_backup.py         # Local DuckDB catalog file + GCS-hosted data connection
-└── utils.py                # Schema utilities and SQL sanitization
+└── utils.py                # Schema utilities
 
 ```
 
