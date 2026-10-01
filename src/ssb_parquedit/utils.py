@@ -164,12 +164,8 @@ class SchemaUtils:
                 "Shorten these column names before creating the table."
             )
 
-        if 'rowid' in columns:
-            raise ValueError(
-                "Column name 'row' is reserved and cannot be used."
-            )
-   
-
+        if "rowid" in columns:
+            raise ValueError("Column name 'row' is reserved and cannot be used.")
 
     @staticmethod
     def pandas_to_duckdb(dtype: Any) -> str:
