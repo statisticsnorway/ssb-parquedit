@@ -130,6 +130,96 @@ class QueryOperations:
         elif output_format == "pyarrow":
             return result.arrow()
 
+    def time_travel(
+        self,
+        table_name: str,
+        at_time: str,
+        where: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        output_format: str = "pandas",
+    ) -> Any:
+        """View the contents of a table as it existed at a specific point in time.
+
+        Uses DuckLake's time travel feature to query a historic snapshot of the
+        table, identified by timestamp, rather than the current state.
+
+        Args:
+            table_name: Name of the table to view.
+            at_time: Timestamp identifying the snapshot to query, formatted as
+                "YYYY-MM-DD HH:MM:SS" (e.g. "2026-09-26 00:00:00").
+            where: Filter condition(s).
+            limit: Maximum number of rows to return. None returns all rows.
+            offset: Number of rows to skip. Defaults to 0. Useful for pagination.
+            columns: List of column names to select. None selects all columns (*).
+            order_by: ORDER BY clause (without the ORDER BY keyword). Example: "created_at DESC" or "name ASC, age DESC".
+            output_format: Format for the returned data. Options are:
+                - "pandas" (default): Returns pd.DataFrame
+                - "polars": Returns pl.DataFrame (requires polars library)
+                - "pyarrow": Returns pa.Table (requires pyarrow library)
+
+        Returns:
+            Data in the specified format (pandas DataFrame, polars DataFrame, or pyarrow Table).
+
+        Raises:
+            ValueError: If output_format is not "pandas", "polars", or "pyarrow".
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> # View a table as it was at a specific point in time
+            >>> query.time_travel("users", at_time="2026-09-26 00:00:00")
+
+            >>> # Combine with the usual view() options
+            >>> query.time_travel(
+            ...     "users", at_time="2026-09-26 00:00:00", where="id = 1", limit=5
+            ... )
+        """
+        if output_format not in ("pandas", "polars", "pyarrow"):
+            msg = f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'."
+            logger.error(msg)
+            raise ValueError(msg)
+
+        SchemaUtils.validate_table_name(table_name)
+
+        # Build SELECT clause
+        if columns:
+            select_clause = "rowid, " + ", ".join(columns)
+        else:
+            select_clause = "rowid, *"
+
+        query = f"SELECT {select_clause} FROM {table_name} AT (TIMESTAMP => ?)"
+
+        if where:
+            query += f" WHERE {where}"
+
+        if order_by:
+            query += f" ORDER BY {order_by}"
+
+        if limit is not None:
+            query += f" LIMIT {limit}"
+        if offset > 0:
+            query += f" OFFSET {offset}"
+
+        result = self.conn.execute(query, [at_time])
+
+        logger.debug(
+            "Viewed table '%s' at time '%s' (where=%s, limit=%s, offset=%d)",
+            table_name,
+            at_time,
+            where,
+            limit,
+            offset,
+        )
+
+        if output_format == "pandas":
+            return result.df()
+        elif output_format == "polars":
+            return result.pl()
+        elif output_format == "pyarrow":
+            return result.arrow()
+
     def count(
         self,
         table_name: str,

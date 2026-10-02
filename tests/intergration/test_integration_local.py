@@ -1,4 +1,6 @@
 # tests/integration/test_integration_local.py
+import datetime
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -127,6 +129,43 @@ def test_view_columns_subset_includes_rowid(cities_table: ParquEdit) -> None:
     assert "id" in result.columns
     assert "name" in result.columns
     assert "population" not in result.columns
+
+
+# ============ time_travel ============
+
+
+def test_time_travel_returns_state_before_later_insert(pe: ParquEdit) -> None:
+    df = pd.DataFrame({"id": [1], "name": ["Oslo"]})
+    pe.create_table(
+        "cities", source=df, product_name="test_product", user_defined_id=["id"]
+    )
+    pe.insert_data("cities", df)
+    time.sleep(1.1)
+    at_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    time.sleep(1.1)
+    pe.insert_data("cities", pd.DataFrame({"id": [2], "name": ["Bergen"]}))
+
+    assert pe.count("cities") == 2
+    result = pe.time_travel("cities", at_time=at_time)
+    assert len(result) == 1
+    assert result["name"].iloc[0] == "Oslo"
+
+
+def test_time_travel_with_where_and_limit(pe: ParquEdit) -> None:
+    df = pd.DataFrame({"id": [1, 2], "name": ["Oslo", "Bergen"]})
+    pe.create_table(
+        "cities",
+        source=df,
+        product_name="test_product",
+        user_defined_id=["id"],
+        fill=True,
+    )
+    time.sleep(1.1)
+    at_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    result = pe.time_travel("cities", at_time=at_time, where="id = 1", limit=1)
+    assert len(result) == 1
+    assert result["name"].iloc[0] == "Oslo"
 
 
 # ============ insert ============

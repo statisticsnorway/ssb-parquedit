@@ -316,6 +316,46 @@ class ParquEdit:
             output_format=output_format,
         )
 
+    def time_travel(
+        self,
+        table_name: str,
+        at_time: str,
+        where: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        output_format: str = "pandas",
+    ) -> Any:
+        """View the contents of a table as it existed at a specific point in time.
+
+        Args:
+            table_name: The name of the table to query.
+            at_time: Timestamp identifying the snapshot to query, formatted as
+                "YYYY-MM-DD HH:MM:SS" (e.g. "2026-09-26 00:00:00").
+            where: Optional SQL WHERE clause to filter results. Defaults to None.
+            limit: Maximum number of rows to return. Defaults to None.
+            offset: Number of rows to skip before returning results. Defaults to 0.
+            columns: List of column names to include. Defaults to None, which returns all columns.
+            order_by: Column name to sort results by. Defaults to None.
+            output_format: Format of the returned data. Defaults to 'pandas'.
+
+        Returns:
+            Any: Query results in the specified output format, as of the given time.
+        """
+        conn = self._get_connection()
+        query = QueryOperations(conn)
+        return query.time_travel(
+            table_name,
+            at_time,
+            where=where,
+            limit=limit,
+            offset=offset,
+            columns=columns,
+            order_by=order_by,
+            output_format=output_format,
+        )
+
     def count(
         self,
         table_name: str,
