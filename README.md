@@ -41,6 +41,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [Editing a row](#editing-a-row)
   - [Deleting rows](#deleting-rows)
   - [Querying data](#querying-data)
+  - [Time travel](#time-travel)
   - [Counting rows](#counting-rows)
   - [Checking table existence](#checking-table-existence)
   - [List all tables](#list-all-tables)
@@ -294,6 +295,21 @@ result = con.view(table_name="my_table_1",
 
 result = con.view(table_name="my_table_1",
                    output_format="pyarrow")
+```
+
+### Time travel
+`time_travel()` - Queries a table as it existed at a specific point in time, using DuckLake's time travel feature. Accepts the same `where`, `limit`, `offset`, `columns`, `order_by`, and `output_format` options as `view()`.
+
+```python
+# View a table as it was at a specific timestamp
+result = con.time_travel(table_name="my_table_1", at_time="2026-09-26 00:00:00")
+```
+```python
+# Combine with the usual view() options
+result = con.time_travel(table_name="my_table_1",
+                          at_time="2026-09-26 00:00:00",
+                          where="age > 25",
+                          limit=10)
 ```
 
 ### Counting rows
