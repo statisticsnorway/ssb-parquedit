@@ -127,7 +127,7 @@ class QueryOperations:
             return result.df()
         elif output_format == "polars":
             return result.pl()
-        elif output_format == "pyarrow":
+        else:
             return result.arrow()
 
     def time_travel(
