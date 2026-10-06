@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from unittest.mock import MagicMock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pandas as pd
@@ -160,11 +161,83 @@ class TestCleanupGcsFiles:
             ddl._cleanup_gcs_files("gs://bucket/table", "my_table")
         mock_fs.rm.assert_called_once_with("gs://bucket/table", recursive=True)
 
+    def test_exception_raised(self) -> None:
+        mock_conn = MagicMock()
+        db_config = MagicMock()
+        ddl = DDLOperations(mock_conn, db_config)
+
+        table_location = "gs://test/example"
+        table_name = "t1"
+
+        with (
+            patch("ssb_parquedit.ddl.gcsfs.GCSFileSystem") as mock_gcsf,
+            patch("ssb_parquedit.ddl.logger") as mock_log,
+        ):
+            mock_gcsf.return_value.exists = MagicMock().side_effect
+            mock_gcsf.exists.side_effect = Exception("failed")
+            e = MagicMock()
+            mock_log.error = e
+            ddl._cleanup_gcs_files(table_location, table_name)
+
+        e.assert_called_once_with(
+            f"Failed to clean up GCS files for {table_name} at {table_location}: 'NoneType' object is not callable. Files may need manual cleanup. Verify path and GCS permissions."
+        )
+
+
+# ── _cleanup_local_files ────────────────────────────────────────────────────────
+
+
+class TestCleanupLocalFiles:
+    def test_path_does_not_exists(self) -> None:
+        mock_conn = MagicMock()
+        db_config = MagicMock()
+        ddl = DDLOperations(mock_conn, db_config)
+        table_location = "/test/example"
+        table_name = "t1"
+        with (
+            patch("ssb_parquedit.ddl.Path") as mock_path,
+            patch("ssb_parquedit.ddl.logger") as mock_log,
+        ):
+            warn = MagicMock()
+            mock_log.warning = warn
+            mock_path.return_value.exists.return_value = False
+            ddl._cleanup_local_files(table_location, table_name)
+
+        warn.assert_called_once_with(
+            f"Table location not found locally: {table_location}. "
+            f"Data may have already been deleted or path is incorrect."
+        )
+
+    def test_failes_to_remove(self) -> None:
+        mock_conn = MagicMock()
+        db_config = MagicMock()
+        ddl = DDLOperations(mock_conn, db_config)
+        table_location = "/test/test"
+        table_name = "t1"
+        with (
+            patch("ssb_parquedit.ddl.shutil") as mock_shu,
+            patch("ssb_parquedit.ddl.logger") as mock_log,
+            patch("ssb_parquedit.ddl.Path") as mock_path,
+        ):
+            mock_path.return_value.exists.return_value = True
+            rm = MagicMock()
+            rm.side_effect = Exception("test")
+            mock_shu.rmtree = rm
+            ex = MagicMock()
+            mock_log.exception = ex
+            ddl._cleanup_local_files(table_location, table_name)
+
+        rm.assert_called_once()
+        ex.assert_called_once_with(
+            f"Failed to clean up local files for {table_name} at {table_location}"
+            f"Files may need manual cleanup."
+        )
+
 
 # ── drop_table(cleanup=True) ────────────────────────────────────────────────────
 
 
-class TestDropTableCleanup:
+class TestDropTable:
     def test_cleanup_drops_table(
         self, conn: LocalDuckDBConnection, tmp_storage: str
     ) -> None:
@@ -216,11 +289,46 @@ class TestDropTableCleanup:
         mock_conn.execute.return_value = MagicMock()
         ddl.conn.execute("DROP TABLE cities")
 
+    def test_invalid_table_name(self):
+        mock_conn = MagicMock()
+        ddl = DDLOperations(mock_conn)
+        with pytest.raises(ValueError):
+            ddl.drop_table("BAD NAME")
+
+    def test_cleanup_table_location_not_found(self):
+        mock_conn = MagicMock()
+        mock_conn.db_config = None
+        ddl = DDLOperations(mock_conn)
+        with patch("ssb_parquedit.ddl.logger") as log:
+            w = MagicMock()
+            log.warning = w
+            ddl.drop_table("t1", cleanup=True)
+
+        assert (
+            call(
+                "Could not retrieve table location for t1: Cannot determine table location for t1: no data_path configured.. Proceeding with drop only, GCS files may need manual cleanup."
+            )
+            in w.call_args_list
+        )
+
+    def test_cleanup_remote_conn(self):
+        mock_conn = MagicMock()
+        ddl = DDLOperations(mock_conn)
+        ddl._cleanup_gcs_files = MagicMock()
+        ddl._get_table_location = MagicMock()
+        table_location = "test"
+        table_name = "t1"
+        ddl._get_table_location.return_value = table_location
+        with patch("ssb_parquedit.ddl.gcsfs.GCSFileSystem"):
+            ddl.drop_table(table_name, True)
+
+        ddl._cleanup_gcs_files.assert_called_once_with(table_location, table_name)
+
 
 # ── create_table: column name length validation ─────────────────────────────
 
 
-class TestColumnNameLengthValidation:
+class TestCreateTable:
     """create_table() must reject column names over Postgres's 63-byte identifier limit."""
 
     LONG_ASCII_NAME = "a" * 64
@@ -297,3 +405,36 @@ class TestColumnNameLengthValidation:
         ddl = DDLOperations(conn)
         with pytest.raises(ValueError, match="63-byte"):
             ddl.create_table("t1", parquet_path)
+
+    def test_invalid_table_name(self):
+        mock_conn = MagicMock()
+        ddl = DDLOperations(mock_conn)
+        with pytest.raises(ValueError):
+            ddl.create_table("BAD NAME", "test")
+
+    def test_invalid_source(self):
+        mock_conn = MagicMock()
+        ddl = DDLOperations(mock_conn)
+        with pytest.raises(
+            TypeError,
+            match="source must be a DataFrame, JSON Schema dict, or gs:// Parquet path",
+        ):
+            ddl.create_table("t1", 1)
+
+    def test_part_columns_greater_than_zero(self):
+        mock_conn = MagicMock()
+        part_columns = ["col_a", "col_b"]
+        schema = {
+            "properties": {
+                "id": {"type": "integer"},
+                "a": {"type": "string"},
+            }
+        }
+        ddl = DDLOperations(mock_conn)
+        table_name = "t1"
+        cols = ", ".join(part_columns)
+        ddl.create_table(table_name, schema, part_columns=part_columns)
+        assert (
+            call(f"ALTER TABLE {table_name} SET PARTITIONED BY ({cols})")
+            in mock_conn.execute.call_args_list
+        )
