@@ -1,5 +1,9 @@
 """Tests for ParquEdit - happy path and documented error behavior."""
 
+import unittest
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import pandas as pd
 import polars as pl
 import pytest
@@ -7,11 +11,78 @@ import pytest
 from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
 
+
+class TestParquEditInit(unittest.TestCase):
+    def test_config_is_none(self) -> None:
+        pe = ParquEdit(None)
+        self.assertIsNotNone(pe._db_config)
+
+    def test_config_is_some(self) -> None:
+        config = MagicMock()
+        pe = ParquEdit(config)
+        self.assertEqual(config, pe._db_config)
+
+
+class TestParquEditGetConnection(unittest.TestCase):
+    def test_conn_is_none(self) -> None:
+        pe = ParquEdit()
+        with (
+            self.assertLogs("ssb_parquedit.parquedit", level="DEBUG") as cm,
+            patch("ssb_parquedit.parquedit.DuckDBConnection"),
+        ):
+            conn = pe._get_connection()
+            self.assertEqual(
+                cm.output,
+                [
+                    "DEBUG:ssb_parquedit.parquedit:Duck DB connection created. ",
+                ],
+            )
+            self.assertIsInstance(conn, MagicMock)
+
+    def test_conn_is_some(self) -> None:
+        pe = ParquEdit()
+        mock_conn = MagicMock()
+        pe._conn = mock_conn
+        self.assertEqual(pe._get_connection(), mock_conn)
+
+
+class TestParquEditLocalWithGCSData(unittest.TestCase):
+    def test_catalog_name_is_none(self) -> None:
+        catalog_path = "/test/test"
+        catalog_name = None
+        with (
+            patch("ssb_parquedit.local_backup.duckdb"),
+            patch("ssb_parquedit.local_backup.gcsfs"),
+            self.assertRaises(AssertionError),
+        ):
+            ParquEdit.local_with_gcs_data(catalog_path, catalog_name)
+
+    def test_catalog_name_is_some(self) -> None:
+        catalog_path = "/test/test"
+        catalog_name = "some"
+        with (
+            patch("ssb_parquedit.local_backup.duckdb"),
+            patch("ssb_parquedit.local_backup.gcsfs"),
+        ):
+            pe = ParquEdit.local_with_gcs_data(catalog_path, catalog_name)
+            self.assertEqual(pe._db_config["catalog_name"], catalog_name)
+            self.assertEqual(pe._conn.catalog_name, catalog_name)
+            self.assertEqual(pe._conn.catalog_path, catalog_path)
+
+
 # ── create_table: product_name validation ─────────────────────────────────────
 
 
-class TestCreateTableProductNameRequired:
-    """create_table() must enforce that product_name is provided and non-empty."""
+class TestCreateTable:
+    def test_user_defined_id_is_none(self, pe: ParquEdit) -> None:
+        df = pd.DataFrame({"id": [1], "value": ["a"]})
+        with pytest.raises(
+            ValueError,
+            match="'user_defined_id' must have at least one element, please provide a combination of columns for your table",
+        ):
+            pe.create_table(
+                "test_table", source=df, product_name="test_product", user_defined_id=[]
+            )
 
     def test_raises_value_error_when_product_name_is_none(self, pe: ParquEdit) -> None:
         df = pd.DataFrame({"id": [1], "value": ["a"]})
@@ -194,3 +265,26 @@ class TestParquEditHappyPathPolars:
         )
         result = pe.view("cities")
         assert len(result) == 3
+
+
+class TestMergeAdjacentFiles:
+    def test_invalid_name(self, pe: ParquEdit) -> None:
+        table_name = "INVALID"
+        with pytest.raises(ValueError):
+            pe.merge_adjacent_files(table_name)
+
+
+class TestExportCatalog:
+    def test_db_config_is_none(self, pe: ParquEdit) -> None:
+        export_path = "/test/test"
+        pe._db_config = None
+        with pytest.raises(RuntimeError):
+            pe.export_catalog(export_path)
+
+
+class TestImportCatalog:
+    def test_db_config_is_none(self, pe: ParquEdit) -> None:
+        backup_file_path = "/test/test"
+        pe._db_config = None
+        with pytest.raises(RuntimeError):
+            pe.import_catalog(backup_file_path)
