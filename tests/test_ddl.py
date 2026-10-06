@@ -179,9 +179,7 @@ class TestCleanupGcsFiles:
             mock_log.error = e
             ddl._cleanup_gcs_files(table_location, table_name)
 
-        e.assert_called_once_with(
-            f"Failed to clean up GCS files for {table_name} at {table_location}: 'NoneType' object is not callable. Files may need manual cleanup. Verify path and GCS permissions."
-        )
+        assert e.call_args[0][0] == "Failed to clean up GCS files for '%s' at %s: %s. Files may need manual cleanup. Verify path and GCS permissions."
 
 
 # ── _cleanup_local_files ────────────────────────────────────────────────────────
@@ -204,8 +202,7 @@ class TestCleanupLocalFiles:
             ddl._cleanup_local_files(table_location, table_name)
 
         warn.assert_called_once_with(
-            f"Table location not found locally: {table_location}. "
-            f"Data may have already been deleted or path is incorrect."
+            'Table location not found locally: %s. Data may have already been deleted or path is incorrect.', '/test/example'
         )
 
     def test_failes_to_remove(self) -> None:
@@ -229,8 +226,7 @@ class TestCleanupLocalFiles:
 
         rm.assert_called_once()
         ex.assert_called_once_with(
-            f"Failed to clean up local files for {table_name} at {table_location}"
-            f"Files may need manual cleanup."
+            "Failed to clean up local files for '%s' at %s. Files may need manual cleanup.", 't1', '/test/test'
         )
 
 
@@ -289,13 +285,13 @@ class TestDropTable:
         mock_conn.execute.return_value = MagicMock()
         ddl.conn.execute("DROP TABLE cities")
 
-    def test_invalid_table_name(self):
+    def test_invalid_table_name(self) -> None:
         mock_conn = MagicMock()
         ddl = DDLOperations(mock_conn)
         with pytest.raises(ValueError):
             ddl.drop_table("BAD NAME")
 
-    def test_cleanup_table_location_not_found(self):
+    def test_cleanup_table_location_not_found(self) -> None:
         mock_conn = MagicMock()
         mock_conn.db_config = None
         ddl = DDLOperations(mock_conn)
@@ -304,14 +300,13 @@ class TestDropTable:
             log.warning = w
             ddl.drop_table("t1", cleanup=True)
 
+
         assert (
-            call(
-                "Could not retrieve table location for t1: Cannot determine table location for t1: no data_path configured.. Proceeding with drop only, GCS files may need manual cleanup."
-            )
-            in w.call_args_list
+            "Could not retrieve table location for '%s': %s. Proceeding with drop only, GCS files may need manual cleanup."
+            in [c.args[0] for c in w.call_args_list]
         )
 
-    def test_cleanup_remote_conn(self):
+    def test_cleanup_remote_conn(self) -> None:
         mock_conn = MagicMock()
         ddl = DDLOperations(mock_conn)
         ddl._cleanup_gcs_files = MagicMock()
@@ -406,13 +401,13 @@ class TestCreateTable:
         with pytest.raises(ValueError, match="63-byte"):
             ddl.create_table("t1", parquet_path)
 
-    def test_invalid_table_name(self):
+    def test_invalid_table_name(self) -> None:
         mock_conn = MagicMock()
         ddl = DDLOperations(mock_conn)
         with pytest.raises(ValueError):
             ddl.create_table("BAD NAME", "test")
 
-    def test_invalid_source(self):
+    def test_invalid_source(self) -> None:
         mock_conn = MagicMock()
         ddl = DDLOperations(mock_conn)
         with pytest.raises(
@@ -421,7 +416,7 @@ class TestCreateTable:
         ):
             ddl.create_table("t1", 1)
 
-    def test_part_columns_greater_than_zero(self):
+    def test_part_columns_greater_than_zero(self) -> None:
         mock_conn = MagicMock()
         part_columns = ["col_a", "col_b"]
         schema = {

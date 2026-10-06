@@ -57,6 +57,10 @@ class TestValidateColumnNames:
             SchemaUtils.validate_column_names(["short_col", "a" * 64])
         assert "short_col" not in str(exc_info.value)
 
+    def test_rowid_in_columns(self) -> None:
+        with pytest.raises(ValueError, match=r"Column name 'rowid' is reserved and cannot be used."):
+            SchemaUtils.validate_column_names(["rowid"])
+
 
 class TestTranslate(unittest.TestCase):
     def test_prop_type_is_list_contains_null(self) -> None:

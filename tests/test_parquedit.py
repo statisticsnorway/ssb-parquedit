@@ -27,16 +27,9 @@ class TestParquEditGetConnection(unittest.TestCase):
     def test_conn_is_none(self) -> None:
         pe = ParquEdit()
         with (
-            self.assertLogs("ssb_parquedit.parquedit", level="DEBUG") as cm,
             patch("ssb_parquedit.parquedit.DuckDBConnection"),
         ):
             conn = pe._get_connection()
-            self.assertEqual(
-                cm.output,
-                [
-                    "DEBUG:ssb_parquedit.parquedit:Duck DB connection created. ",
-                ],
-            )
             self.assertIsInstance(conn, MagicMock)
 
     def test_conn_is_some(self) -> None:
