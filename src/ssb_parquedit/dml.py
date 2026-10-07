@@ -18,6 +18,7 @@ from tenacity import wait_random
 from ssb_parquedit.functions import get_dapla_user
 
 from .query import QueryOperations
+from .utils import NestedPathUtils
 from .utils import SchemaUtils
 
 logger = logging.getLogger(__name__)
@@ -187,7 +188,11 @@ class DMLOperations:
                 [table_name],
             ).fetchall()
         }
-        missing = set(changes.keys()) - valid_columns
+        # Keys may be plain column names or nested paths into a STRUCT/LIST
+        # column (e.g. "address.city", "items[1].qty") — only the base
+        # column needs to exist in the catalog.
+        base_columns = {NestedPathUtils.parse_path(key)[0] for key in changes.keys()}
+        missing = base_columns - valid_columns
         if missing:
             msg = f"Missing columns in '{table_name}': {missing}"
             logger.error(msg)
@@ -213,16 +218,36 @@ class DMLOperations:
         The change is wrapped in a transaction and committed with metadata
         including the change reason, comment, user, and timestamp.
 
+        A key in `changes` may also be a nested path into a STRUCT or LIST
+        column, using dotted/bracket notation, e.g. "address.city" (a field
+        inside the STRUCT column "address") or "items[1].qty" (a field of
+        element 1 of the LIST column "items"). Only the targeted nested
+        field/element is replaced — the rest of the struct/list value is left
+        untouched — and only that specific entry (not the whole column) is
+        recorded in the changelog's old_values/new_values.
+
         Args:
             table_name: The name of the table to edit.
             rowid: The rowid of the row to update.
-            changes: A dictionary mapping column names to their new values.
+            changes: A dictionary mapping column names (or nested paths, see
+                above) to their new values.
             change_event_reason: A reason code describing the type of change. Must be one of the valid update causes defined in VALID_UPDATE_CAUSES.
             change_comment: A human-readable comment describing the change.
 
         Raises:
             ValueError: If change_event_reason is not a valid update cause.
             Exception: Re-raises any exception that occurs during the transaction after rolling back.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> # Replace an entire column
+            >>> dml.edit("cities", 1, {"population": 650000}, "REVIEW", "Census update")
+            >>> # Edit a single field inside a STRUCT column "address"
+            >>> dml.edit("cities", 1, {"address.city": "Oslo"}, "REVIEW", "Typo fix")
+            >>> # Edit a single element inside a LIST column "tags"
+            >>> dml.edit("cities", 1, {"tags[0]": "capital"}, "REVIEW", "Tag fix")
+            >>> # Edit a field of a struct inside a LIST column "items"
+            >>> dml.edit("cities", 1, {"items[1].qty": 5}, "REVIEW", "Quantity fix")
         """
         # Coerce numpy/pandas integer types (e.g. numpy.int64 from a DataFrame
         # column) to a native Python int — DuckDB's parameter binding can't
@@ -238,8 +263,13 @@ class DMLOperations:
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
-        set_clause = ", ".join(f"{col} = ?" for col in changes.keys())
-        values = [*list(changes.values()), rowid]
+        # Parse each key into its base column and (possibly empty) nested
+        # path, preserving the order in which nested edits were requested so
+        # that multiple edits targeting the same STRUCT/LIST column are
+        # applied one after another onto that column's value.
+        parsed_changes = {
+            key: NestedPathUtils.parse_path(key) for key in changes.keys()
+        }
 
         dapla_user = get_dapla_user()
 
@@ -266,19 +296,39 @@ class DMLOperations:
             assert user_defined_id is not None
             unique_row = row[user_defined_id].iloc[0]
             key_values = {
-                col: val.item() if hasattr(val, "item") else val
+                col: NestedPathUtils.to_native(val)
                 for col, val in zip(user_defined_id, unique_row, strict=True)
             }
 
-            # make dict with old values from row
-            old_values = {
-                col: (
-                    row[col].iloc[0].item()
-                    if hasattr(row[col].iloc[0], "item")
-                    else row[col].iloc[0]
-                )
-                for col in changes.keys()
-            }
+            # Build the actual column-level values to SET, merging nested
+            # struct/list edits into their base column's current value, while
+            # recording only the specific changed entry (not the whole
+            # column) in old_values/new_values for the changelog.
+            old_values: dict[str, Any] = {}
+            new_values: dict[str, Any] = {}
+            column_updates: dict[str, Any] = {}
+
+            for key, (base_col, tokens) in parsed_changes.items():
+                new_val = changes[key]
+                if not tokens:
+                    # Plain column edit — replace the whole value.
+                    old_values[key] = NestedPathUtils.to_native(row[base_col].iloc[0])
+                    column_updates[base_col] = new_val
+                else:
+                    # Nested edit — start from the column's current value (or
+                    # from a prior nested edit already applied to it earlier
+                    # in this same call) and replace only the targeted entry.
+                    current = NestedPathUtils.to_native(
+                        column_updates.get(base_col, row[base_col].iloc[0])
+                    )
+                    old_values[key] = NestedPathUtils.get_nested(current, tokens)
+                    column_updates[base_col] = NestedPathUtils.set_nested(
+                        current, tokens, new_val
+                    )
+                new_values[key] = new_val
+
+            set_clause = ", ".join(f"{col} = ?" for col in column_updates.keys())
+            values = [*column_updates.values(), rowid]
 
             extra_info = json.dumps(
                 {
@@ -292,7 +342,7 @@ class DMLOperations:
                     "change_comment": change_comment,
                     "product_name": product_name,
                     "old_values": old_values,
-                    "new_values": changes,
+                    "new_values": new_values,
                 }
             )
 

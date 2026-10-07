@@ -5,10 +5,123 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import polars as pl
 
 logger = logging.getLogger(__name__)
+
+# Matches either a bare name segment ("address", "city") or a bracketed
+# integer index ("[0]", "[12]") within a nested path like "items[1].qty".
+_NESTED_PATH_RE = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
+
+
+class NestedPathUtils:
+    """Utilities for reading/writing a single field inside a STRUCT or LIST column.
+
+    A "path" addresses a nested field using dotted/bracket notation, e.g.:
+    - "address.city"       -> field "city" inside the STRUCT column "address"
+    - "tags[0]"             -> element 0 of the LIST column "tags"
+    - "items[1].qty"        -> field "qty" of element 1 of the LIST column "items"
+
+    The base column name is always the first segment of the path.
+    """
+
+    @staticmethod
+    def parse_path(path: str) -> tuple[str, list[str | int]]:
+        """Split a nested path into its base column name and remaining tokens.
+
+        Args:
+            path: A column name, optionally followed by nested field/index
+                accessors, e.g. "address.city" or "items[1].qty".
+
+        Returns:
+            A tuple of (base_column_name, tokens), where tokens is a list of
+            str (struct field names) and int (list indices) to apply, in
+            order, after the base column. Empty for a plain column path.
+
+        Raises:
+            ValueError: If path is empty or contains no valid segments.
+
+        Example:
+            >>> NestedPathUtils.parse_path("address.city")
+            ('address', ['city'])
+            >>> NestedPathUtils.parse_path("items[1].qty")
+            ('items', [1, 'qty'])
+            >>> NestedPathUtils.parse_path("population")
+            ('population', [])
+        """
+        tokens: list[str | int] = [
+            int(idx) if idx else name for name, idx in _NESTED_PATH_RE.findall(path)
+        ]
+        if not tokens:
+            msg = f"Invalid path: '{path}'"
+            raise ValueError(msg)
+        return tokens[0], tokens[1:]  # type: ignore[return-value]
+
+    @staticmethod
+    def to_native(value: Any) -> Any:
+        """Recursively convert numpy/pandas values to plain Python types.
+
+        DuckDB's Python parameter binding cannot bind numpy scalar types
+        (e.g. numpy.int64) or numpy arrays, which is what DuckDB/pandas use
+        to represent STRUCT (dict with numpy scalar values) and LIST
+        (numpy.ndarray) column values read back via `.df()`. This makes a
+        value safe to pass back into an UPDATE statement.
+
+        Args:
+            value: A scalar, dict (STRUCT), or list/numpy.ndarray (LIST)
+                value, possibly containing numpy/pandas scalar types.
+
+        Returns:
+            The equivalent value using only plain Python types.
+        """
+        if isinstance(value, dict):
+            return {k: NestedPathUtils.to_native(v) for k, v in value.items()}
+        if isinstance(value, list | np.ndarray):
+            return [NestedPathUtils.to_native(v) for v in value]
+        if hasattr(value, "item"):
+            return value.item()
+        return value
+
+    @staticmethod
+    def get_nested(value: Any, tokens: list[str | int]) -> Any:
+        """Read the value at a nested path within a STRUCT/LIST value.
+
+        Args:
+            value: The container value (dict for STRUCT, list for LIST).
+            tokens: Path tokens as returned by `parse_path` (without the base
+                column name).
+
+        Returns:
+            The value found at the nested path.
+        """
+        current = value
+        for token in tokens:
+            current = current[token]
+        return current
+
+    @staticmethod
+    def set_nested(value: Any, tokens: list[str | int], new_value: Any) -> Any:
+        """Return a copy of `value` with the nested path set to `new_value`.
+
+        Args:
+            value: The container value (dict for STRUCT, list for LIST) to
+                update. Converted to native Python types and deep-copied
+                before mutation; the input is left untouched.
+            tokens: Path tokens as returned by `parse_path` (without the base
+                column name). Must contain at least one token.
+            new_value: The value to assign at the nested path.
+
+        Returns:
+            A new container value with the nested path updated.
+        """
+        updated = NestedPathUtils.to_native(value)
+        current = updated
+        for token in tokens[:-1]:
+            current = current[token]
+        current[tokens[-1]] = new_value
+        return updated
 
 
 class SchemaUtils:

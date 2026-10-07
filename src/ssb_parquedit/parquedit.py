@@ -410,12 +410,28 @@ class ParquEdit:
     ) -> None:
         """Edit a single row in a table by its row ID.
 
+        A key in `changes` may be a plain column name, or a nested path into
+        a STRUCT or LIST column using dotted/bracket notation, e.g.
+        "address.city" (field "city" inside STRUCT column "address") or
+        "items[1].qty" (field "qty" of element 1 of LIST column "items").
+        Only the targeted field/element is replaced, and only that specific
+        entry — not the whole column — is recorded as changed in the
+        changelog (see get_edits()).
+
         Args:
             table_name: The name of the table to edit.
             rowid: The ID of the row to update.
-            changes: A dictionary mapping column names to their new values.
+            changes: A dictionary mapping column names (or nested paths, see
+                above) to their new values.
             change_event_reason: A short reason code describing the type of change event.
             change_comment: A human-readable comment describing the change.
+
+        Example:
+            >>> # doctest: +SKIP
+            >>> con = ParquEdit()
+            >>> con.edit("cities", 1, {"population": 650000}, "REVIEW", "Census update")
+            >>> con.edit("cities", 1, {"address.city": "Oslo"}, "REVIEW", "Typo fix")
+            >>> con.edit("cities", 1, {"tags[0]": "capital"}, "REVIEW", "Tag fix")
         """
         conn = self._get_connection()
 
