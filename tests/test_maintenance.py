@@ -1,5 +1,3 @@
-
-
 import unittest
 from unittest.mock import MagicMock
 
@@ -26,7 +24,7 @@ class TestMaintenanceOperations(unittest.TestCase):
 
         table_name = "valid"
 
-        mo = MaintenanceOperations(conn, dbconfig)
+        mo = MaintenanceOperations(conn, dbconfig)  # type: ignore
 
         with pytest.raises(RuntimeError, match="db_config is not initialized"):
             mo.flush_inlined_table(table_name)
@@ -37,7 +35,7 @@ class TestMaintenanceOperations(unittest.TestCase):
 
         conn.execute.return_value.fetchall.return_value = [
             ["test", "test", 2],
-            ["test2", "test2", 6]
+            ["test2", "test2", 6],
         ]
 
         table_name = "valid"
@@ -46,7 +44,12 @@ class TestMaintenanceOperations(unittest.TestCase):
 
         with self.assertLogs("ssb_parquedit.maintenance", level="INFO") as cm:
             mo.flush_inlined_table(table_name)
-            self.assertEqual(cm.output, [f"INFO:ssb_parquedit.maintenance:Flushed 8 rows for table '{table_name}'.",])
+            self.assertEqual(
+                cm.output,
+                [
+                    f"INFO:ssb_parquedit.maintenance:Flushed 8 rows for table '{table_name}'.",
+                ],
+            )
 
     def test_flushed_inlined_table_no_rows_flushed(self) -> None:
         conn = MagicMock()
@@ -55,24 +58,29 @@ class TestMaintenanceOperations(unittest.TestCase):
         conn.execute.return_value.fetchall.return_value = []
 
         table_name = "valid"
-        
+
         mo = MaintenanceOperations(conn, dbconfig)
 
         with self.assertLogs("ssb_parquedit.maintenance", level="INFO") as cm:
             mo.flush_inlined_table(table_name)
-            self.assertEqual(cm.output, [f"INFO:ssb_parquedit.maintenance:No inlined data to flush for table '{table_name}'.",])
+            self.assertEqual(
+                cm.output,
+                [
+                    f"INFO:ssb_parquedit.maintenance:No inlined data to flush for table '{table_name}'.",
+                ],
+            )
 
     def test_merge_adjacent_files_db_config_is_none(self) -> None:
         conn = MagicMock()
         dbconfig = None
 
-        mo = MaintenanceOperations(conn, dbconfig)
+        mo = MaintenanceOperations(conn, dbconfig)  # type: ignore
 
         table_name = "valid"
 
         with self.assertRaises(RuntimeError) as cm:
             mo.merge_adjacent_files(table_name)
-        
+
         the_exception: RuntimeError = cm.exception
         self.assertEqual(the_exception.args[0], "db_config is not initialized")
 
@@ -91,7 +99,12 @@ class TestMaintenanceOperations(unittest.TestCase):
 
         with self.assertLogs("ssb_parquedit.maintenance", level="INFO") as cm:
             mo.merge_adjacent_files(table_name)
-            self.assertEqual(cm.output, [f"INFO:ssb_parquedit.maintenance:Merged 7 files into 9 for table '{table_name}'.",])
+            self.assertEqual(
+                cm.output,
+                [
+                    f"INFO:ssb_parquedit.maintenance:Merged 7 files into 9 for table '{table_name}'.",
+                ],
+            )
 
     def test_merge_adjacent_files_no_files_merged(self) -> None:
         conn = MagicMock()
@@ -105,4 +118,9 @@ class TestMaintenanceOperations(unittest.TestCase):
 
         with self.assertLogs("ssb_parquedit.maintenance", level="INFO") as cm:
             mo.merge_adjacent_files(table_name)
-            self.assertEqual(cm.output, [f"INFO:ssb_parquedit.maintenance:No files to merge for table '{table_name}'.",])
+            self.assertEqual(
+                cm.output,
+                [
+                    f"INFO:ssb_parquedit.maintenance:No files to merge for table '{table_name}'.",
+                ],
+            )

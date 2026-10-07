@@ -39,7 +39,7 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
     return pe
 
 
-def dumps_wrapper(*args, **kwargs):
+def dumps_wrapper(*args: Any, **kwargs: Any) -> str:
     return _dumps(*args, **(kwargs | {"default": lambda obj: "mock"}))
 
 
@@ -284,11 +284,11 @@ class TestDMLOperationsDeleteRow:
 
         assert cities_table.count("cities") == 3
 
-    def test_rollback_exception(self):
-        def execute_mock(input: Any, *args: object):
-            if input == "BEGIN":
+    def test_rollback_exception(self) -> None:
+        def execute_mock(cmd: Any, *args: object) -> None:
+            if cmd == "BEGIN":
                 raise ValueError("test_begin")
-            if input == "ROLLBACK":
+            if cmd == "ROLLBACK":
                 raise ValueError("test_rollback")
 
         mock_conn = MagicMock()
@@ -298,7 +298,7 @@ class TestDMLOperationsDeleteRow:
         db_config = MagicMock()
 
         dml = DMLOperations(mock_conn, db_config)
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         change_event_reason = "OTHER"
         change_comment = "tag dict is none"
@@ -320,7 +320,7 @@ class TestDMLOperationsDeleteRow:
 
 
 class TestDMLOperationsInsertData:
-    def test_insert_data_invalid_source(self):
+    def test_insert_data_invalid_source(self) -> None:
         mock_conn = MagicMock()
         db_config = MagicMock()
         dml = DMLOperations(mock_conn, db_config)
@@ -331,7 +331,7 @@ class TestDMLOperationsInsertData:
 
 
 class TestDMLOperationsValidateTableAndColumns:
-    def test_missing_columns(self):
+    def test_missing_columns(self) -> None:
         mock_conn = MagicMock()
         mock_conn.execute.return_value.fetchall.return_value = [
             ("a",),
@@ -351,7 +351,7 @@ class TestDMLOperationsValidateTableAndColumns:
 
 class TestDMLOperationsEdit:
 
-    def test_edit_invalid_change_event_reason(self):
+    def test_edit_invalid_change_event_reason(self) -> None:
         mock_conn = MagicMock()
         db_config = MagicMock()
 
@@ -362,10 +362,10 @@ class TestDMLOperationsEdit:
         change_comment = "invalid"
 
         dml = DMLOperations(mock_conn, db_config)
-        with pytest.raises(ValueError, match="Invalid cause: .*. Must be one of: .*"):
+        with pytest.raises(ValueError, match=r"Invalid cause: .*. Must be one of: .*"):
             dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
 
-    def test_tag_dict_is_none(self):
+    def test_tag_dict_is_none(self) -> None:
         mock_conn = MagicMock()
         db_config = MagicMock()
 
@@ -378,7 +378,7 @@ class TestDMLOperationsEdit:
         change_event_reason = "OTHER"
         change_comment = "tag dict is none"
         dml = DMLOperations(mock_conn, db_config)
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         with (
             patch("ssb_parquedit.dml.QueryOperations") as mock_query,
@@ -388,9 +388,9 @@ class TestDMLOperationsEdit:
             dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
         execute.assert_not_called()
 
-    def test_rollback_on_exception(self):
-        def execute_mock(input: Any, *args: object):
-            if input == "BEGIN":
+    def test_rollback_on_exception(self) -> None:
+        def execute_mock(arg: Any, *args: object) -> None:
+            if arg == "BEGIN":
                 raise ValueError("test")
 
         mock_conn = MagicMock()
@@ -398,7 +398,7 @@ class TestDMLOperationsEdit:
         db_config = MagicMock()
 
         dml = DMLOperations(mock_conn, db_config)
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         change_event_reason = "OTHER"
         change_comment = "tag dict is none"
@@ -419,11 +419,11 @@ class TestDMLOperationsEdit:
                     table_name, rowid, changes, change_event_reason, change_comment
                 )
 
-    def test_rollback_exception(self):
-        def execute_mock(input: Any, *args: object):
-            if input == "BEGIN":
+    def test_rollback_exception(self) -> None:
+        def execute_mock(cmd: Any, *args: object) -> None:
+            if cmd == "BEGIN":
                 raise ValueError("test_begin")
-            if input == "ROLLBACK":
+            if cmd == "ROLLBACK":
                 raise ValueError("test_rollback")
 
         mock_conn = MagicMock()
@@ -433,7 +433,7 @@ class TestDMLOperationsEdit:
         db_config = MagicMock()
 
         dml = DMLOperations(mock_conn, db_config)
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         change_event_reason = "OTHER"
         change_comment = "tag dict is none"
@@ -458,7 +458,7 @@ class TestDMLOperationsEdit:
 
 
 class TestDMLOperationsPandasToArrow:
-    def test_bigint(self):
+    def test_bigint(self) -> None:
         d = {"a": [1, 2, 3], "b": [4, 5, 6]}
         df = pd.DataFrame(data=d, dtype=np.int64)
         col_types = {"a": "BIGINT", "b": "BIGINT"}
@@ -470,7 +470,7 @@ class TestDMLOperationsPandasToArrow:
                 assert e.equals(pa.scalar(i))
                 i += 1
 
-    def test_bigint_nan(self):
+    def test_bigint_nan(self) -> None:
         d = {"a": [1, 2, 3], "b": ["n", "n", "n"]}
         df = pd.DataFrame(data=d)
         col_types = {"a": "BIGINT", "b": "BIGINT"}
@@ -482,7 +482,7 @@ class TestDMLOperationsPandasToArrow:
                 assert e.equals(pa.scalar(i)) or not e.is_valid
                 i += 1
 
-    def test_varchar_after_bigint(self):
+    def test_varchar_after_bigint(self) -> None:
         d = {"a": [1, 2, 3], "b": ["n", "n", "n"]}
         df = pd.DataFrame(data=d)
         col_types = {"a": "BIGINT", "b": "VARCHAR"}
@@ -496,7 +496,7 @@ class TestDMLOperationsPandasToArrow:
         for e in table["b"]:
             assert e.as_py() == "n"
 
-    def test_unkown_type(self):
+    def test_unkown_type(self) -> None:
         d = {"a": [1, 2, 3], "b": [4, 5, 6]}
         df = pd.DataFrame(data=d, dtype=np.uint8)
         col_types = {"a": "TEST", "b": "TEST"}
@@ -512,12 +512,12 @@ class TestDMLOperationsPandasToArrow:
 
 
 class TestDMLOperationsPolarsToArrow:
-    def test_unkown_type(self):
+    def test_unkown_type(self) -> None:
         d = {"a": [1, 2, 3], "b": [4, 5, 6]}
         df = pl.DataFrame(d)
         col_types = {"a": "TEST", "b": "TEST"}
         mwc = MagicMock()
-        df.with_columns = mwc
+        df.with_columns = mwc  # type: ignore
 
         DMLOperations._polars_to_arrow(df, col_types)
         mwc.assert_not_called()

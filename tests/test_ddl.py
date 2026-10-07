@@ -179,7 +179,10 @@ class TestCleanupGcsFiles:
             mock_log.error = e
             ddl._cleanup_gcs_files(table_location, table_name)
 
-        assert e.call_args[0][0] == "Failed to clean up GCS files for '%s' at %s: %s. Files may need manual cleanup. Verify path and GCS permissions."
+        assert (
+            e.call_args[0][0]
+            == "Failed to clean up GCS files for '%s' at %s: %s. Files may need manual cleanup. Verify path and GCS permissions."
+        )
 
 
 # ── _cleanup_local_files ────────────────────────────────────────────────────────
@@ -202,7 +205,8 @@ class TestCleanupLocalFiles:
             ddl._cleanup_local_files(table_location, table_name)
 
         warn.assert_called_once_with(
-            'Table location not found locally: %s. Data may have already been deleted or path is incorrect.', '/test/example'
+            "Table location not found locally: %s. Data may have already been deleted or path is incorrect.",
+            "/test/example",
         )
 
     def test_failes_to_remove(self) -> None:
@@ -226,7 +230,9 @@ class TestCleanupLocalFiles:
 
         rm.assert_called_once()
         ex.assert_called_once_with(
-            "Failed to clean up local files for '%s' at %s. Files may need manual cleanup.", 't1', '/test/test'
+            "Failed to clean up local files for '%s' at %s. Files may need manual cleanup.",
+            "t1",
+            "/test/test",
         )
 
 
@@ -300,7 +306,6 @@ class TestDropTable:
             log.warning = w
             ddl.drop_table("t1", cleanup=True)
 
-
         assert (
             "Could not retrieve table location for '%s': %s. Proceeding with drop only, GCS files may need manual cleanup."
             in [c.args[0] for c in w.call_args_list]
@@ -309,8 +314,8 @@ class TestDropTable:
     def test_cleanup_remote_conn(self) -> None:
         mock_conn = MagicMock()
         ddl = DDLOperations(mock_conn)
-        ddl._cleanup_gcs_files = MagicMock()
-        ddl._get_table_location = MagicMock()
+        ddl._cleanup_gcs_files = MagicMock()  # type: ignore
+        ddl._get_table_location = MagicMock()  # type: ignore
         table_location = "test"
         table_name = "t1"
         ddl._get_table_location.return_value = table_location

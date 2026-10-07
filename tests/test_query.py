@@ -22,7 +22,10 @@ class TestView(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             self.qo.view(table_name, output_format=output_format)
         e = cm.exception
-        self.assertEqual(e.args[0], f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.")
+        self.assertEqual(
+            e.args[0],
+            f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.",
+        )
 
     def test_output_format_pandas(self) -> None:
         table_name = "test_table"
@@ -59,13 +62,18 @@ class TestTimeTravel(unittest.TestCase):
         output_format = "INVALID"
         at_time = "2024-01-01"
         with self.assertRaises(ValueError) as cm:
-            self.qo.time_travel(table_name, at_time=at_time, output_format=output_format)
+            self.qo.time_travel(
+                table_name, at_time=at_time, output_format=output_format
+            )
         e = cm.exception
-        self.assertEqual(e.args[0], f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.")
+        self.assertEqual(
+            e.args[0],
+            f"Unknown output_format: {output_format}. Must be 'pandas', 'polars', or 'pyarrow'.",
+        )
 
     def test_columns_is_set(self) -> None:
         ex = MagicMock()
-        self.conn.execute = ex
+        self.conn.execute = ex  # type: ignore
         table_name = "test_table"
         at_time = "2024-01-01"
         columns = ["id", "name"]
@@ -75,7 +83,7 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_order_by_is_set(self) -> None:
         ex = MagicMock()
-        self.conn.execute = ex
+        self.conn.execute = ex  # type: ignore
         table_name = "test_table"
         at_time = "2024-01-01"
         order_by = "id"
@@ -85,7 +93,7 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_offset_is_set(self) -> None:
         ex = MagicMock()
-        self.conn.execute = ex
+        self.conn.execute = ex  # type: ignore
         table_name = "test_table"
         at_time = "2024-01-01"
         offset = 10
@@ -97,19 +105,25 @@ class TestTimeTravel(unittest.TestCase):
         table_name = "test_table"
         output_format = "pandas"
         at_time = "2024-01-01"
-        result = self.qo.time_travel(table_name, at_time=at_time, output_format=output_format)
+        result = self.qo.time_travel(
+            table_name, at_time=at_time, output_format=output_format
+        )
         self.assertEqual(result, "pandas")
 
     def test_output_format_is_polars(self) -> None:
         table_name = "test_table"
         output_format = "polars"
         at_time = "2024-01-01"
-        result = self.qo.time_travel(table_name, at_time=at_time, output_format=output_format)
+        result = self.qo.time_travel(
+            table_name, at_time=at_time, output_format=output_format
+        )
         self.assertEqual(result, "polars")
 
     def test_output_format_is_pyarrow(self) -> None:
         table_name = "test_table"
         output_format = "pyarrow"
         at_time = "2024-01-01"
-        result = self.qo.time_travel(table_name, at_time=at_time, output_format=output_format)
+        result = self.qo.time_travel(
+            table_name, at_time=at_time, output_format=output_format
+        )
         self.assertEqual(result, "pyarrow")

@@ -10,7 +10,7 @@ class TestInit(unittest.TestCase):
         catalog_path = "/test/test"
         with (
             patch("ssb_parquedit.local_backup.duckdb"),
-            patch("ssb_parquedit.local_backup.gcsfs")
+            patch("ssb_parquedit.local_backup.gcsfs"),
         ):
             conn = LocalCatalogGCSDataConnection(catalog_path, catalog_name)
         self.assertEqual(conn.catalog_name, "restored_catalog")
@@ -21,7 +21,7 @@ class TestInit(unittest.TestCase):
         catalog_path = "/test/test"
         with (
             patch("ssb_parquedit.local_backup.duckdb"),
-            patch("ssb_parquedit.local_backup.gcsfs")
+            patch("ssb_parquedit.local_backup.gcsfs"),
         ):
             conn = LocalCatalogGCSDataConnection(catalog_path, catalog_name)
         self.assertEqual(conn.catalog_name, catalog_name)

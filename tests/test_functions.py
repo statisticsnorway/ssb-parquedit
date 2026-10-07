@@ -1,4 +1,3 @@
-
 import pytest
 
 from ssb_parquedit.functions import create_config
@@ -21,13 +20,18 @@ class TestGetDaplaGroup:
         out = get_dapla_group()
         assert out == "test"
 
+
 class TestGetTeamName:
-    def test_get_team_name_env_var_not_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_team_name_env_var_not_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("DAPLA_GROUP_CONTEXT", False)
         out = get_team_name()
         assert out == ""
 
-    def test_get_team_name_name_has_no_line(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_get_team_name_name_has_no_line(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("DAPLA_GROUP_CONTEXT", "test")
         out = get_team_name()
         assert out == "tes"
@@ -102,6 +106,7 @@ class TestGetDaplaEnvironment:
 
         assert out == "test"
 
+
 class TestGetPortNumber:
     def test_env_not_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("PARQEDIT_DB_PORT", False)
@@ -114,6 +119,7 @@ class TestGetPortNumber:
         out = get_port_number()
 
         assert out == "1234"
+
 
 class TestCreateConfig:
     def test_enviroment_test(self, monkeypatch: pytest.MonkeyPatch) -> None:

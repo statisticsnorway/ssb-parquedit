@@ -26,9 +26,7 @@ class TestParquEditInit(unittest.TestCase):
 class TestParquEditGetConnection(unittest.TestCase):
     def test_conn_is_none(self) -> None:
         pe = ParquEdit()
-        with (
-            patch("ssb_parquedit.parquedit.DuckDBConnection"),
-        ):
+        with (patch("ssb_parquedit.parquedit.DuckDBConnection"),):
             conn = pe._get_connection()
             self.assertIsInstance(conn, MagicMock)
 
@@ -48,7 +46,7 @@ class TestParquEditLocalWithGCSData(unittest.TestCase):
             patch("ssb_parquedit.local_backup.gcsfs"),
             self.assertRaises(AssertionError),
         ):
-            ParquEdit.local_with_gcs_data(catalog_path, catalog_name)
+            ParquEdit.local_with_gcs_data(catalog_path, catalog_name)  # type: ignore
 
     def test_catalog_name_is_some(self) -> None:
         catalog_path = "/test/test"
@@ -58,9 +56,12 @@ class TestParquEditLocalWithGCSData(unittest.TestCase):
             patch("ssb_parquedit.local_backup.gcsfs"),
         ):
             pe = ParquEdit.local_with_gcs_data(catalog_path, catalog_name)
-            self.assertEqual(pe._db_config["catalog_name"], catalog_name)
-            self.assertEqual(pe._conn.catalog_name, catalog_name)
-            self.assertEqual(pe._conn.catalog_path, catalog_path)
+            self.assertEqual(
+                pe._db_config["catalog_name"], catalog_name
+            )  # pyright: ignore[reportPrivateUsage]
+            assert pe._conn is not None  # pyright: ignore[reportPrivateUsage]
+            self.assertEqual(pe._conn.catalog_name, catalog_name)  # type: ignore # pyright: ignore[reportPrivateUsage, reportUnknownMemberType, reportAttributeAccessIssue]
+            self.assertEqual(pe._conn.catalog_path, catalog_path)  # type: ignore # pyright: ignore[reportPrivateUsage, reportUnknownMemberType, reportAttributeAccessIssue]
 
 
 # ── create_table: product_name validation ─────────────────────────────────────
@@ -270,7 +271,7 @@ class TestMergeAdjacentFiles:
 class TestExportCatalog:
     def test_db_config_is_none(self, pe: ParquEdit) -> None:
         export_path = "/test/test"
-        pe._db_config = None
+        pe._db_config = None  # type: ignore # pyright: ignore[reportPrivateUsage, reportAttributeAccessIssue]
         with pytest.raises(RuntimeError):
             pe.export_catalog(export_path)
 
@@ -278,6 +279,6 @@ class TestExportCatalog:
 class TestImportCatalog:
     def test_db_config_is_none(self, pe: ParquEdit) -> None:
         backup_file_path = "/test/test"
-        pe._db_config = None
+        pe._db_config = None  # type: ignore # pyright: ignore[reportPrivateUsage, reportAttributeAccessIssue]
         with pytest.raises(RuntimeError):
             pe.import_catalog(backup_file_path)
