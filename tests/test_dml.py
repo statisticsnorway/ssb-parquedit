@@ -1,13 +1,22 @@
 """Unit tests for DMLOperations.delete_row() and ParquEdit.delete_row()."""
 
+from json import dumps as _dumps
+from typing import Any
+from unittest.mock import MagicMock
+from unittest.mock import Mock
+from unittest.mock import patch
+
+import numpy as np
 import pandas as pd
+import polars as pl
+import pyarrow as pa
 import pytest
 
 from ssb_parquedit.dml import DMLOperations
 from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
+# ── Fixtures and Wrapper functions──────────────────────────────────────────────────────────────────
 
 
 @pytest.fixture
@@ -28,6 +37,10 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
         fill=True,
     )
     return pe
+
+
+def dumps_wrapper(*args: Any, **kwargs: Any) -> str:
+    return _dumps(*args, **(kwargs | {"default": lambda obj: "mock"}))
 
 
 # ── delete_row: happy path ────────────────────────────────────────────────────
@@ -270,3 +283,241 @@ class TestDMLOperationsDeleteRow:
             conn.execute = original_execute  # type: ignore[method-assign]
 
         assert cities_table.count("cities") == 3
+
+    def test_rollback_exception(self) -> None:
+        def execute_mock(cmd: Any, *args: object) -> None:
+            if cmd == "BEGIN":
+                raise ValueError("test_begin")
+            if cmd == "ROLLBACK":
+                raise ValueError("test_rollback")
+
+        mock_conn = MagicMock()
+        me = MagicMock()
+        mock_conn.execute = me
+        mock_conn.execute.side_effect = execute_mock
+        db_config = MagicMock()
+
+        dml = DMLOperations(mock_conn, db_config)
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
+
+        change_event_reason = "OTHER"
+        change_comment = "tag dict is none"
+        table_name = "t1"
+        where = "test"
+
+        with (
+            patch("ssb_parquedit.dml.QueryOperations") as mock_query,
+            patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
+        ):
+            mock_query._get_tag_info.return_value = {
+                "product_name": "test",
+                "user_defined_id": "test",
+            }
+            with pytest.raises(ValueError, match="test_begin"):
+                dml.delete_row(table_name, where, change_event_reason, change_comment)
+
+        me.assert_called_with("ROLLBACK")
+
+
+class TestDMLOperationsInsertData:
+    def test_insert_data_invalid_source(self) -> None:
+        mock_conn = MagicMock()
+        db_config = MagicMock()
+        dml = DMLOperations(mock_conn, db_config)
+        with pytest.raises(
+            TypeError, match="source must be a DataFrame or gs:// Parquet path"
+        ):
+            dml.insert_data("t1", 1)
+
+
+class TestDMLOperationsValidateTableAndColumns:
+    def test_missing_columns(self) -> None:
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchall.return_value = [
+            ("a",),
+            ("b",),
+            ("c",),
+            ("d",),
+        ]
+        changes = {"e": ""}
+        table_name = "a"
+        db_config = MagicMock()
+        dml = DMLOperations(mock_conn, db_config)
+        with pytest.raises(
+            TypeError, match=f"Missing columns in '{table_name}': {set(changes.keys())}"
+        ):
+            dml._validate_table_and_columns(table_name, changes)
+
+
+class TestDMLOperationsEdit:
+
+    def test_edit_invalid_change_event_reason(self) -> None:
+        mock_conn = MagicMock()
+        db_config = MagicMock()
+
+        table_name = "t1"
+        rowid = 1
+        changes = {"e": ""}
+        change_event_reason = "INVALID"
+        change_comment = "invalid"
+
+        dml = DMLOperations(mock_conn, db_config)
+        with pytest.raises(ValueError, match=r"Invalid cause: .*. Must be one of: .*"):
+            dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
+
+    def test_tag_dict_is_none(self) -> None:
+        mock_conn = MagicMock()
+        db_config = MagicMock()
+
+        execute = MagicMock()
+        mock_conn.execute = execute
+
+        table_name = "t1"
+        rowid = 1
+        changes = {"e": ""}
+        change_event_reason = "OTHER"
+        change_comment = "tag dict is none"
+        dml = DMLOperations(mock_conn, db_config)
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
+
+        with (
+            patch("ssb_parquedit.dml.QueryOperations") as mock_query,
+            patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
+        ):
+            mock_query.return_value._get_tag_info = Mock(return_value=None)
+            dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
+        execute.assert_not_called()
+
+    def test_rollback_on_exception(self) -> None:
+        def execute_mock(arg: Any, *args: object) -> None:
+            if arg == "BEGIN":
+                raise ValueError("test")
+
+        mock_conn = MagicMock()
+        mock_conn.execute.side_effect = execute_mock
+        db_config = MagicMock()
+
+        dml = DMLOperations(mock_conn, db_config)
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
+
+        change_event_reason = "OTHER"
+        change_comment = "tag dict is none"
+        table_name = "t1"
+        rowid = 1
+        changes = {"e": ""}
+
+        with (
+            patch("ssb_parquedit.dml.QueryOperations") as mock_query,
+            patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
+        ):
+            mock_query._get_tag_info.return_value = {
+                "product_name": "test",
+                "user_defined_id": "test",
+            }
+            with pytest.raises(ValueError, match="test"):
+                dml.edit(
+                    table_name, rowid, changes, change_event_reason, change_comment
+                )
+
+    def test_rollback_exception(self) -> None:
+        def execute_mock(cmd: Any, *args: object) -> None:
+            if cmd == "BEGIN":
+                raise ValueError("test_begin")
+            if cmd == "ROLLBACK":
+                raise ValueError("test_rollback")
+
+        mock_conn = MagicMock()
+        me = MagicMock()
+        mock_conn.execute = me
+        mock_conn.execute.side_effect = execute_mock
+        db_config = MagicMock()
+
+        dml = DMLOperations(mock_conn, db_config)
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
+
+        change_event_reason = "OTHER"
+        change_comment = "tag dict is none"
+        table_name = "t1"
+        rowid = 1
+        changes = {"e": ""}
+
+        with (
+            patch("ssb_parquedit.dml.QueryOperations") as mock_query,
+            patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
+        ):
+            mock_query._get_tag_info.return_value = {
+                "product_name": "test",
+                "user_defined_id": "test",
+            }
+            with pytest.raises(ValueError, match="test_begin"):
+                dml.edit(
+                    table_name, rowid, changes, change_event_reason, change_comment
+                )
+
+        me.assert_called_with("ROLLBACK")
+
+
+class TestDMLOperationsPandasToArrow:
+    def test_bigint(self) -> None:
+        d = {"a": [1, 2, 3], "b": [4, 5, 6]}
+        df = pd.DataFrame(data=d, dtype=np.int64)
+        col_types = {"a": "BIGINT", "b": "BIGINT"}
+
+        table = DMLOperations._pandas_to_arrow(df, col_types)
+        i = 1
+        for col in table:
+            for e in col:
+                assert e.equals(pa.scalar(i))
+                i += 1
+
+    def test_bigint_nan(self) -> None:
+        d = {"a": [1, 2, 3], "b": ["n", "n", "n"]}
+        df = pd.DataFrame(data=d)
+        col_types = {"a": "BIGINT", "b": "BIGINT"}
+
+        table = DMLOperations._pandas_to_arrow(df, col_types)
+        i = 1
+        for col in table:
+            for e in col:
+                assert e.equals(pa.scalar(i)) or not e.is_valid
+                i += 1
+
+    def test_varchar_after_bigint(self) -> None:
+        d = {"a": [1, 2, 3], "b": ["n", "n", "n"]}
+        df = pd.DataFrame(data=d)
+        col_types = {"a": "BIGINT", "b": "VARCHAR"}
+
+        table = DMLOperations._pandas_to_arrow(df, col_types)
+        i = 1
+        for e in table["a"]:
+            assert e.equals(pa.scalar(i))
+            i += 1
+
+        for e in table["b"]:
+            assert e.as_py() == "n"
+
+    def test_unkown_type(self) -> None:
+        d = {"a": [1, 2, 3], "b": [4, 5, 6]}
+        df = pd.DataFrame(data=d, dtype=np.uint8)
+        col_types = {"a": "TEST", "b": "TEST"}
+
+        table = DMLOperations._pandas_to_arrow(df, col_types)
+
+        i = 1
+        for col in table:
+            for row in col:
+                assert row.as_py() == i
+                assert not row.equals(pa.scalar(i))
+                i += 1
+
+
+class TestDMLOperationsPolarsToArrow:
+    def test_unkown_type(self) -> None:
+        d = {"a": [1, 2, 3], "b": [4, 5, 6]}
+        df = pl.DataFrame(d)
+        col_types = {"a": "TEST", "b": "TEST"}
+        mwc = MagicMock()
+        df.with_columns = mwc  # type: ignore
+
+        DMLOperations._polars_to_arrow(df, col_types)
+        mwc.assert_not_called()

@@ -1,14 +1,18 @@
 """Tests for DuckDBConnection - happy path and documented error behavior."""
 
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import pandas as pd
 import pytest
 
+from ssb_parquedit.connection import DuckDBConnection
 from ssb_parquedit.local import LocalDuckDBConnection
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 
-@pytest.fixture()
+@pytest.fixture
 def closed_conn(conn: LocalDuckDBConnection) -> LocalDuckDBConnection:
     """A connection that has already been closed."""
     conn.close()
@@ -68,3 +72,48 @@ class TestConnectionHappyPath:
     def test_close_twice_does_not_raise(self, conn: LocalDuckDBConnection) -> None:
         conn.close()
         conn.close()  # Second close must be a no-op, not an error
+
+
+# ── DuckDBConnection ───────────────────────────────────────────────────────────────
+DB_CONFIG = {
+    "dbname": "metadata",
+    "dbuser": "postgres",
+    "data_path": "gs://bucket/data",
+    "catalog_name": "test_catalog",
+    "metadata_schema": "my_schema",
+    "port_number": "5432",
+    "host": "localhost",
+}
+
+
+def _sql_calls(mock_conn: MagicMock) -> list[str]:
+    """Flatten conn.sql(...) call args into a list of the SQL strings passed."""
+    return [c.args[0] for c in mock_conn.sql.call_args_list]
+
+
+class TestDuckDBconnection:
+    @patch("ssb_parquedit.connection.gcsfs.GCSFileSystem")
+    @patch("ssb_parquedit.connection.duckdb.connect")
+    def test_init(self, mock_connect: MagicMock, _mock_gcsf: MagicMock) -> None:
+        db_config = DB_CONFIG
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+        DuckDBConnection(db_config)
+        calls = _sql_calls(mock_conn)
+        for ext in ("ducklake", "postgres"):
+            assert f"INSTALL {ext}" in calls
+            assert f"LOAD {ext}" in calls
+
+        assert f"""
+            ATTACH 'ducklake:postgres:
+                dbname={db_config["dbname"]}
+                user={db_config["dbuser"]}
+                host={db_config["host"]}
+                port={db_config["port_number"]}
+            ' AS {db_config["catalog_name"]}
+            (DATA_PATH '{db_config["data_path"]}',
+            METADATA_SCHEMA {db_config["metadata_schema"]},
+            DATA_INLINING_ROW_LIMIT 300,
+            AUTOMATIC_MIGRATION TRUE);
+            """ in calls
+        assert f"USE {db_config['catalog_name']}" in calls

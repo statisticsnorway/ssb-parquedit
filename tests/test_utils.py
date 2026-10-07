@@ -1,5 +1,7 @@
 """Unit tests for SchemaUtils."""
 
+import unittest
+
 import pandas as pd
 import polars as pl
 import pytest
@@ -54,3 +56,133 @@ class TestValidateColumnNames:
         with pytest.raises(ValueError) as exc_info:
             SchemaUtils.validate_column_names(["short_col", "a" * 64])
         assert "short_col" not in str(exc_info.value)
+
+    def test_rowid_in_columns(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"Column name 'rowid' is reserved and cannot be used."
+        ):
+            SchemaUtils.validate_column_names(["rowid"])
+
+
+class TestTranslate(unittest.TestCase):
+    def test_prop_type_is_list_contains_null(self) -> None:
+        prop = {"type": ["null", "integer", "null", "number"]}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "BIGINT")
+
+    def test_prop_type_is_string_date_time(self) -> None:
+        prop = {"type": "string", "format": "date-time"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "TIMESTAMP")
+
+    def test_prop_type_is_string_date(self) -> None:
+        prop = {"type": "string", "format": "date"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "DATE")
+
+    def test_prop_type_is_string_char(self) -> None:
+        prop = {"type": "string", "format": "char"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "VARCHAR")
+
+    def test_prop_type_is_integer(self) -> None:
+        prop = {"type": "integer"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "BIGINT")
+
+    def test_prop_type_is_date_time(self) -> None:
+        prop = {"type": "date-time"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "TIMESTAMP")
+
+    def test_prop_type_is_number(self) -> None:
+        prop = {"type": "number"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "DOUBLE")
+
+    def test_prop_type_is_boolean(self) -> None:
+        prop = {"type": "boolean"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "BOOLEAN")
+
+    def test_prop_type_is_array(self) -> None:
+        prop = {"type": "array", "items": {"type": "integer"}}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "LIST<BIGINT>")
+
+    def test_prop_type_is_object_with_no_properties(self) -> None:
+        prop = {"type": "object"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "JSON")
+
+    def test_prop_type_is_object_with_properties(self) -> None:
+        prop = {"type": "object", "properties": {"a": {"type": "integer"}}}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "STRUCT(a BIGINT)")
+
+    def test_prop_type_is_unknown(self) -> None:
+        prop = {"type": "unknown"}
+        out = SchemaUtils.translate(prop)
+        self.assertEqual(out, "JSON")
+
+
+class TestJsonschemaToDuckDb(unittest.TestCase):
+    def test_name_in_required(self) -> None:
+        schema = {
+            "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+            "required": ["name"],
+        }
+
+        out = SchemaUtils.jsonschema_to_duckdb(schema, "t1")
+        self.assertIn("name VARCHAR NOT NULL", out)
+
+
+class TestValidateTableName(unittest.TestCase):
+    def test_invalid_characters_in_table_name(self) -> None:
+        table_name = "INVALID"
+        with pytest.raises(
+            ValueError,
+            match=f"Invalid table name: {table_name}. "
+            "Table names must start with a lowercase letter or underscore, "
+            "and contain only lowercase letters, numbers, and underscores.",
+        ):
+            SchemaUtils.validate_table_name(table_name)
+
+    def test_table_name_to_long(self) -> None:
+        table_name = "a" * 21
+        with pytest.raises(
+            ValueError,
+            match=f"Invalid table name: {table_name}. "
+            "Table names must not exceed 20 characters.",
+        ):
+            SchemaUtils.validate_table_name(table_name)
+
+
+class TestPandasToDuckDB(unittest.TestCase):
+    def test_dtype_is_integer(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb(pd.Int32Dtype)
+        self.assertEqual(out, "BIGINT")
+
+    def test_dtype_is_float(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb(pd.Float32Dtype)
+        self.assertEqual(out, "DOUBLE")
+
+    def test_dtype_is_boolean(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb(pd.BooleanDtype())
+        self.assertEqual(out, "BOOLEAN")
+
+    def test_dtype_is_datetime(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb(pd.DatetimeTZDtype(tz="UTC"))
+        self.assertEqual(out, "TIMESTAMP")
+
+    def test_dtype_is_string(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb(pd.StringDtype())
+        self.assertEqual(out, "VARCHAR")
+
+    def test_dtype_is_object(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb({})
+        self.assertEqual(out, "VARCHAR")
+
+    def test_dtype_is_unkown(self) -> None:
+        out = SchemaUtils.pandas_to_duckdb(None)
+        self.assertEqual(out, "VARCHAR")

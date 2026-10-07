@@ -164,6 +164,8 @@ class ParquEdit:
         """
         from .local_backup import LocalCatalogGCSDataConnection
 
+        assert catalog_name is not None
+
         conn = LocalCatalogGCSDataConnection(
             catalog_path=str(catalog_path),
             catalog_name=catalog_name,

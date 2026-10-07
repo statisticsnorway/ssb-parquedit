@@ -95,6 +95,7 @@ def create_config() -> dict[str, str]:
             "catalog_name": team_name,
             "metadata_schema": f"team_{team_name}",
             "port_number": port_number,
+            "host": "localhost",
         }
     else:
         # "test" and any other (e.g. local/dev) environment share the same config.
@@ -105,6 +106,7 @@ def create_config() -> dict[str, str]:
             "catalog_name": team_name,
             "metadata_schema": team_name,
             "port_number": port_number,
+            "host": "localhost",
         }
 
     logger.debug(

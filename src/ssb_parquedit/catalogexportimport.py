@@ -69,7 +69,10 @@ class CatalogExportImport:
         schema = f"{self.db_config['metadata_schema']}"
         db = f"{self.db_config['dbname']}"
         user = f"{self.db_config['dbuser']}"
-        pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
+        host = f"{self.db_config['host']}"
+        pg_connection_string = (
+            f"dbname={db} user={user} host={host} port={self.db_config['port_number']}"
+        )
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file_name = f"{timestamp}_{schema}.duckdb"
         remote_path = f"{export_path}/{backup_file_name}"
@@ -149,7 +152,10 @@ class CatalogExportImport:
         schema = f"{self.db_config['metadata_schema']}"
         db = f"{self.db_config['dbname']}"
         user = f"{self.db_config['dbuser']}"
-        pg_connection_string = f"dbname={db} user={user} host=localhost port={self.db_config['port_number']}"
+        host = f"{self.db_config['host']}"
+        pg_connection_string = (
+            f"dbname={db} user={user} host={host} port={self.db_config['port_number']}"
+        )
 
         logger.info("Starting catalog import from '%s'", backup_file_path)
 

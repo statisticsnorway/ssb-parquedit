@@ -23,6 +23,7 @@ DB_CONFIG = {
     "catalog_name": "test_catalog",
     "metadata_schema": "my_schema",
     "port_number": "5432",
+    "host": "localhost",
 }
 
 
@@ -183,6 +184,20 @@ class TestExportCatalogFailureHandling:
 
         assert call("ROLLBACK") in mock_conn.sql.call_args_list
 
+    def test_rollback_failure_is_swallowed(self, mock_conn: MagicMock) -> None:
+        def sql_side_effect(query: str, *args: object) -> MagicMock:
+            if "ATTACH 'duckdb:" in query:
+                raise RuntimeError("boom")
+            if query == "ROLLBACK":
+                raise RuntimeError("rollback also failed")
+            return MagicMock()
+
+        mock_conn.sql.side_effect = sql_side_effect
+        export = CatalogExportImport(mock_conn, DB_CONFIG)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            export.export_catalog()
+
     def test_does_not_upload_to_gcs_on_failure(self, mock_conn: MagicMock) -> None:
         def sql_side_effect(query: str, *args: object) -> MagicMock:
             if "CREATE SCHEMA" in query:
@@ -289,6 +304,13 @@ class TestImportCatalogFailureHandling:
 
 # ── CatalogExportImport ──────────────────────────────────────────────────────────────────
 class TestCatalogExportImport:
+
+    def test_export_catalog_db_config_is_none(
+        self, mock_conn: DuckDBConnection
+    ) -> None:
+        cei = CatalogExportImport(mock_conn, None)  # type: ignore[arg-type]
+        with pytest.raises(RuntimeError, match="db_config is not initialized"):
+            cei.export_catalog()
 
     @patch("ssb_parquedit.catalogexportimport.gcsfs.GCSFileSystem")
     @patch("ssb_parquedit.catalogexportimport.datetime.datetime")
