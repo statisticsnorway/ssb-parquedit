@@ -94,16 +94,51 @@ class NestedPathUtils:
                 column name).
 
         Returns:
-            The value found at the nested path.
+            The value found at the nested path, or None if that part of the
+            path doesn't exist yet — either a STRUCT field that is missing
+            (or whose parent struct is NULL/None), or a LIST index equal to
+            the list's length (i.e. the element doesn't exist yet and would
+            be appended by `set_nested`).
+
+        Raises:
+            IndexError: If a LIST index is out of range (beyond append range)
+                anywhere along the path.
         """
         current = value
-        for token in tokens:
+        for i, token in enumerate(tokens):
+            is_last = i == len(tokens) - 1
+            if current is None:
+                return None
+            if isinstance(token, int):
+                if not isinstance(current, list):
+                    return None
+                if token == len(current) and is_last:
+                    return None
+                if token >= len(current):
+                    msg = (
+                        f"List index {token} out of range for list of length "
+                        f"{len(current)} (can only append at index "
+                        f"{len(current)})."
+                    )
+                    raise IndexError(msg)
+            else:
+                if not isinstance(current, dict) or token not in current:
+                    return None
             current = current[token]
         return current
 
     @staticmethod
     def set_nested(value: Any, tokens: list[str | int], new_value: Any) -> Any:
         """Return a copy of `value` with the nested path set to `new_value`.
+
+        If the final token is an integer index equal to the length of the
+        target LIST (e.g. index 0 of an empty list), `new_value` is appended
+        instead of raising an IndexError, allowing new elements to be
+        inserted into empty (or shorter) lists. Likewise, if any STRUCT
+        field along the path is missing or NULL/None (including the whole
+        `value` itself), it is auto-vivified to an empty dict/list before the
+        target field is set, allowing new fields to be inserted into empty
+        (or partially NULL) structs.
 
         Args:
             value: The container value (dict for STRUCT, list for LIST) to
@@ -115,12 +150,63 @@ class NestedPathUtils:
 
         Returns:
             A new container value with the nested path updated.
+
+        Raises:
+            IndexError: If a LIST index is out of range (beyond append
+                range) anywhere along the path.
         """
+
+        def empty_container_for(token: str | int) -> list[Any] | dict[str, Any]:
+            return [] if isinstance(token, int) else {}
+
         updated = NestedPathUtils.to_native(value)
+        if updated is None:
+            updated = empty_container_for(tokens[0])
         current = updated
-        for token in tokens[:-1]:
+        for token, next_token in zip(tokens[:-1], tokens[1:], strict=True):
+            if isinstance(token, int):
+                if not isinstance(current, list):
+                    msg = f"Expected a LIST to index with [{token}], got {type(current).__name__}."
+                    raise TypeError(msg)
+                if token > len(current):
+                    msg = (
+                        f"List index {token} out of range for list of length "
+                        f"{len(current)} (can only append at index "
+                        f"{len(current)})."
+                    )
+                    raise IndexError(msg)
+                if token == len(current):
+                    current.append(empty_container_for(next_token))
+                elif current[token] is None:
+                    current[token] = empty_container_for(next_token)
+            else:
+                if not isinstance(current, dict):
+                    msg = f"Expected a STRUCT to access field '{token}', got {type(current).__name__}."
+                    raise TypeError(msg)
+                if current.get(token) is None:
+                    current[token] = empty_container_for(next_token)
             current = current[token]
-        current[tokens[-1]] = new_value
+        last = tokens[-1]
+        if isinstance(last, int):
+            if not isinstance(current, list):
+                msg = f"Expected a LIST to index with [{last}], got {type(current).__name__}."
+                raise TypeError(msg)
+            if last == len(current):
+                current.append(new_value)
+            elif last > len(current):
+                msg = (
+                    f"List index {last} out of range for list of length "
+                    f"{len(current)} (can only append at index "
+                    f"{len(current)})."
+                )
+                raise IndexError(msg)
+            else:
+                current[last] = new_value
+        else:
+            if not isinstance(current, dict):
+                msg = f"Expected a STRUCT to access field '{last}', got {type(current).__name__}."
+                raise TypeError(msg)
+            current[last] = new_value
         return updated
 
 
