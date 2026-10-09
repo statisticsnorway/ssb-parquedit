@@ -257,7 +257,7 @@ class SchemaUtils:
         if t == "boolean":
             return "BOOLEAN"
         if t == "array":
-            return f"LIST<{SchemaUtils.translate(prop['items'])}>"
+            return f"{SchemaUtils.translate(prop['items'])}[]"
         if t == "object":
             props = prop.get("properties")
             if not props:
