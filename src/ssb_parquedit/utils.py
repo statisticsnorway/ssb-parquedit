@@ -3,6 +3,7 @@
 import logging
 import re
 from collections.abc import Callable
+from itertools import pairwise
 from typing import Any
 
 import numpy as np
@@ -154,6 +155,8 @@ class NestedPathUtils:
         Raises:
             IndexError: If a LIST index is out of range (beyond append
                 range) anywhere along the path.
+            TypeError: If a token doesn't match the container type, e.g. a
+                list index applied to a STRUCT or a field name to a LIST.
         """
 
         def empty_container_for(token: str | int) -> list[Any] | dict[str, Any]:
@@ -163,7 +166,7 @@ class NestedPathUtils:
         if updated is None:
             updated = empty_container_for(tokens[0])
         current = updated
-        for token, next_token in zip(tokens[:-1], tokens[1:], strict=True):
+        for token, next_token in pairwise(tokens):
             if isinstance(token, int):
                 if not isinstance(current, list):
                     msg = f"Expected a LIST to index with [{token}], got {type(current).__name__}."
