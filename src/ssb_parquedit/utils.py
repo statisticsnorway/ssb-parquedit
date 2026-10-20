@@ -9,6 +9,45 @@ import pandas as pd
 import polars as pl
 
 logger = logging.getLogger(__name__)
+_NESTED_PATH_RE = re.compile(r"(\w+)(?:\[(\d*)\])?")
+
+
+class PathUtils:
+    """Utilities for parsing nested column paths."""
+    @staticmethod
+    def parse_path(path: str) -> tuple[str, list[str | int]]:
+        """Split a nested path into its base column name and remaining tokens.
+
+        Args:
+            path: A column name, optionally followed by nested field/index
+                accessors, e.g. "address.city" or "items[1].qty".
+
+        Returns:
+            A tuple of (base_column_name, tokens), where tokens is a list of
+            str (struct field names) and int (list indices) to apply, in
+            order, after the base column. Empty for a plain column path.
+
+        Raises:
+            ValueError: If path is empty or contains no valid segments.
+
+        Example:
+            >>> PathUtils.parse_path("address.city")
+            ('address', ['city'])
+            >>> PathUtils.parse_path("items[1].qty")
+            ('items', [1, 'qty'])
+            >>> PathUtils.parse_path("population")
+            ('population', [])
+        """
+        tokens: list[str | int] = []
+        for name, idx in _NESTED_PATH_RE.findall(path):
+            tokens.append(name)
+            if idx:
+                tokens.append(int(idx))
+
+        if not tokens:
+            msg = f"Invalid path: '{path}'"
+            raise ValueError(msg)
+        return tokens[0], tokens[1:]  # type: ignore[return-value]
 
 
 class SchemaUtils:

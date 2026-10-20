@@ -1,5 +1,5 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
-
+from numpy import isin
 import json
 import logging
 from typing import Any
@@ -16,6 +16,7 @@ from tenacity import stop_after_attempt
 from tenacity import wait_random
 
 from ssb_parquedit.functions import get_dapla_user
+from ssb_parquedit.utils import PathUtils
 
 from .query import QueryOperations
 from .utils import SchemaUtils
@@ -187,11 +188,90 @@ class DMLOperations:
                 [table_name],
             ).fetchall()
         }
-        missing = set(changes.keys()) - valid_columns
+        keys = []
+        for key in changes.keys():
+            k, _ = PathUtils.parse_path(key)
+            keys.append(k)
+        missing = set(keys) - valid_columns
         if missing:
             msg = f"Missing columns in '{table_name}': {missing}"
             logger.error(msg)
             raise TypeError(msg)
+
+
+    def _parse_change_key(self, key: str | int, changes: Any) -> tuple[str | int, Any]:
+
+        if isinstance(key, str):
+            key, path = PathUtils.parse_path(key)
+            if path is not None:
+                path.reverse()
+                for k in path:
+                    changes = {k: changes}
+        return key, changes
+
+    def _change_data_in_row_dataframe(self, row: pd.DataFrame, changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        new_values: dict[str, Any] = {}
+        old_values: dict[str, Any] = {}
+
+        data = row.to_dict(orient='records')[0]
+        print(f"Initial row data: {data}")
+
+        for col, val in changes.items():
+            col, val = self._parse_change_key(col, val)
+            print(f"key: {col}, value: {val}, column: {data[col]}, column_type: {type(data[col])}")
+            column = data[col]
+            if isinstance(column, str):
+                column = json.loads(column)
+    
+            if isinstance(val, dict) or isinstance(val, list):
+                inner_old = {}
+                inner_new = {}
+                for sub_col, sub_val in val.items():
+                    new, old = self._change_data_in_column(column, sub_col, sub_val)
+                    inner_old.update(old)
+                    inner_new.update(new)
+                old_values[col] = inner_old
+                if isinstance(column, dict):
+                    new_values[col] = column
+                    new_values[col].update(inner_new)
+                elif isinstance(column, list):
+                    new_values[col] = column
+                    for k, v in inner_new.items():
+                        new_values[col][k] = v
+            else:
+                old_values[col] = column
+                new_values[col] = val
+        return new_values, old_values
+
+    def _change_data_in_column(self, column: dict[str, Any] | list[Any], key: str | int, value: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+        new: dict[str, Any] = {}
+        old: dict[str, Any] = {}
+
+        key, value = self._parse_change_key(key, value)
+        print(f"key: {key}, value: {value}, column: {column}, column_type: {type(column)}")
+
+        if isinstance(column, dict) and key not in column.keys():
+            raise KeyError(f"Key '{key}' does not exist in the column")
+        elif isinstance(column, list) and (int(key) >= len(column) or int(key) < 0):
+            raise KeyError(f"Index '{key}' out of bounds")
+
+        if isinstance(value, dict):
+            inner_old = {}
+            inner_new = {}
+            for k, v in value.items():
+                inner_column = column[key]
+                if isinstance(inner_column, str):
+                    inner_column = json.loads(inner_column)
+                t_new, t_old = self._change_data_in_column(inner_column, k, v)
+                inner_new.update(t_new)
+                inner_old.update(t_old)
+            old[key] = inner_old
+            new[key] = column[key]
+            new[key].update(inner_new)
+        else:
+            old[key] = column[key]
+            new[key] = value
+        return new, old
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=10),
@@ -238,8 +318,7 @@ class DMLOperations:
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
-        set_clause = ", ".join(f"{col} = ?" for col in changes.keys())
-        values = [*list(changes.values()), rowid]
+        
 
         dapla_user = get_dapla_user()
 
@@ -262,6 +341,7 @@ class DMLOperations:
                 f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
             ).df()
 
+
             # make dict with values of unique_id-cols from row
             assert user_defined_id is not None
             unique_row = row[user_defined_id].iloc[0]
@@ -270,15 +350,11 @@ class DMLOperations:
                 for col, val in zip(user_defined_id, unique_row, strict=True)
             }
 
-            # make dict with old values from row
-            old_values = {
-                col: (
-                    row[col].iloc[0].item()
-                    if hasattr(row[col].iloc[0], "item")
-                    else row[col].iloc[0]
-                )
-                for col in changes.keys()
-            }
+            new_values, old_values = self._change_data_in_row_dataframe(row, changes)
+            
+            set_clause = ", ".join(f"{col} = ?" for col in new_values.keys())
+            values = [*list(new_values.values()), rowid]
+
 
             extra_info = json.dumps(
                 {

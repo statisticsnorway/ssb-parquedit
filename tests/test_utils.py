@@ -1,11 +1,11 @@
 """Unit tests for SchemaUtils."""
-
 import unittest
 
 import pandas as pd
 import polars as pl
 import pytest
 
+from ssb_parquedit.utils import PathUtils
 from ssb_parquedit.utils import SchemaUtils
 
 # ── is_dataframe ────────────────────────────────────────────────────────────────
@@ -186,3 +186,35 @@ class TestPandasToDuckDB(unittest.TestCase):
     def test_dtype_is_unkown(self) -> None:
         out = SchemaUtils.pandas_to_duckdb(None)
         self.assertEqual(out, "VARCHAR")
+
+
+class TestPathUtilsParsePath(unittest.TestCase):
+    def test_simple_path(self) -> None:
+        path = "population"
+        key, lst = PathUtils.parse_path(path)
+        self.assertEqual(path, key)
+        self.assertEqual(len(lst), 0)
+
+    def test_simple_list(self) -> None:
+        path = "a[0]"
+        key, lst = PathUtils.parse_path(path)
+        self.assertEqual(key, "a")
+        self.assertEqual(len(lst), 1)
+        self.assertEqual(lst[0], 0)
+
+    def test_dot_notation(self) -> None:
+        path = "a.b.c"
+        key, lst = PathUtils.parse_path(path)
+        self.assertEqual(key, "a")
+        self.assertEqual(len(lst), 2)
+        self.assertEqual(lst[0], "b")
+        self.assertEqual(lst[1], "c")
+
+    def test_dot_list(self) -> None:
+        path = "a.b[0].c"
+        key, lst = PathUtils.parse_path(path)
+        self.assertEqual(key, "a")
+        self.assertEqual(len(lst), 3)
+        self.assertEqual(lst[0], "b")
+        self.assertEqual(lst[1], 0)
+        self.assertEqual(lst[2], "c")

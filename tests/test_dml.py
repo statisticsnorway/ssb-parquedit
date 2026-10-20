@@ -1,4 +1,5 @@
 """Unit tests for DMLOperations.delete_row() and ParquEdit.delete_row()."""
+from tests.test_catalogexportimport import mock_conn
 
 from json import dumps as _dumps
 from typing import Any
@@ -331,6 +332,22 @@ class TestDMLOperationsInsertData:
 
 
 class TestDMLOperationsValidateTableAndColumns:
+    def test_with_list(self) -> None:
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchall.return_value = [
+            ("a",),
+            ("b",),
+            ("c",),
+            ("d",),
+        ]
+        changes = {"a[0]": ""}
+        table_name = "a"
+        db_config = MagicMock()
+        dml = DMLOperations(mock_conn, db_config)
+        dml._validate_table_and_columns(table_name, changes)
+
+
+
     def test_missing_columns(self) -> None:
         mock_conn = MagicMock()
         mock_conn.execute.return_value.fetchall.return_value = [
@@ -521,3 +538,21 @@ class TestDMLOperationsPolarsToArrow:
 
         DMLOperations._polars_to_arrow(df, col_types)
         mwc.assert_not_called()
+
+class TestDMLOperationsChangeDataInRow:
+    def test_change_data_in_row_simple(self) -> None:
+        row = {"a": 1, "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._change_data_in_row(row, "a", 10)
+        assert changes == {"a": 10}
+        assert old == {"a": 1}
+        assert row["a"] == 10
+
+    def test_change_data_in_row_nested(self) -> None:
+        row = {"a": {"x": 1, "y":2}, "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._change_data_in_row(row, "a", {"x": 10})
+        assert changes == {"a": {"x": 10, "y": 2}}
+        assert old == {"a": {"x": 1}}
+        assert row["a"]["x"] == 10
+        assert row["a"]["y"] == 2
