@@ -199,7 +199,17 @@ class DMLOperations:
 
 
     def _parse_change_key(self, key: str | int, changes: Any) -> tuple[str | int, Any]:
+        """Parse a change key into its base key and nested path.
 
+        Args:
+            key: The change key, which may include nested path segments. Can contain dot notation, list indices, or a combination thereof.
+            changes: The corresponding change value.
+
+        Returns:
+            A tuple of (base_key, changes), where base_key is the top-level key
+            and changes is the potentially nested dictionary representing the
+            changes to apply.
+        """
         if isinstance(key, str):
             key, path = PathUtils.parse_path(key)
             if path is not None:
@@ -222,6 +232,15 @@ class DMLOperations:
         return normalized
 
     def _merge_dicts(self, a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
+        """Merge two dictionaries recursively, with values from `b` overwriting those in `a`.
+
+        Args:
+            a: The first dictionary.
+            b: The second dictionary, whose values will overwrite those in `a`.
+
+        Returns:
+            The merged dictionary.
+        """
         for key, value in b.items():
             if key in a and isinstance(a[key], dict) and isinstance(value, dict):
                 a[key] = self._merge_dicts(a[key], value)
@@ -230,6 +249,18 @@ class DMLOperations:
         return a
 
     def _get_data(self, data: dict[str, Any] | list[Any] | Any, key: str | int) -> Any:
+        """Retrieve the nested data corresponding to the given key from a dictionary or list.
+
+        Args:
+            data: The dictionary or list to retrieve data from.
+            key: The key or index to access within the data.
+
+        Returns:
+            The nested data corresponding to the key.
+
+        Raises:
+            TypeError: If the key does not exist or is out of bounds, or if the data is not a dictionary or list.
+        """
         if isinstance(data, dict):
             if key not in data.keys():
                 raise TypeError(f"Key '{key}' does not exist in the column")
@@ -249,6 +280,15 @@ class DMLOperations:
         return inner_column
 
     def _create_update_data_dataframe(self, row: pd.DataFrame, changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Create dictionaries representing the new and old values for a row based on the changes provided.
+
+        Args:
+            row: The DataFrame row to be updated.
+            changes: A dictionary of changes to apply to the row.
+
+        Returns:
+            A tuple of two dictionaries: (new_values, old_values), where new_values contains the updated values and old_values contains the original values before the update.
+        """
         new_values= {}
         old_values = {}
 
@@ -261,8 +301,16 @@ class DMLOperations:
             old_values[col] = inner_old
         return new_values, old_values
 
-    def _create_update_data(self, data: Any, changes: Any) -> tuple[Any, Any]:     
+    def _create_update_data(self, data: Any, changes: Any) -> tuple[Any, Any]:
+        """Recursively create dictionaries representing the new and old values for nested data based on the changes provided.
 
+        Args:
+            data: The original data, which can be a dictionary, list, or any other type.
+            changes: The changes to apply, which can be a dictionary for nested updates or a direct value for leaf nodes.
+
+        Returns:
+            A tuple of (new_data, old_data), where new_data contains the updated values and old_data contains the original values before the update.
+        """
         if isinstance(changes, dict):
             inner_old = {}
             inner_new= data
