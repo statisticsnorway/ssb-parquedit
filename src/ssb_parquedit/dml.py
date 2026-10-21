@@ -379,7 +379,9 @@ class DMLOperations:
         # get product_name
         tag_dict = query._get_tag_info(table_name)
         if tag_dict is None:
-            return
+            msg = f"Tag information not found for table: '{table_name}'"
+            logger.error(msg)
+            raise ValueError(msg)
         product_name = tag_dict.get("product_name")
 
         # get user_defined_id
