@@ -15,7 +15,7 @@ _NESTED_PATH_RE = re.compile(r"(\w+)(?:\[(\d*)\])?")
 class PathUtils:
     """Utilities for parsing nested column paths."""
     @staticmethod
-    def parse_path(path: str) -> tuple[str, list[str | int]]:
+    def parse_path(path: str) -> tuple[str | int, list[str | int]]:
         """Split a nested path into its base column name and remaining tokens.
 
         Args:

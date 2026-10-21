@@ -1,8 +1,7 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
-from numpy import isin
 import json
 import logging
-from typing import Any, AnyStr
+from typing import Any
 from typing import Literal
 from typing import get_args
 
@@ -230,29 +229,17 @@ class DMLOperations:
                 a[key] = value
         return a
 
-
-    def _change_data_in_row_dataframe(self, row: pd.DataFrame, changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-        new_values= {}
-        old_values = {}
-
-        data = row.to_dict(orient='records')[0]
-
-        for col, val in changes.items():
-            inner_data = self._get_inner_column(data, col)
-            inner_new, inner_old = self._change_data_in_column(inner_data, val)
-            new_values[col] = inner_new
-            old_values[col] = inner_old
-        return new_values, old_values
-
-    def _get_inner_column(self, column: dict[str, Any] | list[Any], key: str | int) -> Any:
-        if isinstance(column, dict):
-            if key not in column.keys():
+    def _get_data(self, data: dict[str, Any] | list[Any] | Any, key: str | int) -> Any:
+        if isinstance(data, dict):
+            if key not in data.keys():
                 raise TypeError(f"Key '{key}' does not exist in the column")
-            inner_column = column[str(key)]
-        else:
-            if int(key) >= len(column) or int(key) < 0:
+            inner_column = data[str(key)]
+        elif isinstance(data, list):
+            if int(key) >= len(data) or int(key) < 0:
                 raise TypeError(f"Index '{key}' out of bounds")
-            inner_column = column[int(key)]
+            inner_column = data[int(key)]
+        else:
+            raise TypeError("Changes must follow schema of the table")
         try:
             if isinstance(inner_column, str):
                 tmp = json.loads(inner_column)
@@ -261,21 +248,34 @@ class DMLOperations:
             pass
         return inner_column
 
-    def _change_data_in_column(self, column: Any, value: Any) -> tuple[Any, Any]:     
+    def _create_update_data_dataframe(self, row: pd.DataFrame, changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        new_values= {}
+        old_values = {}
 
-        if isinstance(value, dict):
+        data = row.to_dict(orient='records')[0]
+
+        for col, val in changes.items():
+            inner_data = self._get_data(data, col)
+            inner_new, inner_old = self._create_update_data(inner_data, val)
+            new_values[col] = inner_new
+            old_values[col] = inner_old
+        return new_values, old_values
+
+    def _create_update_data(self, data: Any, changes: Any) -> tuple[Any, Any]:     
+
+        if isinstance(changes, dict):
             inner_old = {}
-            inner_new= column
+            inner_new= data
             
-            for k, v in value.items():
-                inner_column = self._get_inner_column(column, k)
-                t_new, t_old = self._change_data_in_column(inner_column, v)
+            for k, v in changes.items():
+                inner_column = self._get_data(data, k)
+                t_new, t_old = self._create_update_data(inner_column, v)
                 inner_new[k] = t_new
                 inner_old[k] = t_old
                 
             return inner_new, inner_old
         else:
-            return value, column
+            return changes, data
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=10),
@@ -356,7 +356,7 @@ class DMLOperations:
 
             changes = self._normalize_change_dict(changes)
 
-            new_values, old_values = self._change_data_in_row_dataframe(row, changes)
+            new_values, old_values = self._create_update_data_dataframe(row, changes)
             
             set_clause = ", ".join(f"{col} = ?" for col in new_values.keys())
             values = [*list(new_values.values()), rowid]
