@@ -1,6 +1,8 @@
 """DuckDB connection management with DuckLake catalog support."""
 
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 import duckdb
@@ -46,9 +48,16 @@ class DuckDBConnection:
 
                 - ``dbname``: PostgreSQL database name.
                 - ``dbuser``: PostgreSQL user.
+                - ``host``: PostgreSQL host.
+                - ``port_number``: PostgreSQL port.
                 - ``catalog_name``: Name of the DuckLake catalog to attach.
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
+
+        Raises:
+            RuntimeError: If the current working directory is not inside a git
+                repository, so the ``extentions`` folder cannot be located.
+
         """
         self._conn = duckdb.connect()
 
@@ -56,7 +65,33 @@ class DuckDBConnection:
 
         self._conn.register_filesystem(fs)
 
-        for ext in ("ducklake", "postgres"):
+        self._conn.execute(
+            "SET custom_extension_repository = 'https://extensions.duckdb.org';"
+        )
+
+        directory = Path.cwd()
+
+        while directory / ".git" not in directory.iterdir():
+            if directory == Path("/"):
+                raise RuntimeError(f"The directory {directory} is not in a git repo.")
+            else:
+                directory = directory.parent
+
+        repo_dir = directory
+        ex_dir = "extentions"
+        ex_path = repo_dir.joinpath(ex_dir)
+        duckdb_ex = os.listdir(ex_path)
+
+        extensions = {}
+        for ex in duckdb_ex:
+            if not ex.startswith("."):
+                e = ex.split(".")[0]
+                extensions[e] = ex_path.joinpath(ex)
+
+        self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
+        self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
+
+        for ext in ("ducklake", "postgres", "sqlite_scanner"):
             self._conn.sql(f"INSTALL {ext}")
             self._conn.sql(f"LOAD {ext}")
 
