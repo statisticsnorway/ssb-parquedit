@@ -2,7 +2,7 @@
 from numpy import isin
 import json
 import logging
-from typing import Any
+from typing import Any, AnyStr
 from typing import Literal
 from typing import get_args
 
@@ -209,69 +209,73 @@ class DMLOperations:
                     changes = {k: changes}
         return key, changes
 
+    def _normalize_change_dict(self, changes: dict[Any, Any]) -> dict[Any, Any]:
+        normalized: dict[Any, Any] = {}
+        for key, value in changes.items():
+            k, c = self._parse_change_key(key, value)
+            if isinstance(c, dict):
+                c = self._normalize_change_dict(c)
+            
+            if k in normalized:
+                normalized[k] = self._merge_dicts(normalized[k], c)
+            else:
+                normalized[k] = c
+        return normalized
+
+    def _merge_dicts(self, a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
+        for key, value in b.items():
+            if key in a and isinstance(a[key], dict) and isinstance(value, dict):
+                a[key] = self._merge_dicts(a[key], value)
+            else:
+                a[key] = value
+        return a
+
+
     def _change_data_in_row_dataframe(self, row: pd.DataFrame, changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-        new_values: dict[str, Any] = {}
-        old_values: dict[str, Any] = {}
+        new_values= {}
+        old_values = {}
 
         data = row.to_dict(orient='records')[0]
-        print(f"Initial row data: {data}")
 
         for col, val in changes.items():
-            col, val = self._parse_change_key(col, val)
-            print(f"key: {col}, value: {val}, column: {data[col]}, column_type: {type(data[col])}")
-            column = data[col]
-            if isinstance(column, str):
-                column = json.loads(column)
-    
-            if isinstance(val, dict) or isinstance(val, list):
-                inner_old = {}
-                inner_new = {}
-                for sub_col, sub_val in val.items():
-                    new, old = self._change_data_in_column(column, sub_col, sub_val)
-                    inner_old.update(old)
-                    inner_new.update(new)
-                old_values[col] = inner_old
-                if isinstance(column, dict):
-                    new_values[col] = column
-                    new_values[col].update(inner_new)
-                elif isinstance(column, list):
-                    new_values[col] = column
-                    for k, v in inner_new.items():
-                        new_values[col][k] = v
-            else:
-                old_values[col] = column
-                new_values[col] = val
+            inner_data = self._get_inner_column(data, col)
+            inner_new, inner_old = self._change_data_in_column(inner_data, val)
+            new_values[col] = inner_new
+            old_values[col] = inner_old
         return new_values, old_values
 
-    def _change_data_in_column(self, column: dict[str, Any] | list[Any], key: str | int, value: Any) -> tuple[dict[str, Any], dict[str, Any]]:
-        new: dict[str, Any] = {}
-        old: dict[str, Any] = {}
+    def _get_inner_column(self, column: dict[str, Any] | list[Any], key: str | int) -> Any:
+        if isinstance(column, dict):
+            if key not in column.keys():
+                raise TypeError(f"Key '{key}' does not exist in the column")
+            inner_column = column[str(key)]
+        else:
+            if int(key) >= len(column) or int(key) < 0:
+                raise TypeError(f"Index '{key}' out of bounds")
+            inner_column = column[int(key)]
+        try:
+            if isinstance(inner_column, str):
+                tmp = json.loads(inner_column)
+                inner_column = tmp
+        except json.JSONDecodeError:
+            pass
+        return inner_column
 
-        key, value = self._parse_change_key(key, value)
-        print(f"key: {key}, value: {value}, column: {column}, column_type: {type(column)}")
-
-        if isinstance(column, dict) and key not in column.keys():
-            raise KeyError(f"Key '{key}' does not exist in the column")
-        elif isinstance(column, list) and (int(key) >= len(column) or int(key) < 0):
-            raise KeyError(f"Index '{key}' out of bounds")
+    def _change_data_in_column(self, column: Any, value: Any) -> tuple[Any, Any]:     
 
         if isinstance(value, dict):
             inner_old = {}
-            inner_new = {}
+            inner_new= column
+            
             for k, v in value.items():
-                inner_column = column[key]
-                if isinstance(inner_column, str):
-                    inner_column = json.loads(inner_column)
-                t_new, t_old = self._change_data_in_column(inner_column, k, v)
-                inner_new.update(t_new)
-                inner_old.update(t_old)
-            old[key] = inner_old
-            new[key] = column[key]
-            new[key].update(inner_new)
+                inner_column = self._get_inner_column(column, k)
+                t_new, t_old = self._change_data_in_column(inner_column, v)
+                inner_new[k] = t_new
+                inner_old[k] = t_old
+                
+            return inner_new, inner_old
         else:
-            old[key] = column[key]
-            new[key] = value
-        return new, old
+            return value, column
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=10),
@@ -349,6 +353,8 @@ class DMLOperations:
                 col: val.item() if hasattr(val, "item") else val
                 for col, val in zip(user_defined_id, unique_row, strict=True)
             }
+
+            changes = self._normalize_change_dict(changes)
 
             new_values, old_values = self._change_data_in_row_dataframe(row, changes)
             

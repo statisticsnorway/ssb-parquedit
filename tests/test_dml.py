@@ -556,3 +556,23 @@ class TestDMLOperationsChangeDataInRow:
         assert old == {"a": {"x": 1}}
         assert row["a"]["x"] == 10
         assert row["a"]["y"] == 2
+
+
+class TestDMLOperationsNormalizeChangeDict:
+    def test_normalize_change_dict(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes = {"a.b": 1, "c": 2}
+        normalized = dml._normalize_change_dict(changes)
+        assert normalized == {"a": {"b": 1}, "c": 2}
+
+    def test_normalize_change_dict_more_than_one_list_entry(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes = {"a[0]": 1, "a[1]": 2}
+        normalized = dml._normalize_change_dict(changes)
+        assert normalized == {"a": {0: 1, 1: 2}}
+
+    def test_normalize_change_dict_nested(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes = {"a.b[0].c": 1, "a.b[1].d": "test"}
+        normalized = dml._normalize_change_dict(changes)
+        assert normalized == {"a": {"b": {0: {"c": 1}, 1: {"d": "test"}}}}
