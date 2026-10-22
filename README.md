@@ -92,7 +92,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
 
 | Package    | Version              |
 |------------|----------------------|
-| `duckdb`   | `==1.5.2`            |
+| `duckdb`   | `==1.5.6`            |
 | `pandas`   | `>=3.0.0, <4.0.0`   |
 | `polars`   | `>=1.38.1, <2.0.0`  |
 | `pyarrow`  | `>=23.0.1, <24.0.0` |
