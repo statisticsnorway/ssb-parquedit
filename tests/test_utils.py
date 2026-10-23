@@ -218,3 +218,8 @@ class TestPathUtilsParsePath(unittest.TestCase):
         self.assertEqual(lst[0], "b")
         self.assertEqual(lst[1], 0)
         self.assertEqual(lst[2], "c")
+
+    def test_invalid_path(self) -> None:
+        path = ""
+        with pytest.raises(ValueError, match="Invalid path: ''"):
+            PathUtils.parse_path(path)

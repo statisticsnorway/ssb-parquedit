@@ -212,7 +212,7 @@ class DMLOperations:
         """
         if isinstance(key, str):
             key, path = PathUtils.parse_path(key)
-            if path is not None:
+            if path:
                 path.reverse()
                 for k in path:
                     changes = {k: changes}
@@ -311,7 +311,7 @@ class DMLOperations:
         Returns:
             A tuple of (new_data, old_data), where new_data contains the updated values and old_data contains the original values before the update.
         """
-        if isinstance(changes, dict):
+        if isinstance(changes, dict) and changes:
             inner_old = {}
             inner_new= data
             
