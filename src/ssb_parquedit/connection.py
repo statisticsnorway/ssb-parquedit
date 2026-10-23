@@ -54,10 +54,6 @@ class DuckDBConnection:
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
 
-        Raises:
-            RuntimeError: If the current working directory is not inside a git
-                repository, so the ``extentions`` folder cannot be located.
-
         """
         self._conn = duckdb.connect()
 
@@ -69,17 +65,7 @@ class DuckDBConnection:
             "SET custom_extension_repository = 'https://extensions.duckdb.org';"
         )
 
-        directory = Path.cwd()
-
-        while directory / ".git" not in directory.iterdir():
-            if directory == Path("/"):
-                raise RuntimeError(f"The directory {directory} is not in a git repo.")
-            else:
-                directory = directory.parent
-
-        repo_dir = directory
-        ex_dir = "extentions"
-        ex_path = repo_dir.joinpath(ex_dir)
+        ex_path = Path(__file__).parent / "extensions"
         duckdb_ex = os.listdir(ex_path)
 
         extensions = {}
