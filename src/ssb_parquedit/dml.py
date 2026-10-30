@@ -5,6 +5,7 @@ from typing import Any
 from typing import Literal
 from typing import get_args
 
+import numpy as np
 import pandas as pd
 import polars as pl
 import pyarrow as pa
@@ -265,11 +266,12 @@ class DMLOperations:
             if key not in data.keys():
                 raise TypeError(f"Key '{key}' does not exist in the column")
             inner_column = data[str(key)]
-        elif isinstance(data, list):
+        elif isinstance(data, list) or isinstance(data, np.ndarray):
             if int(key) >= len(data) or int(key) < 0:
                 raise TypeError(f"Index '{key}' out of bounds")
             inner_column = data[int(key)]
         else:
+            print(f"Invalid data type: {type(data)}")
             raise TypeError("Changes must follow schema of the table")
         try:
             if isinstance(inner_column, str):
