@@ -331,6 +331,20 @@ class TestDMLOperationsInsertData:
 
 
 class TestDMLOperationsValidateTableAndColumns:
+    def test_with_list(self) -> None:
+        mock_conn = MagicMock()
+        mock_conn.execute.return_value.fetchall.return_value = [
+            ("a",),
+            ("b",),
+            ("c",),
+            ("d",),
+        ]
+        changes = {"a[0]": ""}
+        table_name = "a"
+        db_config = MagicMock()
+        dml = DMLOperations(mock_conn, db_config)
+        dml._validate_table_and_columns(table_name, changes)
+
     def test_missing_columns(self) -> None:
         mock_conn = MagicMock()
         mock_conn.execute.return_value.fetchall.return_value = [
@@ -383,6 +397,9 @@ class TestDMLOperationsEdit:
         with (
             patch("ssb_parquedit.dml.QueryOperations") as mock_query,
             patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
+            pytest.raises(
+                ValueError, match="Tag information not found for table: 't1'"
+            ),
         ):
             mock_query.return_value._get_tag_info = Mock(return_value=None)
             dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
@@ -521,3 +538,140 @@ class TestDMLOperationsPolarsToArrow:
 
         DMLOperations._polars_to_arrow(df, col_types)
         mwc.assert_not_called()
+
+
+class TestDMLOperationsCreateUpdateData:
+    def test_simple(self) -> None:
+        row = {"a": 1, "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._create_update_data(row, {"a": 10})
+        assert changes == {"a": 10, "b": 2}
+        assert old == {"a": 1}
+
+    def test_nested(self) -> None:
+        row = {"a": {"x": 1, "y": 2}, "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._create_update_data(row, {"a": {"x": 10}})
+        assert changes == {"a": {"x": 10, "y": 2}, "b": 2}
+        assert old == {"a": {"x": 1}}
+
+    def test_list(self) -> None:
+        row = {"a": [1, 2, 3], "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._create_update_data(row, {"a": {1: 20}})
+        assert changes == {"a": [1, 20, 3], "b": 2}
+        assert old == {"a": {1: 2}}
+
+    def test_mixed(self) -> None:
+        row = {"a": [{"x": 1}, {"y": 2}], "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._create_update_data(row, {"a": {1: {"y": 20}}})
+        assert changes == {"a": [{"x": 1}, {"y": 20}], "b": 2}
+        assert old == {"a": {1: {"y": 2}}}
+
+    def test_empty(self) -> None:
+        row = {"a": [10], "b": 2}
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes, old = dml._create_update_data(row, {})
+        assert changes == {}
+        assert old == {"a": [10], "b": 2}
+
+
+class TestDMLOperationsNormalizeChangeDict:
+    def test_normalize_change_dict(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes = {"a.b": 1, "c": 2}
+        normalized = dml._normalize_change_dict(changes)
+        assert normalized == {"a": {"b": 1}, "c": 2}
+
+    def test_normalize_change_dict_more_than_one_list_entry(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes = {"a[0]": 1, "a[1]": 2}
+        normalized = dml._normalize_change_dict(changes)
+        assert normalized == {"a": {0: 1, 1: 2}}
+
+    def test_normalize_change_dict_nested(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        changes = {"a.b[0].c": 1, "a.b[1].d": "test"}
+        normalized = dml._normalize_change_dict(changes)
+        assert normalized == {"a": {"b": {0: {"c": 1}, 1: {"d": "test"}}}}
+
+
+class TestDMLOperationsGetData:
+    def test_get_data_dict(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = {"a": 1, "b": 2}
+        assert dml._get_data(data, "a") == 1
+
+    def test_get_data_list(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = [10, 20, 30]
+        assert dml._get_data(data, 1) == 20
+
+    def test_get_data_nested_json_string(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = {"a": '{"x": 1, "y": 2}'}
+        assert dml._get_data(data, "a") == {"x": 1, "y": 2}
+
+    def test_get_data_nested_string(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = {"a": "test"}
+        assert dml._get_data(data, "a") == "test"
+
+    def test_get_data_invalid_key(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = {"a": 1, "b": 2}
+        try:
+            dml._get_data(data, "c")
+        except TypeError as e:
+            assert str(e) == "Key 'c' does not exist in the column"
+
+    def test_get_data_invalid_index(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = [10, 20, 30]
+        try:
+            dml._get_data(data, 5)
+        except TypeError as e:
+            assert str(e) == "Index '5' out of bounds"
+
+    def test_get_data_non_dict_or_list(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        data = 42
+        try:
+            dml._get_data(data, "a")
+        except TypeError as e:
+            assert str(e) == "Changes must follow schema of the table"
+
+
+class TestDMLOperationsParseChangeKey:
+    def test_parse_change_key_simple(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        key = "a"
+        changes = {"b": 1}
+        parsed_key, parsed_path = dml._parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {"b": 1}
+
+    def test_parse_change_key_nested(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        key = "a.b.c"
+        changes = {"d": 1}
+        parsed_key, parsed_path = dml._parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {"b": {"c": {"d": 1}}}
+
+    def test_parse_change_key_with_list_index(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        key = "a[0].b"
+        changes = {"c": 2}
+        parsed_key, parsed_path = dml._parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {0: {"b": {"c": 2}}}
+
+    def test_parse_change_key_nothing_parsed(self) -> None:
+        dml = DMLOperations(MagicMock(), MagicMock())
+        key = "a"
+        changes: dict[Any, Any] = {}
+        parsed_key, parsed_path = dml._parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {}

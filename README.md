@@ -234,7 +234,9 @@ con.edit(
     change_comment="Corrected name and age after data review",
 )
 ```
-`changes` is a dict of `{column_name: new_value}` pairs.
+`changes` is a dict of `{column_name: new_value}` pairs. You can use dot notation and list indexes in column_name to edit more complex structures.
+
+`{"address[0].street_name": "example_street"}`
 
 `change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
 
