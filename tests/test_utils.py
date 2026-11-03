@@ -108,7 +108,7 @@ class TestTranslate(unittest.TestCase):
     def test_prop_type_is_array(self) -> None:
         prop = {"type": "array", "items": {"type": "integer"}}
         out = SchemaUtils.translate(prop)
-        self.assertEqual(out, "LIST<BIGINT>")
+        self.assertEqual(out, "BIGINT[]")
 
     def test_prop_type_is_object_with_no_properties(self) -> None:
         prop = {"type": "object"}
