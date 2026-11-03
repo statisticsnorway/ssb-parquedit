@@ -1,4 +1,5 @@
 """Unit tests for SchemaUtils."""
+
 import unittest
 
 import pandas as pd

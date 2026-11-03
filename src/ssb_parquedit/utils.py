@@ -14,6 +14,7 @@ _NESTED_PATH_RE = re.compile(r"(\w+)(?:\[(\d*)\])?")
 
 class PathUtils:
     """Utilities for parsing nested column paths."""
+
     @staticmethod
     def parse_path(path: str) -> tuple[str | int, list[str | int]]:
         """Split a nested path into its base column name and remaining tokens.
@@ -47,7 +48,7 @@ class PathUtils:
         if not tokens:
             msg = f"Invalid path: '{path}'"
             raise ValueError(msg)
-        return tokens[0], tokens[1:]  # type: ignore[return-value]
+        return tokens[0], tokens[1:]
 
 
 class SchemaUtils:

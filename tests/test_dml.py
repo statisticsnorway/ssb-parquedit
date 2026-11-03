@@ -345,8 +345,6 @@ class TestDMLOperationsValidateTableAndColumns:
         dml = DMLOperations(mock_conn, db_config)
         dml._validate_table_and_columns(table_name, changes)
 
-
-
     def test_missing_columns(self) -> None:
         mock_conn = MagicMock()
         mock_conn.execute.return_value.fetchall.return_value = [
@@ -399,7 +397,9 @@ class TestDMLOperationsEdit:
         with (
             patch("ssb_parquedit.dml.QueryOperations") as mock_query,
             patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
-            pytest.raises(ValueError, match="Tag information not found for table: 't1'"),
+            pytest.raises(
+                ValueError, match="Tag information not found for table: 't1'"
+            ),
         ):
             mock_query.return_value._get_tag_info = Mock(return_value=None)
             dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
@@ -539,6 +539,7 @@ class TestDMLOperationsPolarsToArrow:
         DMLOperations._polars_to_arrow(df, col_types)
         mwc.assert_not_called()
 
+
 class TestDMLOperationsCreateUpdateData:
     def test_simple(self) -> None:
         row = {"a": 1, "b": 2}
@@ -548,7 +549,7 @@ class TestDMLOperationsCreateUpdateData:
         assert old == {"a": 1}
 
     def test_nested(self) -> None:
-        row = {"a": {"x": 1, "y":2}, "b": 2}
+        row = {"a": {"x": 1, "y": 2}, "b": 2}
         dml = DMLOperations(MagicMock(), MagicMock())
         changes, old = dml._create_update_data(row, {"a": {"x": 10}})
         assert changes == {"a": {"x": 10, "y": 2}, "b": 2}
@@ -573,7 +574,8 @@ class TestDMLOperationsCreateUpdateData:
         dml = DMLOperations(MagicMock(), MagicMock())
         changes, old = dml._create_update_data(row, {})
         assert changes == {}
-        assert old == {'a': [10], 'b': 2}
+        assert old == {"a": [10], "b": 2}
+
 
 class TestDMLOperationsNormalizeChangeDict:
     def test_normalize_change_dict(self) -> None:
@@ -594,6 +596,7 @@ class TestDMLOperationsNormalizeChangeDict:
         normalized = dml._normalize_change_dict(changes)
         assert normalized == {"a": {"b": {0: {"c": 1}, 1: {"d": "test"}}}}
 
+
 class TestDMLOperationsGetData:
     def test_get_data_dict(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
@@ -612,7 +615,7 @@ class TestDMLOperationsGetData:
 
     def test_get_data_nested_string(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
-        data = {"a": 'test'}
+        data = {"a": "test"}
         assert dml._get_data(data, "a") == "test"
 
     def test_get_data_invalid_key(self) -> None:
@@ -639,6 +642,7 @@ class TestDMLOperationsGetData:
         except TypeError as e:
             assert str(e) == "Changes must follow schema of the table"
 
+
 class TestDMLOperationsParseChangeKey:
     def test_parse_change_key_simple(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
@@ -647,7 +651,7 @@ class TestDMLOperationsParseChangeKey:
         parsed_key, parsed_path = dml._parse_change_key(key, changes)
         assert parsed_key == "a"
         assert parsed_path == {"b": 1}
-    
+
     def test_parse_change_key_nested(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
         key = "a.b.c"
@@ -667,7 +671,7 @@ class TestDMLOperationsParseChangeKey:
     def test_parse_change_key_nothing_parsed(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
         key = "a"
-        changes = {}
+        changes: dict[any, any] = {}
         parsed_key, parsed_path = dml._parse_change_key(key, changes)
         assert parsed_key == "a"
         assert parsed_path == {}
