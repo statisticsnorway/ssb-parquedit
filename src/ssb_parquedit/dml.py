@@ -1,4 +1,5 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
+
 import json
 import logging
 from typing import Any
@@ -198,7 +199,6 @@ class DMLOperations:
             logger.error(msg)
             raise TypeError(msg)
 
-
     def _parse_change_key(self, key: str | int, changes: Any) -> tuple[str | int, Any]:
         """Parse a change key into its base key and nested path.
 
@@ -225,7 +225,7 @@ class DMLOperations:
             k, c = self._parse_change_key(key, value)
             if isinstance(c, dict):
                 c = self._normalize_change_dict(c)
-            
+
             if k in normalized:
                 normalized[k] = self._merge_dicts(normalized[k], c)
             else:
@@ -281,7 +281,9 @@ class DMLOperations:
             pass
         return inner_column
 
-    def _create_update_data_dataframe(self, row: pd.DataFrame, changes: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _create_update_data_dataframe(
+        self, row: pd.DataFrame, changes: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Create dictionaries representing the new and old values for a row based on the changes provided.
 
         Args:
@@ -291,10 +293,10 @@ class DMLOperations:
         Returns:
             A tuple of two dictionaries: (new_values, old_values), where new_values contains the updated values and old_values contains the original values before the update.
         """
-        new_values= {}
+        new_values = {}
         old_values = {}
 
-        data = row.to_dict(orient='records')[0]
+        data = row.to_dict(orient="records")[0]
 
         for col, val in changes.items():
             inner_data = self._get_data(data, col)
@@ -315,14 +317,14 @@ class DMLOperations:
         """
         if isinstance(changes, dict) and changes:
             inner_old = {}
-            inner_new= data
-            
+            inner_new = data
+
             for k, v in changes.items():
                 inner_column = self._get_data(data, k)
                 t_new, t_old = self._create_update_data(inner_column, v)
                 inner_new[k] = t_new
                 inner_old[k] = t_old
-                
+
             return inner_new, inner_old
         else:
             return changes, data
@@ -372,8 +374,6 @@ class DMLOperations:
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
-        
-
         dapla_user = get_dapla_user()
 
         query = QueryOperations(self.conn, self.db_config)
@@ -397,7 +397,6 @@ class DMLOperations:
                 f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
             ).df()
 
-
             # make dict with values of unique_id-cols from row
             assert user_defined_id is not None
             unique_row = row[user_defined_id].iloc[0]
@@ -409,10 +408,9 @@ class DMLOperations:
             changes = self._normalize_change_dict(changes)
 
             new_values, old_values = self._create_update_data_dataframe(row, changes)
-            
+
             set_clause = ", ".join(f"{col} = ?" for col in new_values.keys())
             values = [*list(new_values.values()), rowid]
-
 
             extra_info = json.dumps(
                 {

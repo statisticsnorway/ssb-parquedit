@@ -671,7 +671,7 @@ class TestDMLOperationsParseChangeKey:
     def test_parse_change_key_nothing_parsed(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
         key = "a"
-        changes: dict[any, any] = {}
+        changes: dict[Any, Any] = {}
         parsed_key, parsed_path = dml._parse_change_key(key, changes)
         assert parsed_key == "a"
         assert parsed_path == {}
