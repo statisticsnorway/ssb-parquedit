@@ -462,6 +462,111 @@ class DMLOperations:
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
+    def update_where(
+        self,
+        table_name: str,
+        where: str,
+        changes: dict[str, Any],
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Edit rows in a table matching a WHERE clause.
+
+        Updates the specified columns for all rows matching the given WHERE clause.
+        The change is wrapped in a transaction and committed with metadata
+        including the change reason, comment, user, and timestamp.
+
+        Args:
+            table_name: The name of the table to edit.
+            where: SQL WHERE clause (without the WHERE keyword) selecting the
+                rows to update, e.g. "population < 100000" or "id IN (1, 2)".
+            changes: A dictionary mapping column names to their new values.
+            change_event_reason: A reason code describing the type of change. Must be one of the valid update causes defined in VALID_UPDATE_CAUSES.
+            change_comment: A human-readable comment describing the change.
+
+        Raises:
+            ValueError: If change_event_reason is not a valid update cause.
+            Exception: Re-raises any exception that occurs during the transaction after rolling back.
+        """
+        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
+            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            logger.error(msg)
+            raise ValueError(msg)
+        if not where or not where.strip():
+            raise ValueError("'where' must be a non-empty SQL condition")
+        if ";" in where or "--" in where or "/*" in where:
+            raise ValueError("'where' must be a single SQL expression")
+        if not changes:
+            raise ValueError("'changes' must not be empty")
+
+        self._validate_table_and_columns(table_name, changes)
+        changes = self._normalize_change_dict(changes)
+
+        dapla_user = get_dapla_user()
+
+        tag_dict = QueryOperations(self.conn, self.db_config)._get_tag_info(table_name)
+        if tag_dict is None:
+            msg = f"Tag information not found for table: '{table_name}'"
+            logger.error(msg)
+            raise ValueError(msg)
+
+        set_clause = ", ".join(f'"{col}" = ?' for col in changes)
+
+        try:
+            self.conn.execute("BEGIN")
+
+            affected = self.conn.execute(
+                f"SELECT count(*) FROM {table_name} WHERE {where}"
+            ).fetchone()[0]
+            if affected == 0:
+                self.conn.execute("ROLLBACK")
+                logger.warning("update_where matched 0 rows in '%s'", table_name)
+                return
+
+            self.conn.execute(
+                f"UPDATE {table_name} SET {set_clause} WHERE {where}",
+                list(changes.values()),
+            )
+
+            extra_info = json.dumps(
+                {
+                    "change_type": "UPDATE",
+                    "change_event": "A",  
+                    "change_event_reason": change_event_reason,
+                    "changed_by": dapla_user,
+                    "table_name": table_name,
+                    "product_name": tag_dict.get("product_name"),
+                    "affected_rows": affected,
+                    "where_clause": where,
+                    "updates": [f"{c}: {v!r}" for c, v in changes.items()],
+                    "change_comment": change_comment,
+                },
+                default=str,
+            )
+            self.conn.execute(
+                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+            )
+            self.conn.execute("COMMIT")
+            logger.info(
+                "Updated %d rows in '%s' (reason=%s)",
+                affected,
+                table_name,
+                change_event_reason,
+            )
+
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaction already rolled back by DuckDB
+            raise
+
+    @retry(
+        stop=stop_after_attempt(max_attempt_number=10),
+        wait=wait_random(min=1, max=3),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     def delete_row(
         self,
         table_name: str,

@@ -424,6 +424,30 @@ class ParquEdit:
         dml = DMLOperations(conn, self._db_config)
         dml.edit(table_name, rowid, changes, change_event_reason, change_comment)
 
+    def update_where(
+        self,
+        table_name: str,
+        where: str,
+        updates: dict[str, Any],
+        change_event_reason: str,
+        change_comment: str,
+    ) -> None:
+        """Edit rows in a table matching a WHERE clause.
+
+        Args:
+            table_name: The name of the table to edit.
+            where: SQL WHERE clause (without the WHERE keyword) selecting the
+                rows to update, e.g. "population < 100000" or "id IN (1, 2)".
+            updates: A dictionary mapping column names to their new values.
+            change_event_reason: A short reason code describing the type of change event.
+            change_comment: A human-readable comment describing the change.
+        """
+        conn = self._get_connection()
+
+        dml = DMLOperations(conn, self._db_config)
+        dml.update_where(table_name, where, updates, change_event_reason, change_comment)
+
+
     def delete_row(
         self,
         table_name: str,
