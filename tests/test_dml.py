@@ -1,5 +1,4 @@
 """Unit tests for DMLOperations.delete_row() and ParquEdit.delete_row()."""
-from ssb_parquedit.query import QueryOperations
 
 from json import dumps as _dumps
 from typing import Any
@@ -677,6 +676,7 @@ class TestDMLOperationsParseChangeKey:
         assert parsed_key == "a"
         assert parsed_path == {}
 
+
 class TestDMLOperationsUpdateWhere:
     def test_update_where_invalid_change_event_reason(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
@@ -686,7 +686,7 @@ class TestDMLOperationsUpdateWhere:
                 where="id = 1",
                 changes={"column": "value"},
                 change_event_reason="invalid_reason",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e).startswith("Invalid cause: 'invalid_reason'")
@@ -699,7 +699,7 @@ class TestDMLOperationsUpdateWhere:
                 where="",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e) == "'where' must be a non-empty SQL condition"
@@ -712,7 +712,7 @@ class TestDMLOperationsUpdateWhere:
                 where="   ",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e) == "'where' must be a non-empty SQL condition"
@@ -725,7 +725,7 @@ class TestDMLOperationsUpdateWhere:
                 where="id = 1; DROP TABLE test_table",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e) == "'where' must be a single SQL expression"
@@ -735,7 +735,7 @@ class TestDMLOperationsUpdateWhere:
                 where="id = 1 -- comment",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e) == "'where' must be a single SQL expression"
@@ -745,7 +745,7 @@ class TestDMLOperationsUpdateWhere:
                 where="id = 1 /* comment */",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e) == "'where' must be a single SQL expression"
@@ -758,84 +758,90 @@ class TestDMLOperationsUpdateWhere:
                 where="id = 1",
                 changes={},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
         except ValueError as e:
             assert str(e) == "'changes' must not be empty"
 
     def test_update_where_tag_info_not_found(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
         # Mock _get_tag_info to return None
-        QueryOperations(MagicMock(), MagicMock())._get_tag_info = MagicMock(return_value=None)
         try:
-            dml.update_where(
-                table_name="test_table",
-                where="id = 1",
-                changes={"column": "value"},
-                change_event_reason="OTHER",
-                change_comment="test comment"
-            )
+            with (patch("ssb_parquedit.dml.QueryOperations") as mock_query,):
+                mock_query._get_tag_info = MagicMock(return_value=None)
+                dml.update_where(
+                    table_name="test_table",
+                    where="id = 1",
+                    changes={"column": "value"},
+                    change_event_reason="OTHER",
+                    change_comment="test comment",
+                )
         except ValueError as e:
             assert str(e) == "Tag information not found for table: 'test_table'"
 
     def test_update_where_affected_rows_zero(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         # Mock the execute method to simulate 0 affected rows
-        dml.conn.execute = MagicMock(side_effect=[
-            None,  # BEGIN
-            MagicMock(fetchone=MagicMock(return_value=[0])),  # SELECT count(*)
-            None  # ROLLBACK
-        ])
-        with (
-            patch("ssb_parquedit.dml.QueryOperations") as mock_query,
-            patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
-        ):
-            mock_query._get_tag_info = MagicMock(return_value={"product_name": "test_product"})
+        dml.conn.execute = MagicMock(
+            side_effect=[
+                None,  # BEGIN
+                MagicMock(fetchone=MagicMock(return_value=[0])),  # SELECT count(*)
+                None,  # ROLLBACK
+            ]
+        )
+        with (patch("ssb_parquedit.dml.QueryOperations") as mock_query,):
+            mock_query._get_tag_info = MagicMock(
+                return_value={"product_name": "test_product"}
+            )
             dml.update_where(
                 table_name="test_table",
                 where="id = 1",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
 
     def test_update_where_successful_update(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         # Mock the execute method to simulate affected rows
-        dml.conn.execute = MagicMock(side_effect=[
-            None,  # BEGIN
-            MagicMock(fetchone=MagicMock(return_value=[1])),  # SELECT count(*)
-            None,  # UPDATE
-            None,  # CALL set_commit_message
-            None   # COMMIT
-        ])
+        dml.conn.execute = MagicMock(
+            side_effect=[
+                None,  # BEGIN
+                MagicMock(fetchone=MagicMock(return_value=[1])),  # SELECT count(*)
+                None,  # UPDATE
+                None,  # CALL set_commit_message
+                None,  # COMMIT
+            ]
+        )
 
         with (
             patch("ssb_parquedit.dml.QueryOperations") as mock_query,
             patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
         ):
-            mock_query._get_tag_info = MagicMock(return_value={"product_name": "test_product"})
-        
+            mock_query._get_tag_info = MagicMock(
+                return_value={"product_name": "test_product"}
+            )
+
             dml.update_where(
                 table_name="test_table",
                 where="id = 1",
                 changes={"column": "value"},
                 change_event_reason="OTHER",
-                change_comment="test comment"
+                change_comment="test comment",
             )
 
     def test_update_where_rollback(self) -> None:
         def execute_mock(cmd: Any, *args: object) -> None:
             if cmd == "BEGIN":
                 raise ValueError("test_begin")
-        
+
         dml = DMLOperations(MagicMock(), MagicMock())
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         # Mock the execute method to simulate an error during update
         execute_mock = MagicMock(side_effect=execute_mock)
@@ -846,14 +852,16 @@ class TestDMLOperationsUpdateWhere:
             patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
         ):
             # Mock _get_tag_info to return some valid tag info
-            mock_query._get_tag_info = MagicMock(return_value={"product_name": "test_product"})
+            mock_query._get_tag_info = MagicMock(
+                return_value={"product_name": "test_product"}
+            )
             with pytest.raises(ValueError, match="test_begin"):
                 dml.update_where(
                     table_name="test_table",
                     where="id = 1",
                     changes={"column": "value"},
                     change_event_reason="OTHER",
-                    change_comment="test comment"
+                    change_comment="test comment",
                 )
 
             execute_mock.assert_called_with("ROLLBACK")
@@ -864,9 +872,9 @@ class TestDMLOperationsUpdateWhere:
                 raise ValueError("test_begin")
             if cmd == "ROLLBACK":
                 raise ValueError("test_rollback")
-            
+
         dml = DMLOperations(MagicMock(), MagicMock())
-        dml._validate_table_and_columns = MagicMock()
+        dml._validate_table_and_columns = MagicMock()  # type: ignore
 
         execute_mock = MagicMock(side_effect=execute_mock)
         execute_mock.fetchone = MagicMock(return_value=[1])
@@ -875,14 +883,17 @@ class TestDMLOperationsUpdateWhere:
             patch("ssb_parquedit.dml.QueryOperations") as mock_query,
             patch("ssb_parquedit.dml.json.dumps", MagicMock(wraps=dumps_wrapper)),
         ):
-            mock_query._get_tag_info = MagicMock(return_value={"product_name": "test_product"})
+            mock_query._get_tag_info = MagicMock(
+                return_value={"product_name": "test_product"}
+            )
             with pytest.raises(ValueError, match="test_begin"):
                 dml.update_where(
                     table_name="test_table",
                     where="id = 1",
                     changes={"column": "value"},
                     change_event_reason="OTHER",
-                    change_comment="test comment"
+                    change_comment="test comment",
                 )
 
             execute_mock.assert_called_with("ROLLBACK")
+            
