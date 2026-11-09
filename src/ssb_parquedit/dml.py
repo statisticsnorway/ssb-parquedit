@@ -531,7 +531,7 @@ class DMLOperations:
             extra_info = json.dumps(
                 {
                     "change_type": "UPDATE",
-                    "change_event": "A",  
+                    "change_event": "A",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
