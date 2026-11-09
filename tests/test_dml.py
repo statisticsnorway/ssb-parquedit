@@ -15,6 +15,7 @@ import pytest
 from ssb_parquedit.dml import DMLOperations
 from ssb_parquedit.local import LocalDuckDBConnection
 from ssb_parquedit.parquedit import ParquEdit
+from ssb_parquedit.query import QueryOperations
 
 # ── Fixtures and Wrapper functions──────────────────────────────────────────────────────────────────
 
