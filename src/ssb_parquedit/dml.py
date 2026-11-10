@@ -682,6 +682,30 @@ class DMLOperations:
             before_sleep=before_sleep_log(logger, logging.WARNING),
         )
     def bulk_update(self, table_name: str, changes: dict[int, dict[str, Any]], change_event_reason: str, change_comment: str, script_id: str, script_info: str) -> None:
+        """Update multiple rows and columns in a table within a single transaction.
+
+        Performs bulk updates on specified rows and columns, reorganizing changes by column
+        for efficient batch processing. All updates are executed within a single transaction,
+        ensuring consistency. Metadata about the change is logged via set_commit_message.
+
+        Args:
+            table_name: Name of the table to update.
+            changes: Dictionary mapping row IDs to dictionaries of column-value pairs to update.
+                Example: {1: {"col1": "new_val1", "col2": 42}, 2: {"col1": "new_val2"}}
+            change_event_reason: Reason for the change. Must be a valid change reason.
+            change_comment: User-provided comment describing the change.
+            script_id: Identifier of the script executing this update.
+            script_info: Additional information about the script context.
+
+        Raises:
+            ValueError: If change_event_reason is invalid or table/columns do not exist.
+            Exception: On database errors; transaction is rolled back automatically.
+
+        Note:
+            - Transaction is automatically rolled back on any exception.
+            - Change metadata is recorded including affected rows, columns, and user information.
+            - The current DAPLA user is automatically captured and logged.
+        """
         self._validate_change_reason(change_event_reason)
 
         tag_dict = self._get_tag_dict(table_name)
