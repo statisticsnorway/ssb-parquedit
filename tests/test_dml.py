@@ -1081,7 +1081,7 @@ class TestBulkUpdateEdgeCases:
         dml = DMLOperations(cities_table._get_connection())
 
         changes = {0: {"population": 999999}}
-        with pytest.raises(Exception):  # DuckDB will raise an error
+        with pytest.raises((ValueError, TypeError)):
             dml.bulk_update(
                 "nonexistent_table",
                 changes=changes,
@@ -1100,7 +1100,7 @@ class TestBulkUpdateEdgeCases:
         dml = DMLOperations(cities_table._get_connection())
 
         changes = {0: {"nonexistent_col": 999999}}
-        with pytest.raises(Exception):  # Validation should catch this
+        with pytest.raises((ValueError, TypeError)):
             dml.bulk_update(
                 "cities",
                 changes=changes,

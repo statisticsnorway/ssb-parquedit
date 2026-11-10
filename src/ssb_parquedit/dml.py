@@ -362,7 +362,6 @@ class DMLOperations:
             change_comment: A human-readable comment describing the change.
 
         Raises:
-            ValueError: If change_event_reason is not a valid update cause.
             Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
         # Coerce numpy/pandas integer types (e.g. numpy.int64 from a DataFrame
@@ -595,8 +594,6 @@ class DMLOperations:
 
         dapla_user = get_dapla_user()
 
-        query = QueryOperations(self.conn, self.db_config)
-
         # get product_name
         tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
@@ -658,7 +655,7 @@ class DMLOperations:
             logger.error(msg)
             raise ValueError(msg)
 
-    def _get_tag_dict(self, table_name: str) -> dict:
+    def _get_tag_dict(self, table_name: str) -> dict[str, Any]:
         tag_dict = QueryOperations(self.conn, self.db_config)._get_tag_info(table_name)
         if tag_dict is None:
             msg = f"Tag information not found for table: '{table_name}'"
@@ -666,7 +663,9 @@ class DMLOperations:
             raise ValueError(msg)
         return tag_dict
 
-    def _bulk_update_var(self, table_name: str, var: str, rowids: list, values: list) -> None:
+    def _bulk_update_var(
+        self, table_name: str, var: str, rowids: list[int], values: list[Any]
+    ) -> None:
         self.conn.execute(f"""
             MERGE INTO {table_name}
             USING (
@@ -677,14 +676,46 @@ class DMLOperations:
             ON (v.id = {table_name}.rowid)
             WHEN MATCHED THEN UPDATE SET {var} = v.{var};
         """)
-        
+
     @retry(
-            stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
-            wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
-            retry=retry_if_not_exception_type((ValueError, TypeError)),
-            before_sleep=before_sleep_log(logger, logging.WARNING),
-        )
-    def bulk_update(self, table_name: str, changes: dict[int, dict[str, Any]], change_event_reason: str, change_comment: str, script_id: str, script_info: str) -> None:
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def bulk_update(
+        self,
+        table_name: str,
+        changes: dict[int, dict[str, Any]],
+        change_event_reason: str,
+        change_comment: str,
+        script_id: str,
+        script_info: str,
+    ) -> None:
+        """Update multiple rows and columns in a table within a single transaction.
+
+        Performs bulk updates on specified rows and columns, reorganizing changes by column
+        for efficient batch processing. All updates are executed within a single transaction,
+        ensuring consistency. Metadata about the change is logged via set_commit_message.
+
+        Args:
+            table_name: Name of the table to update.
+            changes: Dictionary mapping row IDs to dictionaries of column-value pairs to update.
+                Example: {1: {"col1": "new_val1", "col2": 42}, 2: {"col1": "new_val2"}}
+            change_event_reason: Reason for the change. Must be a valid change reason
+                (one of: OTHER_SOURCE, REVIEW, OWNER, MARGINAL_UNIT, DUPLICATE, OTHER).
+            change_comment: User-provided comment describing the change.
+            script_id: Identifier of the script executing this update.
+            script_info: Additional information about the script context.
+
+        Raises:
+            Exception: On database errors; transaction is rolled back automatically.
+
+        Note:
+            - Transaction is automatically rolled back on any exception.
+            - Change metadata is recorded including affected rows, columns, and user information.
+            - The current DAPLA user is automatically captured and logged.
+        """
         self._validate_change_reason(change_event_reason)
 
         tag_dict = self._get_tag_dict(table_name)
@@ -713,24 +744,26 @@ class DMLOperations:
                 "product_name": product_name,
                 "updated_columns": list(column_dict.keys()),
                 "script_id": script_id,
-                "script_info": script_info
+                "script_info": script_info,
             }
         )
         try:
             self.conn.execute("BEGIN")
             for col, col_data in column_dict.items():
-                self._bulk_update_var(table_name, col, col_data["rowids"], col_data["values"])
+                self._bulk_update_var(
+                    table_name, col, col_data["rowids"], col_data["values"]
+                )
 
             self.conn.execute(
                 "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
             )
             self.conn.execute("COMMIT")
-            logger.info(f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated")
+            logger.info(
+                f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
+            )
         except Exception:
             try:
                 self.conn.execute("ROLLBACK")
             except Exception:
                 pass  # transaction already rolled back by DuckDB
             raise
-        
-
