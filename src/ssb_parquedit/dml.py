@@ -366,10 +366,7 @@ class DMLOperations:
         rowid = int(rowid)
 
         # validate cause — specific to update
-        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            logger.error(msg)
-            raise ValueError(msg)
+        self._validate_change_reason(change_event_reason)
 
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
@@ -379,11 +376,7 @@ class DMLOperations:
         query = QueryOperations(self.conn, self.db_config)
 
         # get product_name
-        tag_dict = query._get_tag_info(table_name)
-        if tag_dict is None:
-            msg = f"Tag information not found for table: '{table_name}'"
-            logger.error(msg)
-            raise ValueError(msg)
+        tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
         # get user_defined_id
@@ -415,6 +408,7 @@ class DMLOperations:
             extra_info = json.dumps(
                 {
                     "change_type": "UPDATE",
+                    "change_event": "M",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
@@ -488,10 +482,8 @@ class DMLOperations:
             ValueError: If change_event_reason is not a valid update cause.
             Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
-        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            logger.error(msg)
-            raise ValueError(msg)
+        self._validate_change_reason(change_event_reason)
+
         if not where or not where.strip():
             raise ValueError("'where' must be a non-empty SQL condition")
         if ";" in where or "--" in where or "/*" in where:
@@ -504,11 +496,7 @@ class DMLOperations:
 
         dapla_user = get_dapla_user()
 
-        tag_dict = QueryOperations(self.conn, self.db_config)._get_tag_info(table_name)
-        if tag_dict is None:
-            msg = f"Tag information not found for table: '{table_name}'"
-            logger.error(msg)
-            raise ValueError(msg)
+        tag_dict = self._get_tag_dict(table_name)
 
         set_clause = ", ".join(f'"{col}" = ?' for col in changes)
 
@@ -597,10 +585,7 @@ class DMLOperations:
                 reason, after rolling back.
         """
         # validate cause — specific to update/delete
-        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            logger.error(msg)
-            raise ValueError(msg)
+        self._validate_change_reason(change_event_reason)
 
         # validate table exists — shared
         self._validate_table_and_columns(table_name, {})
@@ -610,9 +595,7 @@ class DMLOperations:
         query = QueryOperations(self.conn, self.db_config)
 
         # get product_name
-        tag_dict = query._get_tag_info(table_name)
-        if tag_dict is None:
-            return
+        tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
         try:
@@ -631,6 +614,7 @@ class DMLOperations:
             extra_info = json.dumps(
                 {
                     "change_type": "DELETE",
+                    "change_event": "M",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
@@ -664,3 +648,86 @@ class DMLOperations:
             except Exception:
                 pass  # transaction already rolled back by DuckDB
             raise
+
+    def _validate_change_reason(self, change_event_reason: str) -> None:
+        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
+            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+    def _get_tag_dict(self, table_name: str) -> dict:
+        tag_dict = QueryOperations(self.conn, self.db_config)._get_tag_info(table_name)
+        if tag_dict is None:
+            msg = f"Tag information not found for table: '{table_name}'"
+            logger.error(msg)
+            raise ValueError(msg)
+        return tag_dict
+
+    def _bulk_update_var(self, table_name: str, var: str, rowids: list, values: list) -> None:
+        self.conn.execute(f"""
+            MERGE INTO {table_name}
+            USING (
+                SELECT
+                    unnest({rowids}) as id,
+                    unnest({values}) as {var}
+            ) as v
+            ON (v.id = {table_name}.rowid)
+            WHEN MATCHED THEN UPDATE SET {var} = v.{var};
+        """)
+        
+    @retry(
+            stop=stop_after_attempt(max_attempt_number=10),
+            wait=wait_random(min=1, max=3),
+            retry=retry_if_not_exception_type((ValueError, TypeError)),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+        )
+    def bulk_update(self, table_name: str, changes: dict[int, dict[str, Any]], change_event_reason: str, change_comment: str, script_id: str, script_info: str) -> None:
+        self._validate_change_reason(change_event_reason)
+
+        tag_dict = self._get_tag_dict(table_name)
+        product_name = tag_dict.get("product_name")
+        dapla_user = get_dapla_user()
+
+        column_dict: dict[str, dict[str, list[Any]]] = {}
+        for rowid, update_values in changes.items():
+            for col, val in update_values.items():
+                if col not in column_dict:
+                    column_dict[col] = {"rowids": [], "values": []}
+                column_dict[col]["rowids"].append(rowid)
+                column_dict[col]["values"].append(val)
+
+        self._validate_table_and_columns(table_name, column_dict)
+
+        extra_info = json.dumps(
+            {
+                "change_type": "UPDATE",
+                "change_event": "A",
+                "change_event_reason": change_event_reason,
+                "changed_by": dapla_user,
+                "table_name": table_name,
+                "affected_rows": len(changes.keys()),
+                "change_comment": change_comment,
+                "product_name": product_name,
+                "updated_columns": list(column_dict.keys()),
+                "script_id": script_id,
+                "script_info": script_info
+            }
+        )
+        try:
+            self.conn.execute("BEGIN")
+            for col, col_data in column_dict.items():
+                self._bulk_update_var(table_name, col, col_data["rowids"], col_data["values"])
+
+            self.conn.execute(
+                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+            )
+            self.conn.execute("COMMIT")
+            logger.info(f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated")
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaction already rolled back by DuckDB
+            raise
+        
+

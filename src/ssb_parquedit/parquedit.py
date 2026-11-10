@@ -449,6 +449,37 @@ class ParquEdit:
             table_name, where, changes, change_event_reason, change_comment
         )
 
+    def bulk_update(
+        self,
+        table_name: str,
+        changes: dict[int, dict[str, Any]],
+        change_event_reason: str,
+        change_comment: str,
+        script_id: str,
+        script_info: str,
+    ) -> None:
+        """Edit rows in a table matching a WHERE clause.
+
+        Args:
+            table_name: The name of the table to edit.
+            changes: A dictionary mapping row IDs to dictionaries of column names and their new values.
+            change_event_reason: A short reason code describing the type of change event.
+            change_comment: A human-readable comment describing the change.
+            script_id: The ID of the script making the updates.
+            script_info: Additional information about the script. Eg function parameters
+        """
+        conn = self._get_connection()
+
+        dml = DMLOperations(conn, self._db_config)
+        dml.bulk_update(
+            table_name,
+            changes,
+            change_event_reason,
+            change_comment,
+            script_id,
+            script_info,
+        )
+
     def delete_row(
         self,
         table_name: str,
