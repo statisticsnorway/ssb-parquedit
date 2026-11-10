@@ -335,8 +335,8 @@ class DMLOperations:
             return changes, data
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -456,8 +456,8 @@ class DMLOperations:
             raise
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -555,8 +555,8 @@ class DMLOperations:
             raise
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
