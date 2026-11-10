@@ -39,6 +39,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [Creating a table](#creating-a-table)
   - [Inserting data](#inserting-data-in-an-existing-table)
   - [Editing a row](#editing-a-row)
+  - [Editing multiple rows](#editing-multiple-rows)
   - [Deleting rows](#deleting-rows)
   - [Querying data](#querying-data)
   - [Time travel](#time-travel)
@@ -70,6 +71,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
 - **Create tables** from a pandas or polars DataFrame, a JSON Schema dict, or an existing GCS Parquet file
 - **Insert data** from a pandas or polars DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
 - **Edit data** - Update value(s) in a single row by its rowid.
+- **Edit multiple rows** - Update value(s) in all rows matching a where-condition.
 - **Delete rows** - Delete one or more rows matching a where-condition, logged individually to the changelog.
 - **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
 - **Find edits** Retrieve historical column-level edits for a specified table
@@ -237,6 +239,22 @@ con.edit(
 `changes` is a dict of `{column_name: new_value}` pairs. You can use dot notation and list indexes in column_name to edit more complex structures.
 
 `{"address[0].street_name": "example_street"}`
+
+`change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
+
+
+### Editing multiple rows
+`update_where()` selects rows with a `where` clause — the same syntax as `view()` — and applies the same `changes` to all matching rows in a single transaction. If no rows match, nothing is changed.
+```python
+con.update_where(
+    table_name="my_table_1",
+    where="age < 18",
+    changes={"status": "minor"},
+    change_event_reason="REVIEW",
+    change_comment="Flagged underage entries",
+)
+```
+`where` must be a single SQL expression (`;`, `--` and `/*` are not allowed), and `changes` must not be empty.
 
 `change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
 
