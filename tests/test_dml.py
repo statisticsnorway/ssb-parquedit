@@ -243,12 +243,13 @@ class TestDMLOperationsDeleteRow:
         conn.execute("CREATE TABLE cities AS SELECT * FROM data")
 
         dml = DMLOperations(conn)
-        dml.delete_row(
-            "cities",
-            where="rowid = 0",
-            change_event_reason="OTHER",
-            change_comment="test",
-        )
+        with pytest.raises(ValueError):
+            dml.delete_row(
+                "cities",
+                where="rowid = 0",
+                change_event_reason="OTHER",
+                change_comment="test",
+            )
         # Row must still be present - deletion never happened.
         assert conn.execute("SELECT COUNT(*) FROM cities").fetchone()[0] == 1
 
