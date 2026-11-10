@@ -24,6 +24,11 @@ from .utils import SchemaUtils
 
 logger = logging.getLogger(__name__)
 
+# Retry configuration constants
+MAX_RETRY_ATTEMPTS = 10
+RETRY_WAIT_MIN_SECONDS = 1
+RETRY_WAIT_MAX_SECONDS = 3
+
 VALID_UPDATE_CAUSES = Literal[
     "OTHER_SOURCE", "REVIEW", "OWNER", "MARGINAL_UNIT", "DUPLICATE", "OTHER"
 ]
@@ -330,8 +335,8 @@ class DMLOperations:
             return changes, data
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -451,8 +456,8 @@ class DMLOperations:
             raise
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -550,8 +555,8 @@ class DMLOperations:
             raise
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -595,7 +600,9 @@ class DMLOperations:
         query = QueryOperations(self.conn, self.db_config)
 
         # get product_name
-        tag_dict = self._get_tag_dict(table_name)
+        tag_dict = query._get_tag_info(table_name)
+        if tag_dict is None:
+            return
         product_name = tag_dict.get("product_name")
 
         try:
@@ -676,8 +683,8 @@ class DMLOperations:
         """)
         
     @retry(
-            stop=stop_after_attempt(max_attempt_number=10),
-            wait=wait_random(min=1, max=3),
+            stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+            wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
             retry=retry_if_not_exception_type((ValueError, TypeError)),
             before_sleep=before_sleep_log(logger, logging.WARNING),
         )

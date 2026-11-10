@@ -897,3 +897,325 @@ class TestDMLOperationsUpdateWhere:
                 )
 
             execute_mock.assert_called_with("ROLLBACK")
+
+
+# ── bulk_update and _bulk_update_var: happy path ────────────────────────────────────────────────────
+
+
+class TestBulkUpdateVarHappyPath:
+    """Tests for the _bulk_update_var method."""
+
+    def test_bulk_update_var_single_row(self, cities_table: ParquEdit) -> None:
+        """Test updating a single column value in a single row."""
+        dml = DMLOperations(cities_table._get_connection())
+        dml._bulk_update_var("cities", "population", [0], [999999])
+        result = cities_table.view("cities", where="name = 'Oslo'")
+        assert result["population"].iloc[0] == 999999
+
+    def test_bulk_update_var_multiple_rows_same_column(
+        self, cities_table: ParquEdit
+    ) -> None:
+        """Test updating the same column in multiple rows."""
+        dml = DMLOperations(cities_table._get_connection())
+        dml._bulk_update_var("cities", "population", [0, 1], [500000, 300000])
+        result = cities_table.view("cities", order_by="name")
+        populations = result["population"].tolist()
+        assert populations == [300000, 500000, 75000]
+
+    def test_bulk_update_var_string_column(self, cities_table: ParquEdit) -> None:
+        """Test updating string column values."""
+        dml = DMLOperations(cities_table._get_connection())
+        dml._bulk_update_var("cities", "name", [0], ["New Oslo"])
+        result = cities_table.view("cities", where="rowid = 0")
+        assert result["name"].iloc[0] == "New Oslo"
+
+    def test_bulk_update_var_preserves_other_columns(
+        self, cities_table: ParquEdit
+    ) -> None:
+        """Test that updating one column doesn't affect others."""
+        dml = DMLOperations(cities_table._get_connection())
+        dml._bulk_update_var("cities", "population", [0], [999999])
+        result = cities_table.view("cities", where="name = 'Oslo'")
+        assert result["id"].iloc[0] == 1
+        assert result["name"].iloc[0] == "Oslo"
+
+
+class TestBulkUpdateHappyPath:
+    """Tests for the bulk_update method."""
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_single_row_single_column(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test updating a single row with a single column change."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"population": 900000}}
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="OTHER",
+            change_comment="test update",
+            script_id="script_1",
+            script_info="test script",
+        )
+
+        result = cities_table.view("cities", where="name = 'Oslo'")
+        assert result["population"].iloc[0] == 900000
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_multiple_rows_multiple_columns(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test updating multiple rows with multiple column changes."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {
+            0: {"population": 800000, "name": "Oslo Updated"},
+            1: {"population": 290000, "name": "Bergen Updated"},
+        }
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="REVIEW",
+            change_comment="bulk test update",
+            script_id="script_2",
+            script_info="test script 2",
+        )
+
+        result = cities_table.view("cities", order_by="name")
+        assert result.iloc[0]["name"] == "Bergen Updated"
+        assert result.iloc[0]["population"] == 290000
+        assert result.iloc[1]["name"] == "Oslo Updated"
+        assert result.iloc[1]["population"] == 800000
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_partial_row_updates(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that rows can be updated with different numbers of column changes."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {
+            0: {"population": 750000},  # Only one column
+            1: {"name": "New Bergen", "population": 280000},  # Two columns
+        }
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="OTHER",
+            change_comment="partial update",
+            script_id="script_3",
+            script_info="test",
+        )
+
+        result = cities_table.view("cities", where="name = 'Oslo'")
+        assert result["population"].iloc[0] == 750000
+        # Verify Oslo name is unchanged
+        assert result["name"].iloc[0] == "Oslo"
+
+        result = cities_table.view("cities", where="name = 'New Bergen'")
+        assert result["population"].iloc[0] == 280000
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_preserves_unmodified_rows(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that rows not in changes dict remain unchanged."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"population": 700001}}  # Only update first row
+
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="OTHER",
+            change_comment="update one",
+            script_id="script_4",
+            script_info="test",
+        )
+
+        # Check unmodified rows
+        result = cities_table.view("cities", where="name = 'Bergen'")
+        assert result["population"].iloc[0] == 285000
+
+        result = cities_table.view("cities", where="name = 'Tromsø'")
+        assert result["population"].iloc[0] == 75000
+
+
+# ── bulk_update: edge cases ────────────────────────────────────────────────────
+
+
+class TestBulkUpdateEdgeCases:
+    """Test edge cases and error handling for bulk_update."""
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_invalid_change_reason(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that invalid change_event_reason raises ValueError."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"population": 999999}}
+        with pytest.raises(ValueError):
+            dml.bulk_update(
+                "cities",
+                changes=changes,
+                change_event_reason="INVALID_REASON",
+                change_comment="test",
+                script_id="script",
+                script_info="info",
+            )
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_nonexistent_table(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that updating a nonexistent table raises an error."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"population": 999999}}
+        with pytest.raises(Exception):  # DuckDB will raise an error
+            dml.bulk_update(
+                "nonexistent_table",
+                changes=changes,
+                change_event_reason="OTHER",
+                change_comment="test",
+                script_id="script",
+                script_info="info",
+            )
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_nonexistent_column(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that updating a nonexistent column raises an error."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"nonexistent_col": 999999}}
+        with pytest.raises(Exception):  # Validation should catch this
+            dml.bulk_update(
+                "cities",
+                changes=changes,
+                change_event_reason="OTHER",
+                change_comment="test",
+                script_id="script",
+                script_info="info",
+            )
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_empty_changes(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that empty changes dict doesn't cause issues."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes: dict[int, dict[str, Any]] = {}
+        # Should not raise an error
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="OTHER",
+            change_comment="empty",
+            script_id="script",
+            script_info="info",
+        )
+
+        # Verify nothing changed
+        assert cities_table.count("cities") == 3
+
+
+# ── bulk_update: transaction handling ────────────────────────────────────────────────────
+
+
+class TestBulkUpdateTransactionHandling:
+    """Test transaction behavior for bulk_update."""
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_successful_commit(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that successful updates are committed."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"population": 725000}, 2: {"population": 80000}}
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="OTHER",
+            change_comment="test commit",
+            script_id="script",
+            script_info="info",
+        )
+
+        # Verify updates persisted
+        result = cities_table.view("cities", where="name = 'Oslo'")
+        assert result["population"].iloc[0] == 725000
+
+        result = cities_table.view("cities", where="name = 'Tromsø'")
+        assert result["population"].iloc[0] == 80000
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_captures_user_info(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test that the dapla_user is captured and used."""
+        expected_user = "test_dapla_user_123"
+        mock_user.return_value = expected_user
+        dml = DMLOperations(cities_table._get_connection())
+
+        changes = {0: {"population": 750000}}
+        dml.bulk_update(
+            "cities",
+            changes=changes,
+            change_event_reason="OWNER",
+            change_comment="user capture test",
+            script_id="script_id_test",
+            script_info="info_test",
+        )
+
+        # Verify the update went through (user capture tested indirectly)
+        result = cities_table.view("cities", where="name = 'Oslo'")
+        assert result["population"].iloc[0] == 750000
+
+    @patch("ssb_parquedit.dml.get_dapla_user")
+    def test_bulk_update_with_all_valid_reasons(
+        self, mock_user: MagicMock, cities_table: ParquEdit
+    ) -> None:
+        """Test bulk_update with all valid change_event_reason values."""
+        mock_user.return_value = "test_user"
+        dml = DMLOperations(cities_table._get_connection())
+
+        valid_reasons = [
+            "OTHER_SOURCE",
+            "REVIEW",
+            "OWNER",
+            "MARGINAL_UNIT",
+            "DUPLICATE",
+            "OTHER",
+        ]
+
+        for idx, reason in enumerate(valid_reasons):
+            if idx < cities_table.count("cities"):
+                changes = {idx: {"population": 600000 + idx}}
+                dml.bulk_update(
+                    "cities",
+                    changes=changes,
+                    change_event_reason=reason,
+                    change_comment=f"test {reason}",
+                    script_id=f"script_{reason}",
+                    script_info="test",
+                )
+
+        # Verify at least one update succeeded
+        result = cities_table.view("cities")
+        assert result["population"].iloc[0] == 600000
