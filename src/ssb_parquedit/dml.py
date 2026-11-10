@@ -378,8 +378,6 @@ class DMLOperations:
 
         dapla_user = get_dapla_user()
 
-        query = QueryOperations(self.conn, self.db_config)
-
         # get product_name
         tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
@@ -600,9 +598,7 @@ class DMLOperations:
         query = QueryOperations(self.conn, self.db_config)
 
         # get product_name
-        tag_dict = query._get_tag_info(table_name)
-        if tag_dict is None:
-            return
+        tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
         try:
