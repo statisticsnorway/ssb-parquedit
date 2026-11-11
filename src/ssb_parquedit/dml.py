@@ -683,8 +683,7 @@ class DMLOperations:
                 f'"{col}" = CASE WHEN v."s{i}" THEN v."v{i}" '
                 f'ELSE {table_name}."{col}" END'
             )
-
-        print(set_clauses)
+       
         self.conn.execute(
             f"""
             MERGE INTO {table_name}
