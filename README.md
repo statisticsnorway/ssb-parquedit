@@ -246,7 +246,7 @@ con.edit(
 
 
 ### Editing multiple rows
-`update_where()` selects rows with a `where` clause — the same syntax as `view()` — and applies the same `changes` to all matching rows in a single transaction. If no rows match, nothing is changed.
+`update_where()` selects rows with a `where` clause — the same syntax as `view()` — and applies the same `changes` to all matching rows in a single transaction. If no rows match, nothing is changed. As now it does not support updates of Structs/Lists with dot-notation. If a struct/list needs updating you have to replace the whole struct/list.
 ```python
 con.update_where(
     table_name="my_table_1",
@@ -262,7 +262,7 @@ con.update_where(
 
 
 ### Bulk updating rows
-`bulk_update()` applies different changes to different rows (identified by `rowid`) in a single transaction. `changes` maps each `rowid` to a dict of column names and new values; rows may update different columns. If any update fails, the whole transaction is rolled back.
+`bulk_update()` applies different changes to different rows (identified by `rowid`) in a single transaction. `changes` maps each `rowid` to a dict of column names and new values; rows may update different columns. If any update fails, the whole transaction is rolled back. As now it does not support updates of Structs/Lists with dot-notation. If a struct/list needs bulk updating you have to replace the whole struct/list.
 ```python
 con.bulk_update(
     table_name="my_table_1",
