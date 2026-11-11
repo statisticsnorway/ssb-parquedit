@@ -899,42 +899,63 @@ class TestDMLOperationsUpdateWhere:
             execute_mock.assert_called_with("ROLLBACK")
 
 
-# ── bulk_update and _bulk_update_var: happy path ────────────────────────────────────────────────────
+# ── bulk_update and _bulk_update_rows: happy path ───────────────────────────
 
 
-class TestBulkUpdateVarHappyPath:
-    """Tests for the _bulk_update_var method."""
+class TestBulkUpdateRowsHappyPath:
+    """Tests for the _bulk_update_rows method."""
 
-    def test_bulk_update_var_single_row(self, cities_table: ParquEdit) -> None:
+    def test_bulk_update_rows_single_row(self, cities_table: ParquEdit) -> None:
         """Test updating a single column value in a single row."""
         dml = DMLOperations(cities_table._get_connection())
-        dml._bulk_update_var("cities", "population", [0], [999999])
+        dml._bulk_update_rows("cities", {0: {"population": 999999}}, ["population"])
         result = cities_table.view("cities", where="name = 'Oslo'")
         assert result["population"].iloc[0] == 999999
 
-    def test_bulk_update_var_multiple_rows_same_column(
+    def test_bulk_update_rows_multiple_rows_same_column(
         self, cities_table: ParquEdit
     ) -> None:
         """Test updating the same column in multiple rows."""
         dml = DMLOperations(cities_table._get_connection())
-        dml._bulk_update_var("cities", "population", [0, 1], [500000, 300000])
+        dml._bulk_update_rows(
+            "cities",
+            {0: {"population": 500000}, 1: {"population": 300000}},
+            ["population"],
+        )
         result = cities_table.view("cities", order_by="name")
         populations = result["population"].tolist()
         assert populations == [300000, 500000, 75000]
 
-    def test_bulk_update_var_string_column(self, cities_table: ParquEdit) -> None:
+    def test_bulk_update_rows_string_column(self, cities_table: ParquEdit) -> None:
         """Test updating string column values."""
         dml = DMLOperations(cities_table._get_connection())
-        dml._bulk_update_var("cities", "name", [0], ["New Oslo"])
+        dml._bulk_update_rows("cities", {0: {"name": "New Oslo"}}, ["name"])
         result = cities_table.view("cities", where="rowid = 0")
         assert result["name"].iloc[0] == "New Oslo"
 
-    def test_bulk_update_var_preserves_other_columns(
+    def test_bulk_update_rows_different_columns_per_row(
+        self, cities_table: ParquEdit
+    ) -> None:
+        """Rows lacking a column keep their value; explicit None sets NULL."""
+        dml = DMLOperations(cities_table._get_connection())
+        dml._bulk_update_rows(
+            "cities",
+            {0: {"population": 1}, 1: {"name": "X"}, 2: {"population": None}},
+            ["population", "name"],
+        )
+        result = cities_table.view("cities", order_by="rowid")
+        assert result["population"].iloc[0] == 1
+        assert result["name"].iloc[1] == "X"
+        assert result["population"].iloc[1] != 1
+        assert result["population"].isna().iloc[2]
+        assert result["name"].iloc[0] == "Oslo"
+
+    def test_bulk_update_rows_preserves_other_columns(
         self, cities_table: ParquEdit
     ) -> None:
         """Test that updating one column doesn't affect others."""
         dml = DMLOperations(cities_table._get_connection())
-        dml._bulk_update_var("cities", "population", [0], [999999])
+        dml._bulk_update_rows("cities", {0: {"population": 999999}}, ["population"])
         result = cities_table.view("cities", where="name = 'Oslo'")
         assert result["id"].iloc[0] == 1
         assert result["name"].iloc[0] == "Oslo"

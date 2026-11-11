@@ -663,19 +663,37 @@ class DMLOperations:
             raise ValueError(msg)
         return tag_dict
 
-    def _bulk_update_var(
-        self, table_name: str, var: str, rowids: list[int], values: list[Any]
+    def _bulk_update_rows(
+        self,
+        table_name: str,
+        changes: dict[int, dict[str, Any]],
+        columns: list[str],
     ) -> None:
-        self.conn.execute(f"""
+        """Apply all changes with a single MERGE, so the table is scanned and rewritten once."""
+        rowids = list(changes.keys())
+        params: list[Any] = [rowids]
+        select_cols = ["unnest(?) AS id"]
+        set_clauses = []
+        for i, col in enumerate(columns):
+            params.append([changes[r].get(col) for r in rowids])
+            params.append([col in changes[r] for r in rowids])
+            select_cols.append(f'unnest(?) AS "v{i}"')
+            select_cols.append(f'unnest(?) AS "s{i}"')
+            set_clauses.append(
+                f'"{col}" = CASE WHEN v."s{i}" THEN v."v{i}" '
+                f'ELSE {table_name}."{col}" END'
+            )
+
+        print(set_clauses)
+        self.conn.execute(
+            f"""
             MERGE INTO {table_name}
-            USING (
-                SELECT
-                    unnest({rowids}) as id,
-                    unnest({values}) as {var}
-            ) as v
+            USING (SELECT {", ".join(select_cols)}) AS v
             ON (v.id = {table_name}.rowid)
-            WHEN MATCHED THEN UPDATE SET {var} = v.{var};
-        """)
+            WHEN MATCHED THEN UPDATE SET {", ".join(set_clauses)};
+            """,
+            params,
+        )
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
@@ -749,10 +767,8 @@ class DMLOperations:
         )
         try:
             self.conn.execute("BEGIN")
-            for col, col_data in column_dict.items():
-                self._bulk_update_var(
-                    table_name, col, col_data["rowids"], col_data["values"]
-                )
+            if column_dict:
+                self._bulk_update_rows(table_name, changes, list(column_dict))
 
             self.conn.execute(
                 "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
