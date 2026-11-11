@@ -449,7 +449,7 @@ class ParquEdit:
             table_name, where, changes, change_event_reason, change_comment
         )
 
-    def bulk_update(
+    def update_bulk(
         self,
         table_name: str,
         changes: dict[int, dict[str, Any]],
@@ -458,7 +458,7 @@ class ParquEdit:
         script_id: str,
         script_info: str,
     ) -> None:
-        """Edit rows in a table matching a WHERE clause.
+        """Edit multiple rows in a table by their row IDs.
 
         Args:
             table_name: The name of the table to edit.
@@ -471,7 +471,7 @@ class ParquEdit:
         conn = self._get_connection()
 
         dml = DMLOperations(conn, self._db_config)
-        dml.bulk_update(
+        dml.update_bulk(
             table_name,
             changes,
             change_event_reason,

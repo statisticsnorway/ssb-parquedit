@@ -683,7 +683,7 @@ class DMLOperations:
                 f'"{col}" = CASE WHEN v."s{i}" THEN v."v{i}" '
                 f'ELSE {table_name}."{col}" END'
             )
-       
+
         self.conn.execute(
             f"""
             MERGE INTO {table_name}
@@ -700,7 +700,7 @@ class DMLOperations:
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
-    def bulk_update(
+    def update_bulk(
         self,
         table_name: str,
         changes: dict[int, dict[str, Any]],

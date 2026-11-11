@@ -973,7 +973,7 @@ class TestBulkUpdateHappyPath:
         dml = DMLOperations(cities_table._get_connection())
 
         changes = {0: {"population": 900000}}
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="OTHER",
@@ -997,7 +997,7 @@ class TestBulkUpdateHappyPath:
             0: {"population": 800000, "name": "Oslo Updated"},
             1: {"population": 290000, "name": "Bergen Updated"},
         }
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="REVIEW",
@@ -1024,7 +1024,7 @@ class TestBulkUpdateHappyPath:
             0: {"population": 750000},  # Only one column
             1: {"name": "New Bergen", "population": 280000},  # Two columns
         }
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="OTHER",
@@ -1051,7 +1051,7 @@ class TestBulkUpdateHappyPath:
 
         changes = {0: {"population": 700001}}  # Only update first row
 
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="OTHER",
@@ -1084,7 +1084,7 @@ class TestBulkUpdateEdgeCases:
 
         changes = {0: {"population": 999999}}
         with pytest.raises(ValueError):
-            dml.bulk_update(
+            dml.update_bulk(
                 "cities",
                 changes=changes,
                 change_event_reason="INVALID_REASON",
@@ -1103,7 +1103,7 @@ class TestBulkUpdateEdgeCases:
 
         changes = {0: {"population": 999999}}
         with pytest.raises((ValueError, TypeError)):
-            dml.bulk_update(
+            dml.update_bulk(
                 "nonexistent_table",
                 changes=changes,
                 change_event_reason="OTHER",
@@ -1122,7 +1122,7 @@ class TestBulkUpdateEdgeCases:
 
         changes = {0: {"nonexistent_col": 999999}}
         with pytest.raises((ValueError, TypeError)):
-            dml.bulk_update(
+            dml.update_bulk(
                 "cities",
                 changes=changes,
                 change_event_reason="OTHER",
@@ -1141,7 +1141,7 @@ class TestBulkUpdateEdgeCases:
 
         changes: dict[int, dict[str, Any]] = {}
         # Should not raise an error
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="OTHER",
@@ -1169,7 +1169,7 @@ class TestBulkUpdateTransactionHandling:
         dml = DMLOperations(cities_table._get_connection())
 
         changes = {0: {"population": 725000}, 2: {"population": 80000}}
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="OTHER",
@@ -1195,7 +1195,7 @@ class TestBulkUpdateTransactionHandling:
         dml = DMLOperations(cities_table._get_connection())
 
         changes = {0: {"population": 750000}}
-        dml.bulk_update(
+        dml.update_bulk(
             "cities",
             changes=changes,
             change_event_reason="OWNER",
@@ -1228,7 +1228,7 @@ class TestBulkUpdateTransactionHandling:
         for idx, reason in enumerate(valid_reasons):
             if idx < cities_table.count("cities"):
                 changes = {idx: {"population": 600000 + idx}}
-                dml.bulk_update(
+                dml.update_bulk(
                     "cities",
                     changes=changes,
                     change_event_reason=reason,
