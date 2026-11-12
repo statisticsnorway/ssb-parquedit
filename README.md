@@ -40,6 +40,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
   - [Inserting data](#inserting-data-in-an-existing-table)
   - [Editing a row](#editing-a-row)
   - [Editing multiple rows](#editing-multiple-rows)
+  - [Bulk updating rows](#bulk-updating-rows)
   - [Deleting rows](#deleting-rows)
   - [Querying data](#querying-data)
   - [Time travel](#time-travel)
@@ -72,6 +73,7 @@ Intended for single-table editing. Does not support primary- and foreign keys.
 - **Insert data** from a pandas or polars DataFrame or a `gs://` Parquet path — rows are automatically assigned a unique `rowid` within a table
 - **Edit data** - Update value(s) in a single row by its rowid.
 - **Edit multiple rows** - Update value(s) in all rows matching a where-condition.
+- **Bulk update** - Apply different column changes to many rows (by rowid) in a single transaction.
 - **Delete rows** - Delete one or more rows matching a where-condition, logged individually to the changelog.
 - **Query tables** with where-conditions, column selection, sorting, pagination, and multiple output formats (`pandas`, `polars`, `pyarrow`)
 - **Find edits** Retrieve historical column-level edits for a specified table
@@ -244,7 +246,7 @@ con.edit(
 
 
 ### Editing multiple rows
-`update_where()` selects rows with a `where` clause — the same syntax as `view()` — and applies the same `changes` to all matching rows in a single transaction. If no rows match, nothing is changed.
+`update_where()` selects rows with a `where` clause — the same syntax as `view()` — and applies the same `changes` to all matching rows in a single transaction. If no rows match, nothing is changed. As now it does not support updates of Structs/Lists with dot-notation. If a struct/list needs updating you have to replace the whole struct/list.
 ```python
 con.update_where(
     table_name="my_table_1",
@@ -257,6 +259,24 @@ con.update_where(
 `where` must be a single SQL expression (`;`, `--` and `/*` are not allowed), and `changes` must not be empty.
 
 `change_event_reason` must be one of: `OTHER_SOURCE`, `REVIEW`, `OWNER`, `MARGINAL_UNIT`, `DUPLICATE`, `OTHER`
+
+
+### Bulk updating rows
+`update_bulk()` applies different changes to different rows (identified by `rowid`) in a single transaction. `changes` maps each `rowid` to a dict of column names and new values; rows may update different columns. If any update fails, the whole transaction is rolled back. As now it does not support updates of Structs/Lists with dot-notation. If a struct/list needs bulk updating you have to replace the whole struct/list. Bulk updating can generate a lot of inlined data and many small parquet-files, so it's recommended to run flush_inlined_data() and merge_adjacent_files() on a regular basis.
+```python
+con.update_bulk(
+    table_name="my_table_1",
+    changes={
+        0: {"status": "adult", "age": 30},
+        5: {"status": "minor"},
+    },
+    change_event_reason="REVIEW",
+    change_comment="Corrected status after manual review",
+    script_id="github.com/statisticsnorway/dapla_ffunk/src/editing/imputation.py@5bb8b73897eb7e26c0b7031b8e7955f0e9bbccd1",
+    script_info="threshold=18, dry_run=False",
+)
+```
+`script_id` identifies the script that made the update, a link to its GitHub repository together with the commit SHA. `script_info` holds extra context, such as the parameters the script was run with (e.g. `"threshold=18, dry_run=False"` or `"year=2024, source_table=my_table_0"`). `change_event_reason` must be one of the values listed above.
 
 
 ### Deleting rows

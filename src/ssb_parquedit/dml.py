@@ -24,6 +24,11 @@ from .utils import SchemaUtils
 
 logger = logging.getLogger(__name__)
 
+# Retry configuration constants
+MAX_RETRY_ATTEMPTS = 10
+RETRY_WAIT_MIN_SECONDS = 1
+RETRY_WAIT_MAX_SECONDS = 3
+
 VALID_UPDATE_CAUSES = Literal[
     "OTHER_SOURCE", "REVIEW", "OWNER", "MARGINAL_UNIT", "DUPLICATE", "OTHER"
 ]
@@ -81,6 +86,19 @@ class DMLOperations:
             msg = "source must be a DataFrame or gs:// Parquet path"
             logger.error(msg)
             raise TypeError(msg)
+
+    def _call_set_commit_message(
+        self, dapla_user: str, extra_info: str | None = None
+    ) -> None:
+        """Call the set_commit_message procedure with the given user and extra info.
+
+        Args:
+            dapla_user: The user making the change.
+            extra_info: Additional information to include in the commit message.
+        """
+        self.conn.execute(
+            "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+        )
 
     def _insert_from_dataframe(
         self, table_name: str, data: pd.DataFrame | pl.DataFrame
@@ -330,8 +348,8 @@ class DMLOperations:
             return changes, data
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -357,7 +375,6 @@ class DMLOperations:
             change_comment: A human-readable comment describing the change.
 
         Raises:
-            ValueError: If change_event_reason is not a valid update cause.
             Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
         # Coerce numpy/pandas integer types (e.g. numpy.int64 from a DataFrame
@@ -366,24 +383,15 @@ class DMLOperations:
         rowid = int(rowid)
 
         # validate cause — specific to update
-        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            logger.error(msg)
-            raise ValueError(msg)
+        self._validate_change_reason(change_event_reason)
 
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
         dapla_user = get_dapla_user()
 
-        query = QueryOperations(self.conn, self.db_config)
-
         # get product_name
-        tag_dict = query._get_tag_info(table_name)
-        if tag_dict is None:
-            msg = f"Tag information not found for table: '{table_name}'"
-            logger.error(msg)
-            raise ValueError(msg)
+        tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
         # get user_defined_id
@@ -415,6 +423,7 @@ class DMLOperations:
             extra_info = json.dumps(
                 {
                     "change_type": "UPDATE",
+                    "change_event": "M",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
@@ -437,9 +446,7 @@ class DMLOperations:
                 values,
             )
 
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+            self._call_set_commit_message(dapla_user, extra_info)
 
             self.conn.execute("COMMIT")
             logger.info(
@@ -457,8 +464,8 @@ class DMLOperations:
             raise
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -488,10 +495,8 @@ class DMLOperations:
             ValueError: If change_event_reason is not a valid update cause.
             Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
-        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            logger.error(msg)
-            raise ValueError(msg)
+        self._validate_change_reason(change_event_reason)
+
         if not where or not where.strip():
             raise ValueError("'where' must be a non-empty SQL condition")
         if ";" in where or "--" in where or "/*" in where:
@@ -504,11 +509,7 @@ class DMLOperations:
 
         dapla_user = get_dapla_user()
 
-        tag_dict = QueryOperations(self.conn, self.db_config)._get_tag_info(table_name)
-        if tag_dict is None:
-            msg = f"Tag information not found for table: '{table_name}'"
-            logger.error(msg)
-            raise ValueError(msg)
+        tag_dict = self._get_tag_dict(table_name)
 
         set_clause = ", ".join(f'"{col}" = ?' for col in changes)
 
@@ -543,9 +544,9 @@ class DMLOperations:
                 },
                 default=str,
             )
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+
+            self._call_set_commit_message(dapla_user, extra_info)
+
             self.conn.execute("COMMIT")
             logger.info(
                 "Updated %d rows in '%s' (reason=%s)",
@@ -562,8 +563,8 @@ class DMLOperations:
             raise
 
     @retry(
-        stop=stop_after_attempt(max_attempt_number=10),
-        wait=wait_random(min=1, max=3),
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
         retry=retry_if_not_exception_type((ValueError, TypeError)),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
@@ -597,22 +598,15 @@ class DMLOperations:
                 reason, after rolling back.
         """
         # validate cause — specific to update/delete
-        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
-            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
-            logger.error(msg)
-            raise ValueError(msg)
+        self._validate_change_reason(change_event_reason)
 
         # validate table exists — shared
         self._validate_table_and_columns(table_name, {})
 
         dapla_user = get_dapla_user()
 
-        query = QueryOperations(self.conn, self.db_config)
-
         # get product_name
-        tag_dict = query._get_tag_info(table_name)
-        if tag_dict is None:
-            return
+        tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
         try:
@@ -631,6 +625,7 @@ class DMLOperations:
             extra_info = json.dumps(
                 {
                     "change_type": "DELETE",
+                    "change_event": "M",
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
@@ -646,9 +641,7 @@ class DMLOperations:
 
             self.conn.execute(f"DELETE FROM {table_name} WHERE {where}")
 
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+            self._call_set_commit_message(dapla_user, extra_info)
 
             self.conn.execute("COMMIT")
             logger.info(
@@ -658,6 +651,139 @@ class DMLOperations:
                 change_event_reason,
             )
 
+        except Exception:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass  # transaction already rolled back by DuckDB
+            raise
+
+    def _validate_change_reason(self, change_event_reason: str) -> None:
+        if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
+            msg = f"Invalid cause: '{change_event_reason}'. Must be one of: {get_args(VALID_UPDATE_CAUSES)}"
+            logger.error(msg)
+            raise ValueError(msg)
+
+    def _get_tag_dict(self, table_name: str) -> dict[str, Any]:
+        tag_dict = QueryOperations(self.conn, self.db_config)._get_tag_info(table_name)
+        if tag_dict is None:
+            msg = f"Tag information not found for table: '{table_name}'"
+            logger.error(msg)
+            raise ValueError(msg)
+        return tag_dict
+
+    def _bulk_update_rows(
+        self,
+        table_name: str,
+        changes: dict[int, dict[str, Any]],
+        columns: list[str],
+    ) -> None:
+        """Apply all changes with a single MERGE, so the table is scanned and rewritten once."""
+        rowids = list(changes.keys())
+        params: list[Any] = [rowids]
+        select_cols = ["unnest(?) AS id"]
+        set_clauses = []
+        for i, col in enumerate(columns):
+            params.append([changes[r].get(col) for r in rowids])
+            params.append([col in changes[r] for r in rowids])
+            select_cols.append(f'unnest(?) AS "v{i}"')
+            select_cols.append(f'unnest(?) AS "s{i}"')
+            set_clauses.append(
+                f'"{col}" = CASE WHEN v."s{i}" THEN v."v{i}" '
+                f'ELSE {table_name}."{col}" END'
+            )
+
+        self.conn.execute(
+            f"""
+            MERGE INTO {table_name}
+            USING (SELECT {", ".join(select_cols)}) AS v
+            ON (v.id = {table_name}.rowid)
+            WHEN MATCHED THEN UPDATE SET {", ".join(set_clauses)};
+            """,
+            params,
+        )
+
+    @retry(
+        stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
+        wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
+        retry=retry_if_not_exception_type((ValueError, TypeError)),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    def update_bulk(
+        self,
+        table_name: str,
+        changes: dict[int, dict[str, Any]],
+        change_event_reason: str,
+        change_comment: str,
+        script_id: str,
+        script_info: str,
+    ) -> None:
+        """Update multiple rows and columns in a table within a single transaction.
+
+        Performs bulk updates on specified rows and columns, reorganizing changes by column
+        for efficient batch processing. All updates are executed within a single transaction,
+        ensuring consistency. Metadata about the change is logged via set_commit_message.
+
+        Args:
+            table_name: Name of the table to update.
+            changes: Dictionary mapping row IDs to dictionaries of column-value pairs to update.
+                Example: {1: {"col1": "new_val1", "col2": 42}, 2: {"col1": "new_val2"}}
+            change_event_reason: Reason for the change. Must be a valid change reason
+                (one of: OTHER_SOURCE, REVIEW, OWNER, MARGINAL_UNIT, DUPLICATE, OTHER).
+            change_comment: User-provided comment describing the change.
+            script_id: Identifier of the script executing this update.
+            script_info: Additional information about the script context.
+
+        Raises:
+            Exception: On database errors; transaction is rolled back automatically.
+
+        Note:
+            - Transaction is automatically rolled back on any exception.
+            - Change metadata is recorded including affected rows, columns, and user information.
+            - The current DAPLA user is automatically captured and logged.
+        """
+        self._validate_change_reason(change_event_reason)
+
+        tag_dict = self._get_tag_dict(table_name)
+        product_name = tag_dict.get("product_name")
+        dapla_user = get_dapla_user()
+
+        column_dict: dict[str, dict[str, list[Any]]] = {}
+        for rowid, update_values in changes.items():
+            for col, val in update_values.items():
+                if col not in column_dict:
+                    column_dict[col] = {"rowids": [], "values": []}
+                column_dict[col]["rowids"].append(rowid)
+                column_dict[col]["values"].append(val)
+
+        self._validate_table_and_columns(table_name, column_dict)
+
+        extra_info = json.dumps(
+            {
+                "change_type": "UPDATE",
+                "change_event": "A",
+                "change_event_reason": change_event_reason,
+                "changed_by": dapla_user,
+                "table_name": table_name,
+                "affected_rows": len(changes.keys()),
+                "change_comment": change_comment,
+                "product_name": product_name,
+                "updated_columns": list(column_dict.keys()),
+                "script_id": script_id,
+                "script_info": script_info,
+            }
+        )
+        try:
+            self.conn.execute("BEGIN")
+            if column_dict:
+                self._bulk_update_rows(table_name, changes, list(column_dict))
+
+            self._call_set_commit_message(dapla_user, extra_info)
+
+            self.conn.execute("COMMIT")
+            logger.info(
+                f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
+            )
         except Exception:
             try:
                 self.conn.execute("ROLLBACK")
