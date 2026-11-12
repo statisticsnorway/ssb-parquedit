@@ -87,6 +87,17 @@ class DMLOperations:
             logger.error(msg)
             raise TypeError(msg)
 
+    def _call_set_commit_message(self, dapla_user: str, extra_info: str | None = None) -> None:
+        """Call the set_commit_message procedure with the given user and extra info.
+
+        Args:
+            dapla_user: The user making the change.
+            extra_info: Additional information to include in the commit message.
+        """
+        self.conn.execute(
+            "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
+        )
+
     def _insert_from_dataframe(
         self, table_name: str, data: pd.DataFrame | pl.DataFrame
     ) -> None:
@@ -433,9 +444,7 @@ class DMLOperations:
                 values,
             )
 
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+            self._call_set_commit_message(dapla_user, extra_info)
 
             self.conn.execute("COMMIT")
             logger.info(
@@ -533,9 +542,9 @@ class DMLOperations:
                 },
                 default=str,
             )
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+
+            self._call_set_commit_message(dapla_user, extra_info)
+
             self.conn.execute("COMMIT")
             logger.info(
                 "Updated %d rows in '%s' (reason=%s)",
@@ -630,9 +639,7 @@ class DMLOperations:
 
             self.conn.execute(f"DELETE FROM {table_name} WHERE {where}")
 
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+            self._call_set_commit_message(dapla_user, extra_info)
 
             self.conn.execute("COMMIT")
             logger.info(
@@ -769,9 +776,8 @@ class DMLOperations:
             if column_dict:
                 self._bulk_update_rows(table_name, changes, list(column_dict))
 
-            self.conn.execute(
-                "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
-            )
+            self._call_set_commit_message(dapla_user, extra_info)
+            
             self.conn.execute("COMMIT")
             logger.info(
                 f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
