@@ -262,7 +262,7 @@ con.update_where(
 
 
 ### Bulk updating rows
-`update_bulk()` applies different changes to different rows (identified by `rowid`) in a single transaction. `changes` maps each `rowid` to a dict of column names and new values; rows may update different columns. If any update fails, the whole transaction is rolled back. As now it does not support updates of Structs/Lists with dot-notation. If a struct/list needs bulk updating you have to replace the whole struct/list.
+`update_bulk()` applies different changes to different rows (identified by `rowid`) in a single transaction. `changes` maps each `rowid` to a dict of column names and new values; rows may update different columns. If any update fails, the whole transaction is rolled back. As now it does not support updates of Structs/Lists with dot-notation. If a struct/list needs bulk updating you have to replace the whole struct/list. Bulk updating can generate a lot of inlined data and many small parquet-files, so it's recommended to run flush_inlined_data() and merge_adjacent_files() on a regular basis.
 ```python
 con.update_bulk(
     table_name="my_table_1",
