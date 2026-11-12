@@ -87,7 +87,9 @@ class DMLOperations:
             logger.error(msg)
             raise TypeError(msg)
 
-    def _call_set_commit_message(self, dapla_user: str, extra_info: str | None = None) -> None:
+    def _call_set_commit_message(
+        self, dapla_user: str, extra_info: str | None = None
+    ) -> None:
         """Call the set_commit_message procedure with the given user and extra info.
 
         Args:
@@ -777,7 +779,7 @@ class DMLOperations:
                 self._bulk_update_rows(table_name, changes, list(column_dict))
 
             self._call_set_commit_message(dapla_user, extra_info)
-            
+
             self.conn.execute("COMMIT")
             logger.info(
                 f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
