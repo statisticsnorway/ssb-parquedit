@@ -46,9 +46,12 @@ class DuckDBConnection:
 
                 - ``dbname``: PostgreSQL database name.
                 - ``dbuser``: PostgreSQL user.
+                - ``host``: PostgreSQL host.
+                - ``port_number``: PostgreSQL port.
                 - ``catalog_name``: Name of the DuckLake catalog to attach.
                 - ``data_path``: GCS path for data storage (e.g. ``gs://bucket/path``).
                 - ``metadata_schema``: PostgreSQL schema for DuckLake metadata.
+
         """
         self._conn = duckdb.connect()
 
@@ -56,7 +59,23 @@ class DuckDBConnection:
 
         self._conn.register_filesystem(fs)
 
-        for ext in ("ducklake", "postgres"):
+        self._conn.execute(
+            "SET custom_extension_repository = '<https://extensions.duckdb.org';>"
+        )
+
+        ex_path = Path(__file__).parent / "extentions"
+        duckdb_ex = os.listdir(ex_path)
+
+        extensions = {}
+        for ex in duckdb_ex:
+            if not ex.startswith("."):
+                e = ex.split(".")[0]
+                extensions[e] = ex_path.joinpath(ex)
+
+        self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
+        self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
+
+        for ext in ("ducklake", "postgres", "sqlite_scanner"):
             self._conn.sql(f"INSTALL {ext}")
             self._conn.sql(f"LOAD {ext}")
 
