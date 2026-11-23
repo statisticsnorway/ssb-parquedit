@@ -347,6 +347,12 @@ class DMLOperations:
         else:
             return changes, data
 
+    def _rollback_transaction(self) -> None:
+        try:
+            self.conn.execute("ROLLBACK")
+        except Exception:
+            pass  # transaction already rolled back by DuckDB
+
     @retry(
         stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
         wait=wait_random(min=RETRY_WAIT_MIN_SECONDS, max=RETRY_WAIT_MAX_SECONDS),
@@ -457,10 +463,7 @@ class DMLOperations:
             )
 
         except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
+            self._rollback_transaction()
             raise
 
     @retry(
@@ -520,7 +523,7 @@ class DMLOperations:
                 f"SELECT count(*) FROM {table_name} WHERE {where}"
             ).fetchone()[0]
             if affected == 0:
-                self.conn.execute("ROLLBACK")
+                self._rollback_transaction()
                 logger.warning("update_where matched 0 rows in '%s'", table_name)
                 return
 
@@ -556,10 +559,7 @@ class DMLOperations:
             )
 
         except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
+            self._rollback_transaction()
             raise
 
     @retry(
@@ -652,10 +652,7 @@ class DMLOperations:
             )
 
         except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
+            self._rollback_transaction()
             raise
 
     def _validate_change_reason(self, change_event_reason: str) -> None:
@@ -785,8 +782,5 @@ class DMLOperations:
                 f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
             )
         except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
+            self._rollback_transaction()
             raise
