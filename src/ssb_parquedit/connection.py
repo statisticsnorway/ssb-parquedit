@@ -1,6 +1,8 @@
 """DuckDB connection management with DuckLake catalog support."""
 
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 import duckdb
@@ -60,7 +62,7 @@ class DuckDBConnection:
         self._conn.register_filesystem(fs)
 
         self._conn.execute(
-            "SET custom_extension_repository = '<https://extensions.duckdb.org';>"
+            "SET custom_extension_repository = 'https://extensions.duckdb.org';"
         )
 
         ex_path = Path(__file__).parent / "extentions"
@@ -75,7 +77,7 @@ class DuckDBConnection:
         self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
         self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
 
-        for ext in ("ducklake", "postgres", "sqlite_scanner"):
+        for ext in ("ducklake", "postgres"):
             self._conn.sql(f"INSTALL {ext}")
             self._conn.sql(f"LOAD {ext}")
 
