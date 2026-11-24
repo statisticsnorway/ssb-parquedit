@@ -97,8 +97,20 @@ def create_config() -> dict[str, str]:
             "port_number": port_number,
             "host": "localhost",
         }
+
+    elif environment == "test":
+        config = {
+            "dbname": "parquedit",
+            "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",
+            "data_path": f"gs://{get_bucket_name()}/.parquedit_data",
+            "catalog_name": team_name,
+            "metadata_schema": f"team_{team_name}",
+            "port_number": port_number,
+            "host": "localhost",
+        }
+
     else:
-        # "test" and any other (e.g. local/dev) environment share the same config.
+        # "any other (e.g. local/dev) environment share the same config.
         config = {
             "dbname": "dapla-ffunk",
             "dbuser": f"{get_dapla_group()}@dapla-group-sa-t-57.iam",

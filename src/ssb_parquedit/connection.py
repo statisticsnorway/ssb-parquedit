@@ -66,19 +66,17 @@ class DuckDBConnection:
         )
 
         ex_path = Path(__file__).parent / "extentions"
-        duckdb_ex = os.listdir(ex_path)
+        bundled = {
+            f.name.split(".")[0]: f
+            for f in ex_path.glob("*.duckdb_extension")
+            if not f.name.startswith(".")
+        }
 
-        extensions = {}
-        for ex in duckdb_ex:
-            if not ex.startswith("."):
-                e = ex.split(".")[0]
-                extensions[e] = ex_path.joinpath(ex)
-
-        self._conn.sql(f"FORCE INSTALL '{extensions.get('httpfs')}';")
-        self._conn.sql(f"LOAD '{extensions.get('httpfs')}';")
-
-        for ext in ("ducklake", "postgres"):
-            self._conn.sql(f"INSTALL {ext}")
+        for ext in ("httpfs", "ducklake", "postgres", "sqlite_scanner"):
+            if ext in bundled:
+                self._conn.sql(f"FORCE INSTALL '{bundled[ext]}'")
+            else:
+                self._conn.sql(f"FORCE INSTALL {ext}")
             self._conn.sql(f"LOAD {ext}")
 
         self._conn.sql(f"""
@@ -101,7 +99,6 @@ class DuckDBConnection:
             db_config["catalog_name"],
             db_config["data_path"],
         )
-
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute a SQL statement.
 
