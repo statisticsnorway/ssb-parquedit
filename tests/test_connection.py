@@ -50,11 +50,11 @@ class TestConnectionHappyPath:
 
     def test_execute_returns_query_result(self, conn: LocalDuckDBConnection) -> None:
         result = conn.execute("SELECT 42 AS answer")
-        assert result.fetchone()[0] == 42
+        assert result.fetchall()[0][0] == 42
 
     def test_sql_returns_query_result(self, conn: LocalDuckDBConnection) -> None:
         result = conn.sql("SELECT 'hello' AS greeting")
-        assert result.fetchone()[0] == "hello"
+        assert result.fetchall()[0][0] == "hello"
 
     def test_register_makes_dataframe_queryable(
         self, conn: LocalDuckDBConnection
