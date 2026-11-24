@@ -1,4 +1,5 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
+
 import json
 import logging
 from collections.abc import Generator
@@ -235,8 +236,6 @@ class DMLOperations:
             msg = f"Missing columns in '{table_name}': {missing}"
             logger.error(msg)
             raise TypeError(msg)
-
-   
 
     def _create_update_data_dataframe(
         self, row: pd.DataFrame, changes: dict[str, Any]

@@ -13,8 +13,10 @@ import polars as pl
 logger = logging.getLogger(__name__)
 _NESTED_PATH_RE = re.compile(r"(\w+)(?:\[(\d*)\])?")
 
+
 class ChangeUtils:
     """Utilities for handling changes to nested data structures."""
+
     @classmethod
     def parse_change_key(cls, key: str | int, changes: Any) -> tuple[str | int, Any]:
         """Parse a change key into its base key and nested path.
@@ -101,7 +103,6 @@ class ChangeUtils:
         except json.JSONDecodeError:
             pass
         return inner_column
-
 
 
 class PathUtils:

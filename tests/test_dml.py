@@ -578,9 +578,6 @@ class TestDMLOperationsCreateUpdateData:
         assert old == {"a": [10], "b": 2}
 
 
-
-
-
 class TestDMLOperationsUpdateWhere:
     def test_update_where_invalid_change_event_reason(self) -> None:
         dml = DMLOperations(MagicMock(), MagicMock())

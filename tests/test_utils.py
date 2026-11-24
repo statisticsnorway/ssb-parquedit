@@ -226,6 +226,7 @@ class TestPathUtilsParsePath(unittest.TestCase):
         with pytest.raises(ValueError, match="Invalid path: ''"):
             PathUtils.parse_path(path)
 
+
 class TestChangeUtilsNormalizeChangeDict:
     def test_normalize_change_dict(self) -> None:
         changes = {"a.b": 1, "c": 2}
