@@ -1,6 +1,7 @@
 """Unit tests for SchemaUtils."""
 
 import unittest
+from typing import Any
 
 import pandas as pd
 import polars as pl
