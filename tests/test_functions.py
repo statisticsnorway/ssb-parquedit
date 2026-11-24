@@ -126,7 +126,7 @@ class TestCreateConfig:
         monkeypatch.setenv("DAPLA_ENVIRONMENT", "test")
         out = create_config()
 
-        assert out["dbname"] == "dapla-ffunk"
+        assert out["dbname"] == "parquedit"
         assert "@dapla-group-sa-t-57.iam" in out["dbuser"]
 
     def test_enviroment_prod(self, monkeypatch: pytest.MonkeyPatch) -> None:
