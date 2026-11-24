@@ -1,7 +1,6 @@
 """DuckDB connection management with DuckLake catalog support."""
 
 import logging
-import os
 from pathlib import Path
 from typing import Any
 
@@ -20,22 +19,46 @@ def install_extensions(conn: duckdb.DuckDBPyConnection, names: tuple[str, ...]) 
     """Install and load DuckDB extensions, preferring bundled offline files.
 
     Files in the ``extentions`` folder are installed from disk (no network).
-    Others fall back to the DuckDB repository. FORCE avoids "origin is
-    different" errors when the extension was cached from another source.
+    Others fall back to the DuckDB repository. Extensions already installed
+    (from the same bundled file) are only loaded, so the install happens once
+    per DuckDB version. FORCE avoids "origin is different" errors when the
+    extension was cached from another source.
 
     Args:
         conn: DuckDB connection to install the extensions into.
         names: Extension names, e.g. ``("ducklake", "postgres")``.
     """
+    installed = {
+        row[0]: (row[1], row[2])
+        for row in conn.sql(
+            "SELECT extension_name, installed_from, install_path "
+            "FROM duckdb_extensions() WHERE installed"
+        ).fetchall()
+    }
     for name in names:
         stem = _FILE_STEMS.get(name, name)
         path = _EXTENSION_DIR / f"{stem}.duckdb_extension"
         if path.is_file():
-            conn.sql(f"FORCE INSTALL '{path}'")
+            if not _is_installed_from(installed.get(stem), path):
+                conn.sql(f"FORCE INSTALL '{path}'")
             conn.sql(f"LOAD {stem}")
         else:
-            conn.sql(f"FORCE INSTALL {name}")
+            if stem not in installed:
+                conn.sql(f"FORCE INSTALL {name}")
             conn.sql(f"LOAD {name}")
+
+
+def _is_installed_from(entry: tuple[str, str] | None, path: Path) -> bool:
+    """Check if the cached extension was installed from ``path`` and is unchanged."""
+    if entry is None:
+        return False
+    installed_from, install_path = entry
+    cached = Path(install_path)
+    return (
+        installed_from == str(path)
+        and cached.is_file()
+        and cached.stat().st_size == path.stat().st_size
+    )
 
 
 class DuckDBConnection:
@@ -85,10 +108,6 @@ class DuckDBConnection:
         fs = gcsfs.GCSFileSystem()
 
         self._conn.register_filesystem(fs)
-
-        self._conn.execute(
-            "SET custom_extension_repository = 'https://extensions.duckdb.org';"
-        )
 
         install_extensions(self._conn, ("httpfs", "ducklake", "postgres"))
 
