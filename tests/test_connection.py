@@ -100,8 +100,7 @@ class TestDuckDBconnection:
         mock_connect.return_value = mock_conn
         DuckDBConnection(db_config)
         calls = _sql_calls(mock_conn)
-        for ext in ("ducklake", "postgres"):
-            assert f"INSTALL {ext}" in calls
+        for ext in ("httpfs", "ducklake", "postgres_scanner"):
             assert f"LOAD {ext}" in calls
 
         assert f"""

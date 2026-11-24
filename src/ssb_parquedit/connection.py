@@ -12,6 +12,31 @@ logger = logging.getLogger(__name__)
 
 _CLOSED_MSG = "Connection is closed."
 
+_EXTENSION_DIR = Path(__file__).parent / "extentions"
+_FILE_STEMS = {"postgres": "postgres_scanner", "sqlite": "sqlite_scanner"}
+
+
+def install_extensions(conn: duckdb.DuckDBPyConnection, names: tuple[str, ...]) -> None:
+    """Install and load DuckDB extensions, preferring bundled offline files.
+
+    Files in the ``extentions`` folder are installed from disk (no network).
+    Others fall back to the DuckDB repository. FORCE avoids "origin is
+    different" errors when the extension was cached from another source.
+
+    Args:
+        conn: DuckDB connection to install the extensions into.
+        names: Extension names, e.g. ``("ducklake", "postgres")``.
+    """
+    for name in names:
+        stem = _FILE_STEMS.get(name, name)
+        path = _EXTENSION_DIR / f"{stem}.duckdb_extension"
+        if path.is_file():
+            conn.sql(f"FORCE INSTALL '{path}'")
+            conn.sql(f"LOAD {stem}")
+        else:
+            conn.sql(f"FORCE INSTALL {name}")
+            conn.sql(f"LOAD {name}")
+
 
 class DuckDBConnection:
     """Manages DuckDB connection with DuckLake catalog integration.
@@ -65,19 +90,7 @@ class DuckDBConnection:
             "SET custom_extension_repository = 'https://extensions.duckdb.org';"
         )
 
-        ex_path = Path(__file__).parent / "extentions"
-        bundled = {
-            f.name.split(".")[0]: f
-            for f in ex_path.glob("*.duckdb_extension")
-            if not f.name.startswith(".")
-        }
-
-        for ext in ("httpfs", "ducklake", "postgres", "sqlite_scanner"):
-            if ext in bundled:
-                self._conn.sql(f"FORCE INSTALL '{bundled[ext]}'")
-            else:
-                self._conn.sql(f"FORCE INSTALL {ext}")
-            self._conn.sql(f"LOAD {ext}")
+        install_extensions(self._conn, ("httpfs", "ducklake", "postgres"))
 
         self._conn.sql(f"""
             ATTACH 'ducklake:postgres:
