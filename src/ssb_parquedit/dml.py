@@ -1,5 +1,4 @@
 """DML (Data Manipulation Language) operations for DuckDB tables."""
-
 import json
 import logging
 from collections.abc import Generator
@@ -8,7 +7,6 @@ from typing import Any
 from typing import Literal
 from typing import get_args
 
-import numpy as np
 import pandas as pd
 import polars as pl
 import pyarrow as pa
@@ -19,6 +17,7 @@ from tenacity import stop_after_attempt
 from tenacity import wait_random
 
 from ssb_parquedit.functions import get_dapla_user
+from ssb_parquedit.utils import ChangeUtils
 from ssb_parquedit.utils import PathUtils
 
 from .query import QueryOperations
@@ -237,87 +236,7 @@ class DMLOperations:
             logger.error(msg)
             raise TypeError(msg)
 
-    def _parse_change_key(self, key: str | int, changes: Any) -> tuple[str | int, Any]:
-        """Parse a change key into its base key and nested path.
-
-        Args:
-            key: The change key, which may include nested path segments. Can contain dot notation, list indices, or a combination thereof.
-            changes: The corresponding change value.
-
-        Returns:
-            A tuple of (base_key, changes), where base_key is the top-level key
-            and changes is the potentially nested dictionary representing the
-            changes to apply.
-        """
-        if isinstance(key, str):
-            key, path = PathUtils.parse_path(key)
-            if path:
-                path.reverse()
-                for k in path:
-                    changes = {k: changes}
-        return key, changes
-
-    def _normalize_change_dict(self, changes: dict[Any, Any]) -> dict[Any, Any]:
-        normalized: dict[Any, Any] = {}
-        for key, value in changes.items():
-            k, c = self._parse_change_key(key, value)
-            if isinstance(c, dict):
-                c = self._normalize_change_dict(c)
-
-            if k in normalized:
-                normalized[k] = self._merge_dicts(normalized[k], c)
-            else:
-                normalized[k] = c
-        return normalized
-
-    def _merge_dicts(self, a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
-        """Merge two dictionaries recursively, with values from `b` overwriting those in `a`.
-
-        Args:
-            a: The first dictionary.
-            b: The second dictionary, whose values will overwrite those in `a`.
-
-        Returns:
-            The merged dictionary.
-        """
-        for key, value in b.items():
-            if key in a and isinstance(a[key], dict) and isinstance(value, dict):
-                a[key] = self._merge_dicts(a[key], value)
-            else:
-                a[key] = value
-        return a
-
-    def _get_data(self, data: dict[str, Any] | list[Any] | Any, key: str | int) -> Any:
-        """Retrieve the nested data corresponding to the given key from a dictionary or list.
-
-        Args:
-            data: The dictionary or list to retrieve data from.
-            key: The key or index to access within the data.
-
-        Returns:
-            The nested data corresponding to the key.
-
-        Raises:
-            TypeError: If the key does not exist or is out of bounds, or if the data is not a dictionary or list.
-        """
-        if isinstance(data, dict):
-            if key not in data.keys():
-                raise TypeError(f"Key '{key}' does not exist in the column")
-            inner_column = data[str(key)]
-        elif isinstance(data, list) or isinstance(data, np.ndarray):
-            if int(key) >= len(data) or int(key) < 0:
-                raise TypeError(f"Index '{key}' out of bounds")
-            inner_column = data[int(key)]
-        else:
-            print(f"Invalid data type: {type(data)}")
-            raise TypeError("Changes must follow schema of the table")
-        try:
-            if isinstance(inner_column, str):
-                tmp = json.loads(inner_column)
-                inner_column = tmp
-        except json.JSONDecodeError:
-            pass
-        return inner_column
+   
 
     def _create_update_data_dataframe(
         self, row: pd.DataFrame, changes: dict[str, Any]
@@ -337,7 +256,7 @@ class DMLOperations:
         data = row.to_dict(orient="records")[0]
 
         for col, val in changes.items():
-            inner_data = self._get_data(data, col)
+            inner_data = ChangeUtils.get_data(data, col)
             inner_new, inner_old = self._create_update_data(inner_data, val)
             new_values[col] = inner_new
             old_values[col] = inner_old
@@ -358,7 +277,7 @@ class DMLOperations:
             inner_new = data
 
             for k, v in changes.items():
-                inner_column = self._get_data(data, k)
+                inner_column = ChangeUtils.get_data(data, k)
                 t_new, t_old = self._create_update_data(inner_column, v)
                 inner_new[k] = t_new
                 inner_old[k] = t_old
@@ -412,7 +331,7 @@ class DMLOperations:
         user_defined_id = tag_dict.get("user_defined_id")
         dapla_user: str = get_dapla_user()
 
-        changes = self._normalize_change_dict(changes)
+        changes = ChangeUtils.normalize_change_dict(changes)
 
         with self.transaction():
             # get current row
@@ -514,7 +433,7 @@ class DMLOperations:
         product_name = tag_dict.get("product_name")
         dapla_user = get_dapla_user()
 
-        changes = self._normalize_change_dict(changes)
+        changes = ChangeUtils.normalize_change_dict(changes)
         set_clause = ", ".join(f'"{col}" = ?' for col in changes)
 
         with self.transaction():

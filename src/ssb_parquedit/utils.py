@@ -1,15 +1,107 @@
 """Utility functions for schema translation and validation."""
 
+import json
 import logging
 import re
 from collections.abc import Callable
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import polars as pl
 
 logger = logging.getLogger(__name__)
 _NESTED_PATH_RE = re.compile(r"(\w+)(?:\[(\d*)\])?")
+
+class ChangeUtils:
+    """Utilities for handling changes to nested data structures."""
+    @classmethod
+    def parse_change_key(cls, key: str | int, changes: Any) -> tuple[str | int, Any]:
+        """Parse a change key into its base key and nested path.
+
+        Args:
+            key: The change key, which may include nested path segments. Can contain dot notation, list indices, or a combination thereof.
+            changes: The corresponding change value.
+
+        Returns:
+            A tuple of (base_key, changes), where base_key is the top-level key
+            and changes is the potentially nested dictionary representing the
+            changes to apply.
+        """
+        if isinstance(key, str):
+            key, path = PathUtils.parse_path(key)
+            if path:
+                path.reverse()
+                for k in path:
+                    changes = {k: changes}
+        return key, changes
+
+    @classmethod
+    def normalize_change_dict(cls, changes: dict[Any, Any]) -> dict[Any, Any]:
+        """Normalize nested change keys into a consistently nested dictionary."""
+        normalized: dict[Any, Any] = {}
+        for key, value in changes.items():
+            k, c = cls.parse_change_key(key, value)
+            if isinstance(c, dict):
+                c = cls.normalize_change_dict(c)
+
+            if k in normalized:
+                normalized[k] = cls.merge_dicts(normalized[k], c)
+            else:
+                normalized[k] = c
+        return normalized
+
+    @classmethod
+    def merge_dicts(cls, a: dict[Any, Any], b: dict[Any, Any]) -> dict[Any, Any]:
+        """Merge two dictionaries recursively, with values from `b` overwriting those in `a`.
+
+        Args:
+            a: The first dictionary.
+            b: The second dictionary, whose values will overwrite those in `a`.
+
+        Returns:
+            The merged dictionary.
+        """
+        for key, value in b.items():
+            if key in a and isinstance(a[key], dict) and isinstance(value, dict):
+                a[key] = cls.merge_dicts(a[key], value)
+            else:
+                a[key] = value
+        return a
+
+    @classmethod
+    def get_data(cls, data: dict[str, Any] | list[Any] | Any, key: str | int) -> Any:
+        """Retrieve the nested data corresponding to the given key from a dictionary or list.
+
+        Args:
+            data: The dictionary or list to retrieve data from.
+            key: The key or index to access within the data.
+
+        Returns:
+            The nested data corresponding to the key.
+
+        Raises:
+            TypeError: If the key does not exist or is out of bounds, or if the data is not a dictionary or list.
+        """
+        if isinstance(data, dict):
+            if key not in data.keys():
+                raise TypeError(f"Key '{key}' does not exist in the column")
+            inner_column = data[str(key)]
+        elif isinstance(data, list) or isinstance(data, np.ndarray):
+            if int(key) >= len(data) or int(key) < 0:
+                raise TypeError(f"Index '{key}' out of bounds")
+            inner_column = data[int(key)]
+        else:
+            print(f"Invalid data type: {type(data)}")
+            raise TypeError("Changes must follow schema of the table")
+        try:
+            if isinstance(inner_column, str):
+                tmp = json.loads(inner_column)
+                inner_column = tmp
+        except json.JSONDecodeError:
+            pass
+        return inner_column
+
 
 
 class PathUtils:

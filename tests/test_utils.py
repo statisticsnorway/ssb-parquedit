@@ -6,6 +6,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
+from ssb_parquedit.utils import ChangeUtils
 from ssb_parquedit.utils import PathUtils
 from ssb_parquedit.utils import SchemaUtils
 
@@ -193,7 +194,7 @@ class TestPathUtilsParsePath(unittest.TestCase):
     def test_simple_path(self) -> None:
         path = "population"
         key, lst = PathUtils.parse_path(path)
-        self.assertEqual(path, key)
+        self.assertEqual(key, path)
         self.assertEqual(len(lst), 0)
 
     def test_simple_list(self) -> None:
@@ -224,3 +225,88 @@ class TestPathUtilsParsePath(unittest.TestCase):
         path = ""
         with pytest.raises(ValueError, match="Invalid path: ''"):
             PathUtils.parse_path(path)
+
+class TestChangeUtilsNormalizeChangeDict:
+    def test_normalize_change_dict(self) -> None:
+        changes = {"a.b": 1, "c": 2}
+        normalized = ChangeUtils.normalize_change_dict(changes)
+        assert normalized == {"a": {"b": 1}, "c": 2}
+
+    def test_normalize_change_dict_more_than_one_list_entry(self) -> None:
+        changes = {"a[0]": 1, "a[1]": 2}
+        normalized = ChangeUtils.normalize_change_dict(changes)
+        assert normalized == {"a": {0: 1, 1: 2}}
+
+    def test_normalize_change_dict_nested(self) -> None:
+        changes = {"a.b[0].c": 1, "a.b[1].d": "test"}
+        normalized = ChangeUtils.normalize_change_dict(changes)
+        assert normalized == {"a": {"b": {0: {"c": 1}, 1: {"d": "test"}}}}
+
+
+class TestChangeUtilsGetData:
+    def test_get_data_dict(self) -> None:
+        data = {"a": 1, "b": 2}
+        assert ChangeUtils.get_data(data, "a") == 1
+
+    def test_get_data_list(self) -> None:
+        data = [10, 20, 30]
+        assert ChangeUtils.get_data(data, 1) == 20
+
+    def test_get_data_nested_json_string(self) -> None:
+        data = {"a": '{"x": 1, "y": 2}'}
+        assert ChangeUtils.get_data(data, "a") == {"x": 1, "y": 2}
+
+    def test_get_data_nested_string(self) -> None:
+        data = {"a": "test"}
+        assert ChangeUtils.get_data(data, "a") == "test"
+
+    def test_get_data_invalid_key(self) -> None:
+        data = {"a": 1, "b": 2}
+        try:
+            ChangeUtils.get_data(data, "c")
+        except TypeError as e:
+            assert str(e) == "Key 'c' does not exist in the column"
+
+    def test_get_data_invalid_index(self) -> None:
+        data = [10, 20, 30]
+        try:
+            ChangeUtils.get_data(data, 5)
+        except TypeError as e:
+            assert str(e) == "Index '5' out of bounds"
+
+    def test_get_data_non_dict_or_list(self) -> None:
+        data = 42
+        try:
+            ChangeUtils.get_data(data, "a")
+        except TypeError as e:
+            assert str(e) == "Changes must follow schema of the table"
+
+
+class TestChangeUtilsParseChangeKey:
+    def test_parse_change_key_simple(self) -> None:
+        key = "a"
+        changes = {"b": 1}
+        parsed_key, parsed_path = ChangeUtils.parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {"b": 1}
+
+    def test_parse_change_key_nested(self) -> None:
+        key = "a.b.c"
+        changes = {"d": 1}
+        parsed_key, parsed_path = ChangeUtils.parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {"b": {"c": {"d": 1}}}
+
+    def test_parse_change_key_with_list_index(self) -> None:
+        key = "a[0].b"
+        changes = {"c": 2}
+        parsed_key, parsed_path = ChangeUtils.parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {0: {"b": {"c": 2}}}
+
+    def test_parse_change_key_nothing_parsed(self) -> None:
+        key = "a"
+        changes: dict[Any, Any] = {}
+        parsed_key, parsed_path = ChangeUtils.parse_change_key(key, changes)
+        assert parsed_key == "a"
+        assert parsed_path == {}
