@@ -2,6 +2,8 @@
 
 import json
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 from typing import Literal
 from typing import get_args
@@ -86,6 +88,24 @@ class DMLOperations:
             msg = "source must be a DataFrame or gs:// Parquet path"
             logger.error(msg)
             raise TypeError(msg)
+
+    @contextmanager
+    def transaction(self) -> Generator[None]:
+        """Context manager for a database transaction."""
+        committed = False
+        try:
+            self.conn.execute("BEGIN")
+            yield
+            self.conn.execute("COMMIT")
+            committed = True
+        except StopIteration:
+            pass
+        finally:
+            if not committed:
+                try:
+                    self.conn.execute("ROLLBACK")
+                except Exception:
+                    pass
 
     def _call_set_commit_message(
         self, dapla_user: str, extra_info: str | None = None
@@ -374,8 +394,6 @@ class DMLOperations:
             change_event_reason: A reason code describing the type of change. Must be one of the valid update causes defined in VALID_UPDATE_CAUSES.
             change_comment: A human-readable comment describing the change.
 
-        Raises:
-            Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
         # Coerce numpy/pandas integer types (e.g. numpy.int64 from a DataFrame
         # column) to a native Python int — DuckDB's parameter binding can't
@@ -388,18 +406,15 @@ class DMLOperations:
         # validate table and columns — shared
         self._validate_table_and_columns(table_name, changes)
 
-        dapla_user = get_dapla_user()
-
         # get product_name
         tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
-
-        # get user_defined_id
         user_defined_id = tag_dict.get("user_defined_id")
+        dapla_user: str = get_dapla_user()
 
-        try:
-            self.conn.execute("BEGIN")
+        changes = self._normalize_change_dict(changes)
 
+        with self.transaction():
             # get current row
             row = self.conn.execute(
                 f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
@@ -412,8 +427,6 @@ class DMLOperations:
                 col: val.item() if hasattr(val, "item") else val
                 for col, val in zip(user_defined_id, unique_row, strict=True)
             }
-
-            changes = self._normalize_change_dict(changes)
 
             new_values, old_values = self._create_update_data_dataframe(row, changes)
 
@@ -448,20 +461,12 @@ class DMLOperations:
 
             self._call_set_commit_message(dapla_user, extra_info)
 
-            self.conn.execute("COMMIT")
-            logger.info(
-                "Edited row %d in '%s' (reason=%s)",
-                rowid,
-                table_name,
-                change_event_reason,
-            )
-
-        except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
-            raise
+        logger.info(
+            "Edited row %d in '%s' (reason=%s)",
+            rowid,
+            table_name,
+            change_event_reason,
+        )
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
@@ -493,10 +498,7 @@ class DMLOperations:
 
         Raises:
             ValueError: If change_event_reason is not a valid update cause.
-            Exception: Re-raises any exception that occurs during the transaction after rolling back.
         """
-        self._validate_change_reason(change_event_reason)
-
         if not where or not where.strip():
             raise ValueError("'where' must be a non-empty SQL condition")
         if ";" in where or "--" in where or "/*" in where:
@@ -504,18 +506,18 @@ class DMLOperations:
         if not changes:
             raise ValueError("'changes' must not be empty")
 
-        self._validate_table_and_columns(table_name, changes)
-        changes = self._normalize_change_dict(changes)
+        self._validate_change_reason(change_event_reason)
 
-        dapla_user = get_dapla_user()
+        self._validate_table_and_columns(table_name, changes)
 
         tag_dict = self._get_tag_dict(table_name)
+        product_name = tag_dict.get("product_name")
+        dapla_user = get_dapla_user()
 
+        changes = self._normalize_change_dict(changes)
         set_clause = ", ".join(f'"{col}" = ?' for col in changes)
 
-        try:
-            self.conn.execute("BEGIN")
-
+        with self.transaction():
             affected = self.conn.execute(
                 f"SELECT count(*) FROM {table_name} WHERE {where}"
             ).fetchone()[0]
@@ -536,7 +538,7 @@ class DMLOperations:
                     "change_event_reason": change_event_reason,
                     "changed_by": dapla_user,
                     "table_name": table_name,
-                    "product_name": tag_dict.get("product_name"),
+                    "product_name": product_name,
                     "affected_rows": affected,
                     "where_clause": where,
                     "updates": [f"{c}: {v!r}" for c, v in changes.items()],
@@ -544,23 +546,14 @@ class DMLOperations:
                 },
                 default=str,
             )
-
             self._call_set_commit_message(dapla_user, extra_info)
 
-            self.conn.execute("COMMIT")
-            logger.info(
-                "Updated %d rows in '%s' (reason=%s)",
-                affected,
-                table_name,
-                change_event_reason,
-            )
-
-        except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
-            raise
+        logger.info(
+            "Updated %d rows in '%s' (reason=%s)",
+            affected,
+            table_name,
+            change_event_reason,
+        )
 
     @retry(
         stop=stop_after_attempt(max_attempt_number=MAX_RETRY_ATTEMPTS),
@@ -594,8 +587,6 @@ class DMLOperations:
         Raises:
             ValueError: If change_event_reason is not a valid update cause, or
                 if no rows match the given where clause.
-            Exception: Re-raised if the delete transaction fails for any other
-                reason, after rolling back.
         """
         # validate cause — specific to update/delete
         self._validate_change_reason(change_event_reason)
@@ -609,8 +600,7 @@ class DMLOperations:
         tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
-        try:
-            self.conn.execute("BEGIN")
+        with self.transaction():
 
             # select the rows to delete, using the same `where` filter as view()
             matches = self.conn.execute(
@@ -643,20 +633,12 @@ class DMLOperations:
 
             self._call_set_commit_message(dapla_user, extra_info)
 
-            self.conn.execute("COMMIT")
-            logger.info(
-                "Deleted %d row(s) from '%s' (reason=%s)",
-                len(matches),
-                table_name,
-                change_event_reason,
-            )
-
-        except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
-            raise
+        logger.info(
+            "Deleted %d row(s) from '%s' (reason=%s)",
+            len(matches),
+            table_name,
+            change_event_reason,
+        )
 
     def _validate_change_reason(self, change_event_reason: str) -> None:
         if change_event_reason not in get_args(VALID_UPDATE_CAUSES):
@@ -734,9 +716,6 @@ class DMLOperations:
             script_id: Identifier of the script executing this update.
             script_info: Additional information about the script context.
 
-        Raises:
-            Exception: On database errors; transaction is rolled back automatically.
-
         Note:
             - Transaction is automatically rolled back on any exception.
             - Change metadata is recorded including affected rows, columns, and user information.
@@ -773,20 +752,12 @@ class DMLOperations:
                 "script_info": script_info,
             }
         )
-        try:
-            self.conn.execute("BEGIN")
+        with self.transaction():
             if column_dict:
                 self._bulk_update_rows(table_name, changes, list(column_dict))
 
             self._call_set_commit_message(dapla_user, extra_info)
 
-            self.conn.execute("COMMIT")
-            logger.info(
-                f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
-            )
-        except Exception:
-            try:
-                self.conn.execute("ROLLBACK")
-            except Exception:
-                pass  # transaction already rolled back by DuckDB
-            raise
+        logger.info(
+            f"Bulk update successful for table '{table_name}' {len(changes.keys())} rows updated"
+        )
