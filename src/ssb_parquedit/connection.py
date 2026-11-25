@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 _CLOSED_MSG = "Connection is closed."
 
+
 def connect(extensions: tuple[str, ...] = ()) -> duckdb.DuckDBPyConnection:
     """Open a DuckDB connection and load extensions installed from PyPI.
 
@@ -105,6 +106,7 @@ class DuckDBConnection:
             db_config["catalog_name"],
             db_config["data_path"],
         )
+
     def execute(self, sql: str, parameters: list[Any] | None = None) -> Any:
         """Execute a SQL statement.
 
@@ -130,7 +132,7 @@ class DuckDBConnection:
             return self._conn.execute(sql, parameters)
         return self._conn.execute(sql)
 
-    def sql(self, query: str) -> Any:
+    def sql(self, query: str, parameters: list[Any] | None = None) -> Any:
         """Execute a SQL query.
 
         Equivalent to ``execute`` but uses DuckDB's ``sql`` method, which
@@ -139,6 +141,7 @@ class DuckDBConnection:
 
         Args:
             query: SQL query to execute.
+            parameters: Optional list of parameters for parameterized queries.
 
         Returns:
             DuckDB relation containing the query results.
@@ -153,6 +156,8 @@ class DuckDBConnection:
         if self._conn is None:
             logger.error(_CLOSED_MSG)
             raise RuntimeError(_CLOSED_MSG)
+        if parameters is not None:
+            return self._conn.sql(query, params=parameters)
         return self._conn.sql(query)
 
     def register(self, name: str, obj: Any) -> None:

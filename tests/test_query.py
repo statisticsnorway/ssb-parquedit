@@ -1,7 +1,15 @@
 import unittest
+from datetime import datetime
+from typing import Any
 from unittest.mock import MagicMock
 
+import pandas as pd
+import polars as pl
+import pyarrow as pa
+import pytest
+
 from ssb_parquedit.connection import DuckDBConnection
+from ssb_parquedit.parquedit import ParquEdit
 from ssb_parquedit.query import QueryOperations
 
 
@@ -10,9 +18,9 @@ class TestView(unittest.TestCase):
         self.conn: DuckDBConnection = MagicMock()
         self.db_config: dict[str, str] = MagicMock()
 
-        self.conn.execute.return_value.df.return_value = "pandas"
-        self.conn.execute.return_value.pl.return_value = "polars"
-        self.conn.execute.return_value.arrow.return_value = "pyarrow"
+        self.conn.sql.return_value.df.return_value = "pandas"
+        self.conn.sql.return_value.pl.return_value = "polars"
+        self.conn.sql.return_value.to_arrow_table.return_value = "pyarrow"
 
         self.qo = QueryOperations(self.conn, self.db_config)
 
@@ -51,9 +59,9 @@ class TestTimeTravel(unittest.TestCase):
         self.conn: DuckDBConnection = MagicMock()
         self.db_config: dict[str, str] = MagicMock()
 
-        self.conn.execute.return_value.df.return_value = "pandas"
-        self.conn.execute.return_value.pl.return_value = "polars"
-        self.conn.execute.return_value.arrow.return_value = "pyarrow"
+        self.conn.sql.return_value.df.return_value = "pandas"
+        self.conn.sql.return_value.pl.return_value = "polars"
+        self.conn.sql.return_value.to_arrow_table.return_value = "pyarrow"
 
         self.qo = QueryOperations(self.conn, self.db_config)
 
@@ -73,7 +81,7 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_columns_is_set(self) -> None:
         ex = MagicMock()
-        self.conn.execute = ex  # type: ignore
+        self.conn.sql = ex  # type: ignore
         table_name = "test_table"
         at_time = "2024-01-01"
         columns = ["id", "name"]
@@ -83,7 +91,7 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_order_by_is_set(self) -> None:
         ex = MagicMock()
-        self.conn.execute = ex  # type: ignore
+        self.conn.sql = ex  # type: ignore
         table_name = "test_table"
         at_time = "2024-01-01"
         order_by = "id"
@@ -93,7 +101,7 @@ class TestTimeTravel(unittest.TestCase):
 
     def test_offset_is_set(self) -> None:
         ex = MagicMock()
-        self.conn.execute = ex  # type: ignore
+        self.conn.sql = ex  # type: ignore
         table_name = "test_table"
         at_time = "2024-01-01"
         offset = 10
@@ -127,3 +135,26 @@ class TestTimeTravel(unittest.TestCase):
             table_name, at_time=at_time, output_format=output_format
         )
         self.assertEqual(result, "pyarrow")
+
+
+@pytest.mark.parametrize(
+    ("output_format", "expected_type"),
+    [("pandas", pd.DataFrame), ("polars", pl.DataFrame), ("pyarrow", pa.Table)],
+)
+def test_output_formats_on_real_connection(
+    pe: ParquEdit, output_format: str, expected_type: type[Any]
+) -> None:
+    df = pd.DataFrame({"id": [1, 2, 3], "name": ["a", "b", "c"]})
+    pe.create_table(
+        "fmt_table", df, product_name="test", user_defined_id=["id"], fill=True
+    )
+    at_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+    viewed = pe.view("fmt_table", output_format=output_format)
+    travelled = pe.time_travel(
+        "fmt_table", at_time=at_time, output_format=output_format
+    )
+
+    for result in (viewed, travelled):
+        assert isinstance(result, expected_type)
+        assert len(result) == 3

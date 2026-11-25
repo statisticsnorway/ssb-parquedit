@@ -13,6 +13,16 @@ from .utils import SchemaUtils
 logger = logging.getLogger(__name__)
 
 
+def _to_output_format(relation: Any, output_format: str) -> Any:
+    """Convert a DuckDB relation to a pandas, polars or pyarrow result."""
+    if output_format == "pandas":
+        return relation.df()
+    if output_format == "polars":
+        return relation.pl()
+    # relation.arrow() returns a RecordBatchReader in DuckDB 2.0
+    return relation.to_arrow_table()
+
+
 class QueryOperations:
     """Query operations for reading and analyzing table data.
 
@@ -113,7 +123,7 @@ class QueryOperations:
         if offset > 0:
             query += f" OFFSET {offset}"
 
-        result = self.conn.execute(query)
+        result = self.conn.sql(query)
 
         logger.debug(
             "Viewed table '%s' (where=%s, limit=%s, offset=%d)",
@@ -123,12 +133,7 @@ class QueryOperations:
             offset,
         )
 
-        if output_format == "pandas":
-            return result.df()
-        elif output_format == "polars":
-            return result.pl()
-        else:
-            return result.arrow()
+        return _to_output_format(result, output_format)
 
     def time_travel(
         self,
@@ -202,7 +207,7 @@ class QueryOperations:
         if offset > 0:
             query += f" OFFSET {offset}"
 
-        result = self.conn.execute(query, [at_time])
+        result = self.conn.sql(query, [at_time])
 
         logger.debug(
             "Viewed table '%s' at time '%s' (where=%s, limit=%s, offset=%d)",
@@ -213,12 +218,7 @@ class QueryOperations:
             offset,
         )
 
-        if output_format == "pandas":
-            return result.df()
-        elif output_format == "polars":
-            return result.pl()
-        else:
-            return result.arrow()
+        return _to_output_format(result, output_format)
 
     def count(
         self,
