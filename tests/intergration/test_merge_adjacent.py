@@ -4,7 +4,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from ssb_parquedit.connection import install_extensions
+from ssb_parquedit.connection import connect
 from ssb_parquedit.maintenance import MaintenanceOperations
 
 LOGGER_NAME = "ssb_parquedit.maintenance"
@@ -21,8 +21,7 @@ def ducklake(tmp_path: Path) -> Iterator[DuckLake]:
     data_path = tmp_path / "data"
     data_path.mkdir()
 
-    conn = duckdb.connect()
-    install_extensions(conn, ("ducklake",))
+    conn = connect(("ducklake",))
     conn.execute(
         f"ATTACH 'ducklake:{metadata}' AS {catalog} "
         f"(DATA_PATH '{data_path}/', DATA_INLINING_ROW_LIMIT 0)"

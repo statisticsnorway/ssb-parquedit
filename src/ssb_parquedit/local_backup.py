@@ -2,11 +2,10 @@
 
 import logging
 
-import duckdb
 import gcsfs
 
 from .connection import DuckDBConnection
-from .connection import install_extensions
+from .connection import connect
 from .functions import create_config
 
 logger = logging.getLogger(__name__)
@@ -40,11 +39,10 @@ class LocalCatalogGCSDataConnection(DuckDBConnection):
         self.data_path = self.db_config["data_path"]
         self.catalog_name = catalog_name
         self.metadata_schema = self.db_config["metadata_schema"]
-        self._conn = duckdb.connect()
+        self._conn = connect(("ducklake",))
 
         fs = gcsfs.GCSFileSystem()
         self._conn.register_filesystem(fs)
-        install_extensions(self._conn, ("ducklake",))
 
         self._conn.sql(f"""
             ATTACH 'ducklake:{self.catalog_path}' AS {self.catalog_name}

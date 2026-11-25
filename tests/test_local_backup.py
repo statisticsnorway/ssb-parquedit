@@ -9,7 +9,7 @@ class TestInit(unittest.TestCase):
         catalog_name = None
         catalog_path = "/test/test"
         with (
-            patch("ssb_parquedit.local_backup.duckdb"),
+            patch("ssb_parquedit.local_backup.connect"),
             patch("ssb_parquedit.local_backup.gcsfs"),
         ):
             conn = LocalCatalogGCSDataConnection(catalog_path, catalog_name)
@@ -20,7 +20,7 @@ class TestInit(unittest.TestCase):
         catalog_name = "test"
         catalog_path = "/test/test"
         with (
-            patch("ssb_parquedit.local_backup.duckdb"),
+            patch("ssb_parquedit.local_backup.connect"),
             patch("ssb_parquedit.local_backup.gcsfs"),
         ):
             conn = LocalCatalogGCSDataConnection(catalog_path, catalog_name)

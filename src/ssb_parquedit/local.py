@@ -2,10 +2,8 @@
 
 import logging
 
-import duckdb
-
 from .connection import DuckDBConnection
-from .connection import install_extensions
+from .connection import connect
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +23,7 @@ class LocalDuckDBConnection(DuckDBConnection):
                 (catalog.db) and Parquet data files (data/).
         """
         self.data_path = data_path
-        self._conn = duckdb.connect()
-        install_extensions(self._conn, ("sqlite", "ducklake"))
+        self._conn = connect(("sqlite", "ducklake"))
         self._conn.sql(f"""
             ATTACH 'ducklake:sqlite:{data_path}/catalog.db' AS test_catalog
             (DATA_PATH '{data_path}/data',

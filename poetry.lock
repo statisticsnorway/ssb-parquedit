@@ -1181,6 +1181,78 @@ files = [
 all = ["adbc-driver-manager", "fsspec", "ipython", "numpy", "pandas", "pyarrow"]
 
 [[package]]
+name = "duckdb-core-ext-ducklake"
+version = "2.0.1"
+description = "The DuckDB ducklake extension for DuckDB 2.0.1, installed into a shared extension directory"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-macosx_12_0_arm64.whl", hash = "sha256:bffc1ea684f3dfcb0da328f176301663302614592935f44a965a7935eb2a6829"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-macosx_12_0_x86_64.whl", hash = "sha256:6ff5fcb5803a8877c3123930c3dc955f1109afcaa93109a6468a36cd4c858334"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:624ec90c1e811db5fb585947467646e26302146e5ba83ef59570cca48488ccd1"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:79903ee87827883835df8d26e6b3a84874545767e89b82b71694b24e0f9ec5b2"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:b9844807f06a5b65eea5c7a22f80432f10cd3dd12103f174c01d6be8f9be0a51"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:80d223374489982b543cc4ef866064eec79b12b19822ff268aefdfb2608030fe"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-win_amd64.whl", hash = "sha256:199a6cb7f2b24f07fb6ef286b2ebb4368376f7b4090d6eb014be601bb1771ae8"},
+    {file = "duckdb_core_ext_ducklake-2.0.1-py3-none-win_arm64.whl", hash = "sha256:6ff3213073cd54834875cf8821244b9d5ac7c0dc55bf5e180d2c4c35b2a76e08"},
+]
+
+[[package]]
+name = "duckdb-core-ext-httpfs"
+version = "2.0.1"
+description = "The DuckDB httpfs extension for DuckDB 2.0.1, installed into a shared extension directory"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-macosx_12_0_arm64.whl", hash = "sha256:2d4d126c005fcef95a4c8219760cad6e8af411d1b2735c8117304c20c9a8f2cc"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-macosx_12_0_x86_64.whl", hash = "sha256:93a1bf0701add2c888120e4c2b1430ce9ea9e849df0ad049bfcaea0d3a254441"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4ee3dc1e86ae84faee165d785e2fcac101911ac65924f91af4e9d326fcee6841"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6878fc898adce8eddfe4a1e26a02a93ad096c58629a3054938a655d127159675"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:65e050ec5d01a43ba6dd5dafd4a92a6c65a07c4bac32fb32b78d4669d3c241c2"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:4144cbc89cddea0b7ce84f6156ae5c3c097d19ca01d563b571663a446a86f4ed"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-win_amd64.whl", hash = "sha256:92c2f6d856a97031fc03f3401d76da6a1ea7c5b64ee5eeb96fcc485fade83da8"},
+    {file = "duckdb_core_ext_httpfs-2.0.1-py3-none-win_arm64.whl", hash = "sha256:2db21c36d49d59819c2c1c46a2b2b0190843749c1dce01f3e8d769296e6a80f0"},
+]
+
+[[package]]
+name = "duckdb-core-ext-postgres"
+version = "2.0.1"
+description = "The DuckDB postgres_scanner extension for DuckDB 2.0.1, installed into a shared extension directory"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-macosx_12_0_arm64.whl", hash = "sha256:cb7a8a3e12389ed8a80440b14d765c9f976c765be98924178c8fc3a7093e7d1d"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-macosx_12_0_x86_64.whl", hash = "sha256:6d88469be3438cc31d160e76c8ffa1b6af79cd42a057e90f6307138bc45361ea"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0bc6ad205292191ec2c2d4893f5bae12b83b030ff4d043dcaadadf167ff660e0"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:97319215eb43c9363c4d9d3828c8a69b87b653060e90a8ba29dab3a674f48daa"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:4418c0302e9802f10b5acac22c6af0728e20776573d0abba939ff3b44e6b24e6"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:f04bce4c5e3da9534954783845904bacca95bf93523a6d06e9680cf6b6c7fc5a"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-win_amd64.whl", hash = "sha256:86c827efc4c17e7dddeafda8e3943d09cd590387cc219480c5a54e25fd2bb08c"},
+    {file = "duckdb_core_ext_postgres-2.0.1-py3-none-win_arm64.whl", hash = "sha256:9e8a4ad382e763ea3826a0b65cdd15ca0ba0cff1dad59137876cf146a3cc45c9"},
+]
+
+[[package]]
+name = "duckdb-core-ext-sqlite"
+version = "2.0.1"
+description = "The DuckDB sqlite_scanner extension for DuckDB 2.0.1, installed into a shared extension directory"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-macosx_12_0_arm64.whl", hash = "sha256:5d22996efa010c96354bfd8fb5602c8d00b279438ab9ca879527d4d96366cab8"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-macosx_12_0_x86_64.whl", hash = "sha256:7c6129f2e1090dbb8a0704bbb69556e0b76fc20bebc9b8cb20e77665dc28fe92"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:dca66222a9406573775654f32dd90c134293505a2ca093e18e373daa719a6fd3"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:49d5e8fa78f380ce4fc2709d15b35c67a6188ba36864cf74ffe2c2d4d625dfae"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:a4481f98dcbb82078d8cdb868b13082b92492384c7d2d667d249315fc88ad8fa"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:73b7d1905e277723cf97220a66f84f0e76ed21f2a5a1325c6d6f0c51e48ef69d"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-win_amd64.whl", hash = "sha256:9d70ffe3efd4a171d535b11585114cef7a788f9e592c20e5fa41f8cd1c2286eb"},
+    {file = "duckdb_core_ext_sqlite-2.0.1-py3-none-win_arm64.whl", hash = "sha256:3c42bd209c04f7c4e88e76330d3ceab0561d593a02056de56c61a6f49d8a2c5b"},
+]
+
+[[package]]
 name = "executing"
 version = "2.3.0"
 description = "Get the currently executing AST node of a frame, and other information"
@@ -4903,4 +4975,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "3ce0fa085635cf1305d93a725b0530cbed7999650ad5d94c4d239658a23e261a"
+content-hash = "0b8b1015bfa6d57118bdec9d27b68d089bc3a8d576d9dbdc64c2738c99eeb76d"

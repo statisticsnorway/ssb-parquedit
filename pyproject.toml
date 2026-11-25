@@ -16,6 +16,10 @@ dependencies = [
     "polars (>=1.38.1,<2.0.0)",
     "pyarrow (>=23.0.1,<24.0.0)",
     "tenacity (>=9.1.4,<10.0.0)",
+    "duckdb-core-ext-httpfs (==2.0.1)",
+    "duckdb-core-ext-ducklake (==2.0.1)",
+    "duckdb-core-ext-postgres (==2.0.1)",
+    "duckdb-core-ext-sqlite (==2.0.1)",
 ]
 
 [project.urls]
