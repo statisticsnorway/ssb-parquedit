@@ -1,9 +1,11 @@
 """Unit tests for DMLOperations.delete_row() and ParquEdit.delete_row()."""
 
 from json import dumps as _dumps
+from json import loads as _loads
 from typing import Any
 from unittest.mock import MagicMock
 from unittest.mock import Mock
+from unittest.mock import call
 from unittest.mock import patch
 
 import numpy as np
@@ -41,6 +43,168 @@ def cities_table(pe: ParquEdit) -> ParquEdit:
 
 def dumps_wrapper(*args: Any, **kwargs: Any) -> str:
     return _dumps(*args, **(kwargs | {"default": lambda obj: "mock"}))
+
+
+class TestBuildAuditMetadata:
+    def test_builds_shared_envelope_and_operation_details(self) -> None:
+        metadata = DMLOperations._build_audit_metadata(
+            change_type="UPDATE",
+            change_event="M",
+            change_event_reason="REVIEW",
+            changed_by="test-user",
+            table_name="cities",
+            product_name="test-product",
+            change_comment="corrected a value",
+            details={"rowid": 12, "affected_rows": 1},
+        )
+
+        assert _loads(metadata) == {
+            "change_type": "UPDATE",
+            "change_event": "M",
+            "change_event_reason": "REVIEW",
+            "changed_by": "test-user",
+            "table_name": "cities",
+            "product_name": "test-product",
+            "change_comment": "corrected a value",
+            "rowid": 12,
+            "affected_rows": 1,
+        }
+
+    def test_rejects_details_that_override_shared_fields(self) -> None:
+        with pytest.raises(ValueError, match="cannot override envelope fields"):
+            DMLOperations._build_audit_metadata(
+                change_type="UPDATE",
+                change_event="M",
+                change_event_reason="REVIEW",
+                changed_by="test-user",
+                table_name="cities",
+                product_name="test-product",
+                change_comment="corrected a value",
+                details={"table_name": "other_table"},
+            )
+
+    def test_custom_json_default_is_optional(self) -> None:
+        common = {
+            "change_type": "UPDATE",
+            "change_event": "A",
+            "change_event_reason": "REVIEW",
+            "changed_by": "test-user",
+            "table_name": "cities",
+            "product_name": "test-product",
+            "change_comment": "bulk update",
+            "details": {"value": 1 + 2j},
+        }
+
+        with pytest.raises(TypeError):
+            DMLOperations._build_audit_metadata(**common)
+
+        metadata = DMLOperations._build_audit_metadata(**common, json_default=str)
+        assert _loads(metadata)["value"] == "(1+2j)"
+
+
+class TestDMLOperationsTransaction:
+    def test_commits_after_successful_body(self) -> None:
+        connection = MagicMock()
+        dml = DMLOperations(connection)
+
+        with dml._transaction():
+            connection.execute.assert_called_once_with("BEGIN")
+            connection.execute("SELECT 1")
+
+        assert connection.execute.call_args_list == [
+            call("BEGIN"),
+            call("SELECT 1"),
+            call("COMMIT"),
+        ]
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            ValueError("body failed"),
+            StopIteration("body stopped"),
+            KeyboardInterrupt(),
+            SystemExit(1),
+        ],
+        ids=["value-error", "stop-iteration", "keyboard-interrupt", "system-exit"],
+    )
+    def test_rolls_back_and_propagates_body_exception(
+        self, error: BaseException
+    ) -> None:
+        connection = MagicMock()
+        dml = DMLOperations(connection)
+
+        with pytest.raises(type(error)) as exc_info:
+            with dml._transaction():
+                raise error
+
+        assert exc_info.value is error
+        assert connection.execute.call_args_list == [call("BEGIN"), call("ROLLBACK")]
+
+    def test_begin_failure_rolls_back_without_entering_body(self) -> None:
+        connection = MagicMock()
+        error = RuntimeError("begin failed")
+        connection.execute.side_effect = [error, None]
+        dml = DMLOperations(connection)
+        body = Mock()
+
+        with pytest.raises(RuntimeError, match="begin failed") as exc_info:
+            with dml._transaction():
+                body()
+
+        assert exc_info.value is error
+        body.assert_not_called()
+        assert connection.execute.call_args_list == [call("BEGIN"), call("ROLLBACK")]
+
+    def test_commit_failure_rolls_back_and_propagates_exception(self) -> None:
+        connection = MagicMock()
+        error = RuntimeError("commit failed")
+        connection.execute.side_effect = [None, error, None]
+        dml = DMLOperations(connection)
+
+        with pytest.raises(RuntimeError, match="commit failed") as exc_info:
+            with dml._transaction():
+                pass
+
+        assert exc_info.value is error
+        assert connection.execute.call_args_list == [
+            call("BEGIN"),
+            call("COMMIT"),
+            call("ROLLBACK"),
+        ]
+
+    @pytest.mark.parametrize("failure_stage", ["begin", "body", "commit"])
+    def test_rollback_failure_logs_and_preserves_original_exception(
+        self, failure_stage: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        connection = MagicMock()
+        error = ValueError(f"{failure_stage} failed")
+        rollback_error = RuntimeError("rollback failed")
+        side_effects = {
+            "begin": [error, rollback_error],
+            "body": [None, rollback_error],
+            "commit": [None, error, rollback_error],
+        }
+        connection.execute.side_effect = side_effects[failure_stage]
+        dml = DMLOperations(connection)
+
+        with pytest.raises(ValueError, match=f"{failure_stage} failed") as exc_info:
+            with dml._transaction():
+                if failure_stage == "body":
+                    raise error
+
+        assert exc_info.value is error
+        expected_calls = [call("BEGIN")]
+        if failure_stage == "commit":
+            expected_calls.append(call("COMMIT"))
+        assert connection.execute.call_args_list == [*expected_calls, call("ROLLBACK")]
+        record = next(
+            record
+            for record in caplog.records
+            if record.name == "ssb_parquedit.dml"
+            and record.getMessage() == "Rollback failed"
+        )
+        assert record.exc_info is not None
+        assert record.exc_info[1] is rollback_error
 
 
 # ── delete_row: happy path ────────────────────────────────────────────────────

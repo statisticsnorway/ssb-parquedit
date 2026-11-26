@@ -2,7 +2,9 @@
 
 import json
 import logging
+from collections.abc import Callable
 from collections.abc import Generator
+from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Any
 from typing import Literal
@@ -90,22 +92,21 @@ class DMLOperations:
             raise TypeError(msg)
 
     @contextmanager
-    def transaction(self) -> Generator[None]:
-        """Context manager for a database transaction."""
-        committed = False
+    def _transaction(self) -> Generator[None]:
+        """Run the enclosed operations in a database transaction.
+
+        Commit on successful completion and roll back if an exception occurs.
+        """
         try:
             self.conn.execute("BEGIN")
             yield
             self.conn.execute("COMMIT")
-            committed = True
-        except StopIteration:
-            pass
-        finally:
-            if not committed:
-                try:
-                    self.conn.execute("ROLLBACK")
-                except Exception:
-                    pass
+        except BaseException:
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                logger.exception("Rollback failed")
+            raise
 
     def _call_set_commit_message(
         self, dapla_user: str, extra_info: str | None = None
@@ -119,6 +120,60 @@ class DMLOperations:
         self.conn.execute(
             "CALL set_commit_message(?, ?, ?)", [dapla_user, None, extra_info]
         )
+
+    @staticmethod
+    def _build_audit_metadata(
+        *,
+        change_type: Literal["UPDATE", "DELETE"],
+        change_event: Literal["M", "A"],
+        change_event_reason: str,
+        changed_by: str,
+        table_name: str,
+        product_name: str | None,
+        change_comment: str,
+        details: Mapping[str, Any],
+        json_default: Callable[[Any], Any] | None = None,
+    ) -> str:
+        """Build serialized commit metadata from shared and operation-specific fields.
+
+        Args:
+            change_type: Type of change being recorded.
+            change_event: Event code associated with the change.
+            change_event_reason: Reason for the change.
+            changed_by: User who made the change.
+            table_name: Name of the changed table.
+            product_name: Product associated with the table, if available.
+            change_comment: Human-readable description of the change.
+            details: Operation-specific metadata fields.
+            json_default: Optional JSON fallback, preserving operation-specific
+                serialization behavior for non-JSON values.
+
+        Returns:
+            The audit metadata serialized as JSON.
+
+        Raises:
+            ValueError: If operation-specific details try to replace a shared field.
+            TypeError: If the metadata cannot be serialized as JSON.
+        """
+        envelope = {
+            "change_type": change_type,
+            "change_event": change_event,
+            "change_event_reason": change_event_reason,
+            "changed_by": changed_by,
+            "table_name": table_name,
+            "product_name": product_name,
+            "change_comment": change_comment,
+        }
+        collisions = envelope.keys() & details.keys()
+        if collisions:
+            raise ValueError(
+                f"Audit details cannot override envelope fields: {sorted(collisions)}"
+            )
+
+        metadata = {**envelope, **details}
+        if json_default is None:
+            return json.dumps(metadata)
+        return json.dumps(metadata, default=json_default)
 
     def _insert_from_dataframe(
         self, table_name: str, data: pd.DataFrame | pl.DataFrame
@@ -332,7 +387,7 @@ class DMLOperations:
 
         changes = ChangeUtils.normalize_change_dict(changes)
 
-        with self.transaction():
+        with self._transaction():
             # get current row
             row = self.conn.execute(
                 f"SELECT * FROM {table_name} WHERE rowid = ?", [rowid]
@@ -351,21 +406,21 @@ class DMLOperations:
             set_clause = ", ".join(f"{col} = ?" for col in new_values.keys())
             values = [*list(new_values.values()), rowid]
 
-            extra_info = json.dumps(
-                {
-                    "change_type": "UPDATE",
-                    "change_event": "M",
-                    "change_event_reason": change_event_reason,
-                    "changed_by": dapla_user,
-                    "table_name": table_name,
+            extra_info = self._build_audit_metadata(
+                change_type="UPDATE",
+                change_event="M",
+                change_event_reason=change_event_reason,
+                changed_by=dapla_user,
+                table_name=table_name,
+                product_name=product_name,
+                change_comment=change_comment,
+                details={
                     "rowid": rowid,
                     "affected_rows": 1,
                     "user_defined_id": key_values,
-                    "change_comment": change_comment,
-                    "product_name": product_name,
                     "old_values": old_values,
                     "new_values": changes,
-                }
+                },
             )
 
             self.conn.execute(
@@ -435,12 +490,11 @@ class DMLOperations:
         changes = ChangeUtils.normalize_change_dict(changes)
         set_clause = ", ".join(f'"{col}" = ?' for col in changes)
 
-        with self.transaction():
+        with self._transaction():
             affected = self.conn.execute(
                 f"SELECT count(*) FROM {table_name} WHERE {where}"
             ).fetchone()[0]
             if affected == 0:
-                self.conn.execute("ROLLBACK")
                 logger.warning("update_where matched 0 rows in '%s'", table_name)
                 return
 
@@ -449,20 +503,20 @@ class DMLOperations:
                 list(changes.values()),
             )
 
-            extra_info = json.dumps(
-                {
-                    "change_type": "UPDATE",
-                    "change_event": "A",
-                    "change_event_reason": change_event_reason,
-                    "changed_by": dapla_user,
-                    "table_name": table_name,
-                    "product_name": product_name,
+            extra_info = self._build_audit_metadata(
+                change_type="UPDATE",
+                change_event="A",
+                change_event_reason=change_event_reason,
+                changed_by=dapla_user,
+                table_name=table_name,
+                product_name=product_name,
+                change_comment=change_comment,
+                details={
                     "affected_rows": affected,
                     "where_clause": where,
                     "updates": [f"{c}: {v!r}" for c, v in changes.items()],
-                    "change_comment": change_comment,
                 },
-                default=str,
+                json_default=str,
             )
             self._call_set_commit_message(dapla_user, extra_info)
 
@@ -518,7 +572,7 @@ class DMLOperations:
         tag_dict = self._get_tag_dict(table_name)
         product_name = tag_dict.get("product_name")
 
-        with self.transaction():
+        with self._transaction():
 
             # select the rows to delete, using the same `where` filter as view()
             matches = self.conn.execute(
@@ -530,21 +584,21 @@ class DMLOperations:
                 logger.error(msg)
                 raise ValueError(msg)
 
-            extra_info = json.dumps(
-                {
-                    "change_type": "DELETE",
-                    "change_event": "M",
-                    "change_event_reason": change_event_reason,
-                    "changed_by": dapla_user,
-                    "table_name": table_name,
+            extra_info = self._build_audit_metadata(
+                change_type="DELETE",
+                change_event="M",
+                change_event_reason=change_event_reason,
+                changed_by=dapla_user,
+                table_name=table_name,
+                product_name=product_name,
+                change_comment=change_comment,
+                details={
                     "where_clause": where,
                     "affected_rows": len(matches),
                     "user_defined_id": None,
-                    "change_comment": change_comment,
-                    "product_name": product_name,
                     "old_values": None,
                     "new_values": None,
-                }
+                },
             )
 
             self.conn.execute(f"DELETE FROM {table_name} WHERE {where}")
@@ -655,22 +709,22 @@ class DMLOperations:
 
         self._validate_table_and_columns(table_name, column_dict)
 
-        extra_info = json.dumps(
-            {
-                "change_type": "UPDATE",
-                "change_event": "A",
-                "change_event_reason": change_event_reason,
-                "changed_by": dapla_user,
-                "table_name": table_name,
+        extra_info = self._build_audit_metadata(
+            change_type="UPDATE",
+            change_event="A",
+            change_event_reason=change_event_reason,
+            changed_by=dapla_user,
+            table_name=table_name,
+            product_name=product_name,
+            change_comment=change_comment,
+            details={
                 "affected_rows": len(changes.keys()),
-                "change_comment": change_comment,
-                "product_name": product_name,
                 "updated_columns": list(column_dict.keys()),
                 "script_id": script_id,
                 "script_info": script_info,
-            }
+            },
         )
-        with self.transaction():
+        with self._transaction():
             if column_dict:
                 self._bulk_update_rows(table_name, changes, list(column_dict))
 
