@@ -12,6 +12,24 @@ logger = logging.getLogger(__name__)
 _CLOSED_MSG = "Connection is closed."
 
 
+class DuckDBGCSFileSystem(gcsfs.GCSFileSystem):  # type: ignore[misc]
+    """GCS filesystem tuned for registration with DuckDB.
+
+    DuckDB opens files through ``fs.open(path, mode)`` and issues its own
+    large range reads (Parquet footers and column chunks), so extra caching in
+    fsspec only adds bytes. Since gcsfs 2026 the default ``cache_type`` is
+    ``"adaptive"``, which starts a background prefetch task per opened file.
+    These tasks speculatively download data DuckDB never asks for and are
+    often left pending when DuckDB closes the file, producing
+    ``Task was destroyed but it is pending!`` warnings. Defaulting to
+    ``cache_type="none"`` avoids both.
+    """
+
+    def _open(self, path: str, mode: str = "rb", **kwargs: Any) -> Any:
+        kwargs.setdefault("cache_type", "none")
+        return super()._open(path, mode, **kwargs)
+
+
 def connect(extensions: tuple[str, ...] = ()) -> duckdb.DuckDBPyConnection:
     """Open a DuckDB connection and load extensions installed from PyPI.
 
@@ -82,9 +100,7 @@ class DuckDBConnection:
         """
         self._conn = connect(("httpfs", "ducklake", "postgres"))
 
-        fs = gcsfs.GCSFileSystem()
-
-        self._conn.register_filesystem(fs)
+        self._conn.register_filesystem(DuckDBGCSFileSystem())
 
         self._conn.sql(f"""
             ATTACH 'ducklake:postgres:

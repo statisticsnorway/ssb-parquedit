@@ -2,9 +2,8 @@
 
 import logging
 
-import gcsfs
-
 from .connection import DuckDBConnection
+from .connection import DuckDBGCSFileSystem
 from .connection import connect
 from .functions import create_config
 
@@ -41,8 +40,7 @@ class LocalCatalogGCSDataConnection(DuckDBConnection):
         self.metadata_schema = self.db_config["metadata_schema"]
         self._conn = connect(("ducklake",))
 
-        fs = gcsfs.GCSFileSystem()
-        self._conn.register_filesystem(fs)
+        self._conn.register_filesystem(DuckDBGCSFileSystem())
 
         self._conn.sql(f"""
             ATTACH 'ducklake:{self.catalog_path}' AS {self.catalog_name}

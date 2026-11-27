@@ -43,7 +43,7 @@ class TestParquEditLocalWithGCSData(unittest.TestCase):
         catalog_name = None
         with (
             patch("ssb_parquedit.local_backup.connect"),
-            patch("ssb_parquedit.local_backup.gcsfs"),
+            patch("ssb_parquedit.local_backup.DuckDBGCSFileSystem"),
             self.assertRaises(AssertionError),
         ):
             ParquEdit.local_with_gcs_data(catalog_path, catalog_name)  # type: ignore
@@ -53,7 +53,7 @@ class TestParquEditLocalWithGCSData(unittest.TestCase):
         catalog_name = "some"
         with (
             patch("ssb_parquedit.local_backup.connect"),
-            patch("ssb_parquedit.local_backup.gcsfs"),
+            patch("ssb_parquedit.local_backup.DuckDBGCSFileSystem"),
         ):
             pe = ParquEdit.local_with_gcs_data(catalog_path, catalog_name)
             self.assertEqual(

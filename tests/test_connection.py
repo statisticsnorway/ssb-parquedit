@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from ssb_parquedit.connection import DuckDBConnection
+from ssb_parquedit.connection import DuckDBGCSFileSystem
 from ssb_parquedit.local import LocalDuckDBConnection
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ def _sql_calls(mock_conn: MagicMock) -> list[str]:
 
 
 class TestDuckDBconnection:
-    @patch("ssb_parquedit.connection.gcsfs.GCSFileSystem")
+    @patch("ssb_parquedit.connection.DuckDBGCSFileSystem")
     @patch("ssb_parquedit.connection.duckdb.connect")
     def test_init(self, mock_connect: MagicMock, _mock_gcsf: MagicMock) -> None:
         db_config = DB_CONFIG
@@ -118,3 +119,17 @@ class TestDuckDBconnection:
             AUTOMATIC_MIGRATION TRUE);
             """ in calls
         assert f"USE {db_config['catalog_name']}" in calls
+
+
+class TestDuckDBGCSFileSystem:
+    """gcsfs' default "adaptive" cache leaks prefetch tasks when used by DuckDB."""
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [({}, "none"), ({"cache_type": "readahead"}, "readahead")],
+    )
+    def test_open_cache_type(self, kwargs: dict[str, str], expected: str) -> None:
+        fs = DuckDBGCSFileSystem(token="anon", skip_instance_cache=True)
+        with patch.object(DuckDBGCSFileSystem.__bases__[0], "_open") as parent_open:
+            fs._open("gs://bucket/key.parquet", "rb", **kwargs)
+        assert parent_open.call_args.kwargs["cache_type"] == expected
